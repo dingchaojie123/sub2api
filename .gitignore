@@ -143,3 +143,5 @@ docs/*
 frontend/coverage/
 aicodex
 output/
+sub2api-deploy/*
+sub2api-deploy_/*
