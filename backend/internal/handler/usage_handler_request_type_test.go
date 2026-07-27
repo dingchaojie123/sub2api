@@ -151,6 +151,20 @@ func TestUserUsageListAdvancedFilters(t *testing.T) {
 	require.NotNil(t, repo.listFilters.EndTime)
 }
 
+func TestUserUsageListParsesPlatformFilter(t *testing.T) {
+	repo := &userUsageRepoCapture{}
+	router := newUserUsageRequestTypeTestRouter(repo)
+
+	req := httptest.NewRequest(http.MethodGet, "/usage?platform=jimeng&model=video-v1", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, int64(42), repo.listFilters.UserID)
+	require.Equal(t, "jimeng", repo.listFilters.Platform)
+	require.Equal(t, "video-v1", repo.listFilters.Model)
+}
+
 func TestUserUsageListInvalidBillingMode(t *testing.T) {
 	repo := &userUsageRepoCapture{}
 	router := newUserUsageRequestTypeTestRouter(repo)
@@ -246,13 +260,14 @@ func TestUserUsageStatsUsesScopedFilters(t *testing.T) {
 	}
 	router := newUserUsageRequestTypeTestRouter(repo)
 
-	req := httptest.NewRequest(http.MethodGet, "/usage/stats?group_id=9&request_type=sync&billing_mode=token&start_date=2026-03-01&end_date=2026-03-02", nil)
+	req := httptest.NewRequest(http.MethodGet, "/usage/stats?group_id=9&platform=jimeng&request_type=sync&billing_mode=token&start_date=2026-03-01&end_date=2026-03-02", nil)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, int64(42), repo.statsFilters.UserID)
 	require.Equal(t, int64(9), repo.statsFilters.GroupID)
+	require.Equal(t, "jimeng", repo.statsFilters.Platform)
 	require.Equal(t, usagestats.ModelSourceRequested, repo.statsFilters.ModelFilterSource)
 	require.NotNil(t, repo.statsFilters.RequestType)
 	require.Equal(t, int16(service.RequestTypeSync), *repo.statsFilters.RequestType)

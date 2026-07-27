@@ -247,12 +247,13 @@ const pageSize = ref(10)
 let searchTimeout: ReturnType<typeof setTimeout>
 
 const platformColorClass = computed(() => {
-  switch (props.group?.platform) {
-    case 'anthropic': return 'text-orange-700 dark:text-orange-400'
-    case 'openai': return 'text-emerald-700 dark:text-emerald-400'
-    case 'antigravity': return 'text-purple-700 dark:text-purple-400'
-    default: return 'text-blue-700 dark:text-blue-400'
-  }
+	switch (props.group?.platform) {
+	case 'anthropic': return 'text-orange-700 dark:text-orange-400'
+	case 'openai': return 'text-emerald-700 dark:text-emerald-400'
+	case 'antigravity': return 'text-purple-700 dark:text-purple-400'
+	case 'jimeng': return 'text-rose-700 dark:text-rose-400'
+	default: return 'text-blue-700 dark:text-blue-400'
+	}
 })
 
 const isDirty = computed(() => {

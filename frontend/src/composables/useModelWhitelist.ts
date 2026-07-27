@@ -159,6 +159,9 @@ const xaiModels = [
   'grok-imagine-video-1.5'
 ]
 
+export const JIMENG_FIXED_MODEL = 'seedance 2.0'
+const jimengModels = [JIMENG_FIXED_MODEL]
+
 // Cohere
 const cohereModels = [
   'command-a-03-2025',
@@ -239,6 +242,7 @@ const allModelsList: string[] = [
   ...mistralModels,
   ...metaModels,
   ...xaiModels,
+  ...jimengModels,
   ...cohereModels,
   ...yiModels,
   ...moonshotModels,
@@ -408,7 +412,10 @@ export const commonErrorCodes = [
 // 按平台获取模型
 export function getModelsByPlatform(platform: string): string[] {
   switch (platform) {
-    case 'openai': return openaiModels
+    case 'openai':
+      return openaiModels
+    case 'jimeng':
+      return jimengModels
     case 'anthropic':
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
@@ -436,6 +443,16 @@ export function getModelsByPlatform(platform: string): string[] {
 // 按平台获取预设映射
 export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'openai') return openaiPresetMappings
+  if (platform === 'jimeng') {
+    return [
+      {
+        label: 'Seedance 2.0',
+        from: JIMENG_FIXED_MODEL,
+        to: JIMENG_FIXED_MODEL,
+        color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400'
+      }
+    ]
+  }
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   if (platform === 'antigravity') return antigravityPresetMappings

@@ -136,6 +136,32 @@ func appendUsageLogModelQueryFilter(query string, args []any, model string, sour
 	return query, args
 }
 
+func appendUsageLogPlatformWhereCondition(conditions []string, args []any, platform string, alias string) ([]string, []any) {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return conditions, args
+	}
+	prefix := ""
+	if strings.TrimSpace(alias) != "" {
+		prefix = strings.TrimSpace(alias) + "."
+	}
+	conditions = append(conditions, fmt.Sprintf(
+		"EXISTS (SELECT 1 FROM accounts a WHERE a.id = %saccount_id AND a.platform = $%d)",
+		prefix,
+		len(args)+1,
+	))
+	args = append(args, platform)
+	return conditions, args
+}
+
+func appendUsageLogPlatformQueryFilter(query string, args []any, platform string, alias string) (string, []any) {
+	conditions, args := appendUsageLogPlatformWhereCondition(nil, args, platform, alias)
+	if len(conditions) == 0 {
+		return query, args
+	}
+	return query + " AND " + conditions[0], args
+}
+
 type usageLogRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor

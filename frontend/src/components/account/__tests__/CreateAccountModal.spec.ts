@@ -134,6 +134,18 @@ async function submitApiKeyAccount(
   return wrapper
 }
 
+async function fillJimengApiKeyAccount(wrapper: ReturnType<typeof mountModal>) {
+  await selectButtonByText(wrapper, '即梦')
+  await flushPromises()
+  await wrapper.get('form#create-account-form input[data-tour="account-form-name"]').setValue('Jimeng account')
+  const baseUrlInput = wrapper
+    .findAll('input[type="text"]')
+    .find(input => input.attributes('placeholder') === 'https://your-jimeng-proxy.example.com/v1')
+  expect(baseUrlInput).toBeDefined()
+  await baseUrlInput!.setValue('https://jimeng-proxy.example.com/v1')
+  await wrapper.get('form#create-account-form input[type="password"]').setValue('jm-key')
+}
+
 async function openCodexImportStep(toggleClicks = 0) {
   const wrapper = mountModal()
   await selectButtonByText(wrapper, 'OpenAI')
@@ -240,6 +252,40 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBeUndefined()
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBeUndefined()
+  })
+
+  it('defaults Jimeng model mapping to Seedance 2.0', async () => {
+    const wrapper = mountModal()
+    await fillJimengApiKeyAccount(wrapper)
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials?.model_mapping).toEqual({
+      'seedance 2.0': 'seedance 2.0',
+    })
+  })
+
+  it('submits Jimeng as an independent API key platform with fixed model mapping', async () => {
+    const wrapper = mountModal()
+    await fillJimengApiKeyAccount(wrapper)
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform: 'jimeng',
+      type: 'apikey',
+      credentials: {
+        base_url: 'https://jimeng-proxy.example.com/v1',
+        api_key: 'jm-key',
+        model_mapping: {
+          'seedance 2.0': 'seedance 2.0',
+        },
+      },
+    })
   })
 
   it('leaves Codex session import billing ownership to the backend', async () => {

@@ -35,7 +35,9 @@
             type="text"
             class="input"
             :placeholder="
-              account.platform === 'openai'
+              account.platform === 'jimeng'
+                ? 'https://your-jimeng-proxy.example.com/v1'
+                : account.platform === 'openai'
                 ? 'https://api.openai.com'
                 : account.platform === 'gemini'
                   ? 'https://generativelanguage.googleapis.com'
@@ -64,7 +66,9 @@
             data-lpignore="true"
             data-bwignore="true"
             :placeholder="
-              account.platform === 'openai'
+              account.platform === 'jimeng'
+                ? 'sk-...'
+                : account.platform === 'openai'
                 ? 'sk-proj-...'
                 : account.platform === 'gemini'
                   ? 'AIza...'
@@ -152,7 +156,9 @@
               <p class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
                 <span v-if="allowedModels.length === 0 && modelMappings.length === 0">{{
-                  t('admin.accounts.supportsAllModels')
+                  account.platform === 'jimeng'
+                    ? t('admin.accounts.pleaseConfigureModelMapping')
+                    : t('admin.accounts.supportsAllModels')
                 }}</span>
               </p>
             </div>
@@ -489,7 +495,7 @@
         </div>
       </div>
 
-      <!-- Header Override Section (anthropic/openai apikey + grok apikey/oauth) -->
+      <!-- Header Override Section (anthropic/openai/jimeng apikey + grok apikey/oauth) -->
       <div v-if="headerOverrideCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <div>
@@ -2642,6 +2648,7 @@ import {
 } from '@/utils/openaiWsMode'
 import {
   getPresetMappingsByPlatform,
+  getModelsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
   splitModelMappingObject,
@@ -2672,6 +2679,7 @@ const isSparkShadow = computed(() => props.account?.parent_account_id != null)
 // Platform-specific hint for Base URL
 const baseUrlHint = computed(() => {
   if (!props.account) return t('admin.accounts.baseUrlHint')
+  if (props.account.platform === 'jimeng') return t('admin.accounts.jimeng.baseUrlHint')
   if (props.account.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (props.account.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (props.account.platform === 'grok') return ''
@@ -3120,6 +3128,7 @@ const tempUnschedPresets = computed(() => [
 
 // Computed: default base URL based on platform
 const defaultBaseUrl = computed(() => {
+  if (props.account?.platform === 'jimeng') return ''
   if (props.account?.platform === 'openai') return 'https://api.openai.com'
   if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
   if (props.account?.platform === 'grok') return 'https://api.x.ai/v1'
@@ -3412,7 +3421,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
   loadTempUnschedRules(credentials)
 
-  // Load header override state (anthropic/openai apikey + grok apikey/oauth)
+  // Load header override state (anthropic/openai/jimeng apikey + grok apikey/oauth)
   headerOverrideEnabled.value = false
   headerOverrideRows.value = []
   if (newAccount.credentials && isHeaderOverrideCapable(newAccount.platform, newAccount.type)) {
@@ -3446,7 +3455,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   if (newAccount.type === 'apikey' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
     const platformDefaultUrl =
-      newAccount.platform === 'openai'
+      newAccount.platform === 'jimeng'
+        ? ''
+        : newAccount.platform === 'openai'
         ? 'https://api.openai.com'
         : newAccount.platform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
@@ -3457,6 +3468,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
+    if (newAccount.platform === 'jimeng') {
+      allowedModels.value = [...getModelsByPlatform('jimeng')]
+      modelRestrictionMode.value = 'whitelist'
+    }
 
     // Load pool mode
     poolModeEnabled.value = credentials.pool_mode === true
@@ -3517,7 +3532,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
   } else {
     const platformDefaultUrl =
-      newAccount.platform === 'openai'
+      newAccount.platform === 'jimeng'
+        ? ''
+        : newAccount.platform === 'openai'
         ? 'https://api.openai.com'
         : newAccount.platform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
@@ -3530,6 +3547,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     if ((newAccount.platform === 'openai' || newAccount.platform === 'grok') && newAccount.credentials) {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       loadModelRestrictionFromMapping(oauthCredentials.model_mapping as Record<string, unknown> | undefined)
+    } else if (newAccount.platform === 'jimeng') {
+      allowedModels.value = [...getModelsByPlatform('jimeng')]
+      modelMappings.value = []
+      modelRestrictionMode.value = 'whitelist'
     } else {
       modelRestrictionMode.value = 'whitelist'
       modelMappings.value = []
@@ -4043,6 +4064,10 @@ const handleSubmit = async () => {
     if (props.account.type === 'apikey') {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
+      if (props.account.platform === 'jimeng' && !newBaseUrl) {
+        appStore.showError(t('admin.accounts.pleaseEnterBaseUrl'))
+        return
+      }
       const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)
 
       // Always update credentials for apikey type to handle model mapping changes
@@ -4070,6 +4095,9 @@ const handleSubmit = async () => {
         const modelMapping = buildModelRestrictionMapping()
         if (modelMapping) {
           newCredentials.model_mapping = modelMapping
+        } else if (props.account.platform === 'jimeng') {
+          appStore.showError(t('admin.accounts.pleaseConfigureModelMapping'))
+          return
         } else {
           delete newCredentials.model_mapping
         }
@@ -4111,7 +4139,7 @@ const handleSubmit = async () => {
         delete newCredentials.custom_error_codes
       }
 
-      // Add header override if enabled (anthropic/openai/grok apikey)
+      // Add header override if enabled (anthropic/openai/jimeng/grok apikey)
       if (isHeaderOverrideCapable(props.account.platform, 'apikey')) {
         if (headerOverrideEnabled.value) {
           const headerError = validateHeaderOverrideRows(headerOverrideRows.value)

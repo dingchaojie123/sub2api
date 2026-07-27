@@ -807,6 +807,10 @@ func (h *AccountHandler) Create(c *gin.Context) {
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 
+	if !h.validateJimengAPIKeyForMutation(c, req.Platform, req.Type, req.Credentials, req.Extra) {
+		return
+	}
+
 	// 确定是否跳过混合渠道检查
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
@@ -940,6 +944,29 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	// base_rpm 输入校验：负值归零，超过 10000 截断
 	sanitizeExtraBaseRPM(req.Extra)
 
+	if len(req.Credentials) > 0 || strings.TrimSpace(req.Type) != "" {
+		existing, getErr := h.adminService.GetAccount(c.Request.Context(), accountID)
+		if getErr != nil {
+			response.ErrorFrom(c, getErr)
+			return
+		}
+		accountType := strings.TrimSpace(req.Type)
+		if accountType == "" {
+			accountType = existing.Type
+		}
+		credentials := existing.Credentials
+		if len(req.Credentials) > 0 {
+			credentials = req.Credentials
+		}
+		extra := existing.Extra
+		if req.Extra != nil {
+			extra = req.Extra
+		}
+		if !h.validateJimengAPIKeyForMutation(c, existing.Platform, accountType, credentials, extra) {
+			return
+		}
+	}
+
 	// 确定是否跳过混合渠道检查
 	skipCheck := req.ConfirmMixedChannelRisk != nil && *req.ConfirmMixedChannelRisk
 
@@ -985,7 +1012,7 @@ func (h *AccountHandler) Update(c *gin.Context) {
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
-// scheduleOpenAIResponsesProbe 异步触发 OpenAI APIKey 账号的 Responses API 能力探测。
+// scheduleOpenAIResponsesProbe 异步触发 OpenAI-compatible APIKey 账号的 Responses API 能力探测。
 //
 // 仅对 platform=openai && type=apikey 账号生效；其他账号无操作。
 // 探测本身在 goroutine 中执行（会发一次 HTTP 请求到上游），不会阻塞
@@ -1007,6 +1034,27 @@ func (h *AccountHandler) scheduleOpenAIResponsesProbe(account *service.Account) 
 		}()
 		h.accountTestService.ProbeOpenAIAPIKeyResponsesSupport(context.Background(), accountID)
 	}()
+}
+
+func (h *AccountHandler) validateJimengAPIKeyForMutation(c *gin.Context, platform string, accountType string, credentials map[string]any, extra map[string]any) bool {
+	if platform != service.PlatformJimeng || accountType != service.AccountTypeAPIKey {
+		return true
+	}
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return false
+	}
+	tempAccount := &service.Account{
+		Platform:    platform,
+		Type:        accountType,
+		Credentials: credentials,
+		Extra:       extra,
+	}
+	if err := h.accountTestService.ValidateJimengAPIKey(c.Request.Context(), tempAccount); err != nil {
+		response.BadRequest(c, "Jimeng API key validation failed: "+err.Error())
+		return false
+	}
+	return true
 }
 
 // Delete handles deleting an account
@@ -2344,10 +2392,10 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// Handle OpenAI accounts
-	if account.IsOpenAI() {
+	// Handle OpenAI-compatible accounts
+	if account.IsOpenAI() || account.IsJimeng() {
 		// OpenAI 自动透传会绕过常规模型改写，测试/模型列表也应回落到默认模型集。
-		if account.IsOpenAIPassthroughEnabled() {
+		if account.IsOpenAI() && account.IsOpenAIPassthroughEnabled() {
 			response.Success(c, openai.DefaultModels)
 			return
 		}

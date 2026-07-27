@@ -199,6 +199,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 			APIKeyID:          apiKeyID,
 			GroupID:           groupID,
 			Model:             strings.TrimSpace(c.Query("model")),
+			Platform:          strings.TrimSpace(c.Query("platform")),
 			ModelFilterSource: usagestats.ModelSourceRequested,
 			RequestType:       requestType,
 			Stream:            stream,

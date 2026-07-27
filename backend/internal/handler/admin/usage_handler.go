@@ -110,6 +110,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 	}
 
 	model := c.Query("model")
+	platform := strings.TrimSpace(c.Query("platform"))
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
 
 	var requestType *int16
@@ -177,6 +178,7 @@ func (h *UsageHandler) List(c *gin.Context) {
 		AccountID:   accountID,
 		GroupID:     groupID,
 		Model:       model,
+		Platform:    platform,
 		RequestType: requestType,
 		Stream:      stream,
 		BillingType: billingType,
@@ -241,6 +243,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 	}
 
 	model := c.Query("model")
+	platform := strings.TrimSpace(c.Query("platform"))
 	billingMode := strings.TrimSpace(c.Query("billing_mode"))
 
 	var requestType *int16
@@ -317,6 +320,7 @@ func (h *UsageHandler) Stats(c *gin.Context) {
 		AccountID:   accountID,
 		GroupID:     groupID,
 		Model:       model,
+		Platform:    platform,
 		RequestType: requestType,
 		Stream:      stream,
 		BillingType: billingType,

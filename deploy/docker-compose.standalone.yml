@@ -12,7 +12,8 @@
 
 services:
   sub2api:
-    image: weishaw/sub2api:latest
+    # image: weishaw/sub2api:latest
+    image: croge-registry.cn-beijing.cr.aliyuncs.com/croge/croge-token:latest
     container_name: sub2api
     restart: unless-stopped
     ulimits:

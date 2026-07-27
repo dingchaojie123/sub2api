@@ -43,6 +43,7 @@ const (
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformGrok        = domain.PlatformGrok
+	PlatformJimeng      = domain.PlatformJimeng
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -54,6 +55,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformGemini,
 	PlatformAntigravity,
 	PlatformGrok,
+	PlatformJimeng,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
@@ -64,6 +66,16 @@ func IsAllowedQuotaPlatform(s string) bool {
 		}
 	}
 	return false
+}
+
+// IsOpenAICompatiblePlatform reports whether platform uses the OpenAI-compatible gateway surface.
+func IsOpenAICompatiblePlatform(platform string) bool {
+	switch platform {
+	case PlatformOpenAI, PlatformGrok, PlatformJimeng:
+		return true
+	default:
+		return false
+	}
 }
 
 // Account type constants

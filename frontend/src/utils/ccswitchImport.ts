@@ -31,6 +31,7 @@ export function resolveCcSwitchImportConfig(
         endpoint: `${baseUrl}/antigravity`
       }
     case 'openai':
+    case 'jimeng':
       return {
         app: 'codex',
         endpoint: baseUrl,

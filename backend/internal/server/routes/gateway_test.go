@@ -98,7 +98,18 @@ func TestGatewayRoutesAlphaSearchRejectsNonOpenAIGroup(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusNotFound, w.Code)
-	require.Contains(t, w.Body.String(), "only available for OpenAI groups")
+	require.Contains(t, w.Body.String(), "only available for OpenAI-compatible groups")
+}
+
+func TestGatewayRoutesAlphaSearchAllowsJimengGroup(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformJimeng)
+	req := httptest.NewRequest(http.MethodPost, "/v1/alpha/search", strings.NewReader(`{"model":"jimeng-model"}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.NotEqual(t, http.StatusNotFound, w.Code)
 }
 
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {

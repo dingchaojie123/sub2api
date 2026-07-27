@@ -252,12 +252,16 @@ func (a *Account) IsGrok() bool {
 	return a.Platform == PlatformGrok
 }
 
+func (a *Account) IsJimeng() bool {
+	return a.Platform == PlatformJimeng
+}
+
 func (a *Account) IsGrokOAuth() bool {
 	return a.IsGrok() && a.Type == AccountTypeOAuth
 }
 
 func (a *Account) IsOpenAICompatible() bool {
-	return a != nil && (a.Platform == PlatformOpenAI || a.Platform == PlatformGrok)
+	return a != nil && IsOpenAICompatiblePlatform(a.Platform)
 }
 
 func (a *Account) GeminiOAuthType() string {
@@ -1252,6 +1256,15 @@ func (a *Account) IsOpenAIApiKey() bool {
 }
 
 func (a *Account) GetOpenAIBaseURL() string {
+	if a == nil {
+		return ""
+	}
+	if a.IsJimeng() {
+		if a.Type != AccountTypeAPIKey {
+			return ""
+		}
+		return a.GetCredential("base_url")
+	}
 	if !a.IsOpenAI() {
 		return ""
 	}
@@ -1346,7 +1359,10 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if a == nil || a.Type != AccountTypeAPIKey {
+		return ""
+	}
+	if !a.IsOpenAI() && !a.IsJimeng() {
 		return ""
 	}
 	return a.GetCredential("api_key")

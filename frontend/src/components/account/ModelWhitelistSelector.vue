@@ -104,7 +104,7 @@
     </div>
 
     <!-- Custom Model Input -->
-    <div class="mb-3">
+    <div v-if="!isJimengFixedMode" class="mb-3">
       <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.customModelName') }}</label>
       <div class="flex gap-2">
         <input
@@ -129,14 +129,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { accountsAPI } from '@/api/admin/accounts'
 import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { allModels, getModelsByPlatform, JIMENG_FIXED_MODEL } from '@/composables/useModelWhitelist'
 
 const { t } = useI18n()
 
@@ -181,7 +181,8 @@ const normalizedPlatforms = computed(() => {
   )
 })
 
-const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'jimeng'])
+const isJimengFixedMode = computed(() => normalizedPlatforms.value.length === 1 && normalizedPlatforms.value[0]?.toLowerCase() === 'jimeng')
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
     if (normalizedPlatforms.value.length === 0) return true
@@ -194,6 +195,9 @@ const canSyncUpstream = computed(() => {
 })
 
 const availableOptions = computed(() => {
+  if (isJimengFixedMode.value) {
+    return allModels.filter(model => model.value === JIMENG_FIXED_MODEL)
+  }
   if (normalizedPlatforms.value.length === 0) {
     return allModels
   }
@@ -216,16 +220,31 @@ const filteredModels = computed(() => {
   )
 })
 
+watch(
+  isJimengFixedMode,
+  (isFixed) => {
+    if (isFixed && (props.modelValue.length !== 1 || props.modelValue[0] !== JIMENG_FIXED_MODEL)) {
+      emit('update:modelValue', [JIMENG_FIXED_MODEL])
+    }
+  },
+  { immediate: true }
+)
+
 const toggleDropdown = () => {
   showDropdown.value = !showDropdown.value
   if (!showDropdown.value) searchQuery.value = ''
 }
 
 const removeModel = (model: string) => {
+  if (isJimengFixedMode.value && model === JIMENG_FIXED_MODEL) return
   emit('update:modelValue', props.modelValue.filter(m => m !== model))
 }
 
 const toggleModel = (model: string) => {
+  if (isJimengFixedMode.value) {
+    emit('update:modelValue', [JIMENG_FIXED_MODEL])
+    return
+  }
   if (props.modelValue.includes(model)) {
     removeModel(model)
   } else {
@@ -234,6 +253,7 @@ const toggleModel = (model: string) => {
 }
 
 const addCustom = () => {
+  if (isJimengFixedMode.value) return
   const model = customModel.value.trim()
   if (!model) return
   if (props.modelValue.includes(model)) {
@@ -249,6 +269,10 @@ const handleEnter = () => {
 }
 
 const fillRelated = () => {
+  if (isJimengFixedMode.value) {
+    emit('update:modelValue', [JIMENG_FIXED_MODEL])
+    return
+  }
   const newModels = [...props.modelValue]
   for (const platform of normalizedPlatforms.value) {
     for (const model of getModelsByPlatform(platform)) {
@@ -263,6 +287,12 @@ const fillRelated = () => {
 const syncUpstreamModels = async () => {
   if (isSyncingUpstream.value) return
   if (!props.accountId && !props.syncCredentials) return
+
+  if (isJimengFixedMode.value) {
+    emit('update:modelValue', [JIMENG_FIXED_MODEL])
+    appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: 1 }))
+    return
+  }
 
   isSyncingUpstream.value = true
   try {
@@ -305,6 +335,10 @@ const syncUpstreamModels = async () => {
 }
 
 const clearAll = () => {
+  if (isJimengFixedMode.value) {
+    emit('update:modelValue', [JIMENG_FIXED_MODEL])
+    return
+  }
   emit('update:modelValue', [])
 }
 

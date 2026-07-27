@@ -161,6 +161,7 @@ func TestSystemPlatformQuotas_WriteReadRoundTrip(t *testing.T) {
 	ss := &SystemSettings{
 		DefaultPlatformQuotas: map[string]*DefaultPlatformQuotaSetting{
 			"anthropic": {DailyLimitUSD: &ten, WeeklyLimitUSD: nil, MonthlyLimitUSD: nil},
+			"jimeng":    {MonthlyLimitUSD: &ten},
 		},
 	}
 	if err := svc.UpdateSettings(ctx, ss); err != nil {
@@ -180,6 +181,9 @@ func TestSystemPlatformQuotas_WriteReadRoundTrip(t *testing.T) {
 	// 写入值正确往返
 	if v := got["anthropic"].DailyLimitUSD; v == nil || *v != ten {
 		t.Fatalf("anthropic daily round-trip failed: got %v, want 10", v)
+	}
+	if v := got["jimeng"].MonthlyLimitUSD; v == nil || *v != ten {
+		t.Fatalf("jimeng monthly round-trip failed: got %v, want 10", v)
 	}
 	// 未写入的平台字段为 nil
 	if got["openai"].DailyLimitUSD != nil {

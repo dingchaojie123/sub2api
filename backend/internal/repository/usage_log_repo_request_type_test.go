@@ -337,6 +337,20 @@ func TestAppendUsageLogBillingModeQueryFilter(t *testing.T) {
 	require.Equal(t, []any{int64(42), string(service.BillingModeToken)}, args)
 }
 
+func TestAppendUsageLogPlatformWhereCondition(t *testing.T) {
+	conditions, args := appendUsageLogPlatformWhereCondition(nil, []any{int64(42)}, "jimeng", "")
+
+	require.Equal(t, []string{"EXISTS (SELECT 1 FROM accounts a WHERE a.id = account_id AND a.platform = $2)"}, conditions)
+	require.Equal(t, []any{int64(42), "jimeng"}, args)
+}
+
+func TestAppendUsageLogPlatformWhereConditionWithAlias(t *testing.T) {
+	conditions, args := appendUsageLogPlatformWhereCondition(nil, nil, "jimeng", "ul")
+
+	require.Equal(t, []string{"EXISTS (SELECT 1 FROM accounts a WHERE a.id = ul.account_id AND a.platform = $1)"}, conditions)
+	require.Equal(t, []any{"jimeng"}, args)
+}
+
 func anySliceToDriverValues(values []any) []driver.Value {
 	out := make([]driver.Value, 0, len(values))
 	for _, value := range values {

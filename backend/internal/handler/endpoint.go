@@ -25,6 +25,7 @@ const (
 	EndpointImagesEdits       = "/v1/images/edits"
 	EndpointImageTasks        = "/v1/images/tasks"
 	EndpointVideosGenerations = "/v1/videos/generations"
+	EndpointVideoGenerations  = "/v1/video/generations"
 	EndpointVideosEdits       = "/v1/videos/edits"
 	EndpointVideosExtensions  = "/v1/videos/extensions"
 	EndpointVideos            = "/v1/videos"
@@ -91,7 +92,7 @@ func NormalizeInboundEndpoint(path string) string {
 		return EndpointImagesEdits
 	case strings.Contains(path, EndpointImageTasks) || strings.Contains(path, "/images/tasks/"):
 		return EndpointImageTasks
-	case strings.Contains(path, EndpointVideosGenerations) || strings.Contains(path, "/videos/generations"):
+	case strings.Contains(path, EndpointVideosGenerations) || strings.Contains(path, EndpointVideoGenerations) || strings.Contains(path, "/videos/generations") || strings.Contains(path, "/video/generations"):
 		return EndpointVideosGenerations
 	case strings.Contains(path, EndpointVideosEdits) || strings.Contains(path, "/videos/edits"):
 		return EndpointVideosEdits
@@ -167,7 +168,7 @@ func isBareOrSubpathOf(path, root string) bool {
 // account platform and the normalized inbound endpoint.
 //
 // Platform-specific rules:
-//   - OpenAI and Grok text compatibility routes forward to /v1/responses
+//   - OpenAI, Grok, and Jimeng text compatibility routes forward to /v1/responses
 //     (with optional subpath such as /v1/responses/compact preserved from
 //     the raw URL); native endpoints such as embeddings and alpha search
 //     retain their paths. Grok raw Chat requests override this through the
@@ -181,7 +182,7 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	inbound = strings.TrimSpace(inbound)
 
 	switch platform {
-	case service.PlatformOpenAI, service.PlatformGrok:
+	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng:
 		if inbound == EndpointEmbeddings || inbound == EndpointAlphaSearch || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideosEdits || inbound == EndpointVideosExtensions || inbound == EndpointVideos {
 			return inbound
 		}

@@ -254,6 +254,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        jimeng: '即梦',
       },
       types: {
         oauth: 'OAuth',
@@ -596,6 +597,10 @@ export default {
         baseUrlHint: 'Grok OAuth 账号会转发到官方 xAI API Base URL。',
         apiKeyHint: 'Grok 订阅支持使用 OAuth refresh token；API Key 账号不在本次范围内。'
       },
+      jimeng: {
+        baseUrlHint: '请输入您自己的 OpenAI-compatible 即梦代理 Base URL。',
+        apiKeyHint: '您自己的即梦代理 API Key。'
+      },
       anthropic: {
         apiKeyPassthrough: '自动透传（仅替换认证）',
         apiKeyPassthroughDesc:
@@ -825,6 +830,8 @@ export default {
       mixedChannelWarning: '警告：分组 "{groupName}" 中同时包含 {currentPlatform} 和 {otherPlatform} 账号。混合使用不同渠道可能导致 thinking block 签名验证问题，会自动回退到非 thinking 模式。确定要继续吗？',
       pleaseEnterAccountName: '请输入账号名称',
       pleaseEnterApiKey: '请输入 API Key',
+      pleaseEnterBaseUrl: '请输入 Base URL',
+      pleaseConfigureModelMapping: '请先同步或配置至少一个模型映射',
       bedrockAccessKeyId: 'AWS Access Key ID',
       bedrockSecretAccessKey: 'AWS Secret Access Key',
       bedrockSessionToken: 'AWS Session Token',

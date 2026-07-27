@@ -17,6 +17,11 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-5.6')
   })
 
+  it('jimeng 模型列表固定为 Seedance 2.0', () => {
+    expect(getModelsByPlatform('jimeng')).toEqual(['seedance 2.0'])
+    expect(getModelsByPlatform('jimeng')).not.toEqual(getModelsByPlatform('openai'))
+  })
+
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {
     const models = getModelsByPlatform('openai')
 

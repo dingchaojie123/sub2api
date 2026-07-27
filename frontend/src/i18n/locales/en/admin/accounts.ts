@@ -104,6 +104,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         grok: 'Grok',
+        jimeng: 'Jimeng',
       },
       types: {
         oauth: 'OAuth',
@@ -536,6 +537,10 @@ export default {
         baseUrlHint: 'Grok OAuth accounts forward to the official xAI API base URL.',
         apiKeyHint: 'Grok subscription support uses OAuth refresh tokens; API keys are out of scope for this account type.'
       },
+      jimeng: {
+        baseUrlHint: 'Enter the Base URL of your OpenAI-compatible Jimeng proxy.',
+        apiKeyHint: 'API Key for your Jimeng proxy.'
+      },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',
         apiKeyPassthroughDesc:
@@ -770,6 +775,8 @@ export default {
       mixedChannelWarning: 'Warning: Group "{groupName}" contains both {currentPlatform} and {otherPlatform} accounts. Mixing different channels may cause thinking block signature validation issues, which will fallback to non-thinking mode. Are you sure you want to continue?',
       pleaseEnterAccountName: 'Please enter account name',
       pleaseEnterApiKey: 'Please enter API Key',
+      pleaseEnterBaseUrl: 'Please enter Base URL',
+      pleaseConfigureModelMapping: 'Please sync or configure at least one model mapping',
       bedrockAccessKeyId: 'AWS Access Key ID',
       bedrockSecretAccessKey: 'AWS Secret Access Key',
       bedrockSessionToken: 'AWS Session Token',
