@@ -73,7 +73,7 @@ const (
 
 	// The Grok CLI proxy rejects requests that do not identify a supported
 	// client version. Keep a known-good stable version in the binary while
-	// allowing operators to bump it without waiting for a Sub2API release.
+	// allowing operators to bump it without waiting for a Corgi release.
 	grokCLIProxyHost       = "cli-chat-proxy.grok.com"
 	grokOfficialAPIHost    = "api.x.ai"
 	grokCLIStableVersion   = "0.2.93"

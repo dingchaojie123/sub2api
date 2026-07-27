@@ -191,8 +191,8 @@ export default {
 
   // Setup Wizard
   setup: {
-    title: 'Sub2API Setup',
-    description: 'Configure your Sub2API instance',
+    title: 'Corgi Setup',
+    description: 'Configure your Corgi instance',
     database: {
       title: 'Database Configuration',
       description: 'Connect to your PostgreSQL database',
