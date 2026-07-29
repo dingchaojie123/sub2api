@@ -1,5 +1,7 @@
 docs/claude-relay-service/
 .codex
+.superpowers/
+.worktrees/
 
 # ===================
 # Go 后端
