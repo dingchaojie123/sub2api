@@ -53,6 +53,41 @@
             </button>
           </div>
         </div>
+
+        <div
+          data-test="lottery-pool-summary"
+          class="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-dark-600 dark:bg-dark-800"
+        >
+          <div class="flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+            <Icon name="gift" size="sm" class="text-amber-600 dark:text-amber-400" />
+            <span>{{ t('admin.redeem.lottery.poolSummary') }}</span>
+          </div>
+          <span v-if="lotteryPoolLoading" class="text-gray-500 dark:text-gray-400">
+            {{ t('common.loading') }}
+          </span>
+          <span
+            v-else-if="lotteryPoolSummary.length === 0"
+            class="text-gray-500 dark:text-gray-400"
+          >
+            {{ t('admin.redeem.lottery.emptyPool') }}
+          </span>
+          <div v-else class="flex flex-wrap items-center gap-2">
+            <span
+              v-for="item in lotteryPoolSummary"
+              :key="`${item.prize_name}-${item.value}`"
+              class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-300"
+            >
+              <span class="font-medium text-gray-900 dark:text-white">{{ item.prize_name }}</span>
+              <span>${{ item.value.toFixed(2) }}</span>
+              <span class="text-emerald-700 dark:text-emerald-300">
+                {{ t('admin.redeem.lottery.availableCount', { count: item.available }) }}
+              </span>
+              <span class="text-gray-500 dark:text-gray-400">
+                {{ t('admin.redeem.lottery.assignedCount', { count: item.assigned }) }}
+              </span>
+            </span>
+          </div>
+        </div>
       </template>
 
       <template #table>
@@ -209,9 +244,23 @@
           v-if="selectedCount > 0"
           class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20"
         >
-          <span class="text-sm font-medium text-primary-900 dark:text-primary-100">
-            {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
-          </span>
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-primary-900 dark:text-primary-100">
+              {{ t('admin.redeem.selectedCount', { count: selectedCount }) }}
+            </span>
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span data-test="lottery-eligible-count" class="text-emerald-700 dark:text-emerald-300">
+                {{ t('admin.redeem.lottery.selectedEligibleCount', { count: selectedLotteryEligibleCodes.length }) }}
+              </span>
+              <span
+                v-if="selectedLotteryIneligibleCount > 0"
+                data-test="lottery-ineligible-hint"
+                class="text-amber-700 dark:text-amber-300"
+              >
+                {{ t('admin.redeem.lottery.ineligibleSelectedHint', { count: selectedLotteryIneligibleCount }) }}
+              </span>
+            </div>
+          </div>
           <div class="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -222,7 +271,22 @@
             </button>
             <button
               type="button"
+              data-test="lottery-bind-selected"
               class="btn btn-primary btn-sm"
+              :disabled="lotteryBinding || selectedLotteryEligibleCodes.length === 0"
+              @click="handleBindSelectedLotteryPool"
+            >
+              <Icon
+                :name="lotteryBinding ? 'refresh' : 'gift'"
+                size="sm"
+                class="mr-1.5"
+                :class="lotteryBinding ? 'animate-spin' : ''"
+              />
+              {{ t('admin.redeem.lottery.bindSelected') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
               @click="openBatchUpdateDialog"
             >
               {{ t('admin.redeem.batchUpdate') }}
@@ -622,7 +686,8 @@ import type {
   Group,
   GroupPlatform,
   SubscriptionType,
-  BatchUpdateRedeemCodeFields
+  BatchUpdateRedeemCodeFields,
+  LotteryPoolSummary
 } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -766,6 +831,9 @@ const batchExpiryModeOptions = computed(() => [
 
 const codes = ref<RedeemCode[]>([])
 const loading = ref(false)
+const lotteryPoolLoading = ref(false)
+const lotteryBinding = ref(false)
+const lotteryPoolSummary = ref<LotteryPoolSummary[]>([])
 const generating = ref(false)
 const batchUpdating = ref(false)
 const searchQuery = ref('')
@@ -804,6 +872,21 @@ const {
   rows: codes,
   getId: (code) => code.id
 })
+
+const lotteryEligibleValues = new Set([300, 100, 50, 10])
+
+const isLotteryEligibleCode = (code: RedeemCode) =>
+  code.type === 'balance' && code.status === 'unused' && lotteryEligibleValues.has(code.value)
+
+const selectedCodes = computed(() => codes.value.filter((code) => selectedCodeIds.value.has(code.id)))
+
+const selectedLotteryEligibleCodes = computed(() =>
+  selectedCodes.value.filter((code) => isLotteryEligibleCode(code))
+)
+
+const selectedLotteryIneligibleCount = computed(
+  () => selectedCodes.value.length - selectedLotteryEligibleCodes.value.length
+)
 
 const batchUpdateForm = reactive({
   update_status: false,
@@ -894,6 +977,18 @@ const loadCodes = async () => {
       loading.value = false
       abortController = null
     }
+  }
+}
+
+const loadLotteryPoolSummary = async () => {
+  lotteryPoolLoading.value = true
+  try {
+    lotteryPoolSummary.value = await adminAPI.lottery.getPool()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.redeem.lottery.failedToLoadPool'))
+    console.error('Error loading lottery pool summary:', error)
+  } finally {
+    lotteryPoolLoading.value = false
   }
 }
 
@@ -1167,6 +1262,27 @@ const handleBatchUpdate = async () => {
   }
 }
 
+const handleBindSelectedLotteryPool = async () => {
+  const ids = selectedLotteryEligibleCodes.value.map((code) => code.id)
+  if (ids.length === 0) {
+    appStore.showInfo(t('admin.redeem.lottery.noEligibleSelected'))
+    return
+  }
+
+  lotteryBinding.value = true
+  try {
+    const result = await adminAPI.lottery.bindPool(ids)
+    appStore.showSuccess(t('admin.redeem.lottery.bindSuccess', { count: result.bound }))
+    clearSelectedCodes()
+    await Promise.all([loadCodes(), loadLotteryPoolSummary()])
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || t('admin.redeem.lottery.failedToBind'))
+    console.error('Error binding lottery pool codes:', error)
+  } finally {
+    lotteryBinding.value = false
+  }
+}
+
 // 加载订阅类型分组
 const loadSubscriptionGroups = async () => {
   try {
@@ -1179,6 +1295,7 @@ const loadSubscriptionGroups = async () => {
 
 onMounted(() => {
   loadCodes()
+  loadLotteryPoolSummary()
   loadSubscriptionGroups()
 })
 

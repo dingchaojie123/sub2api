@@ -60,6 +60,15 @@ type IdempotencyRecord func(*sql.Selector)
 // IdentityAdoptionDecision is the predicate function for identityadoptiondecision builders.
 type IdentityAdoptionDecision func(*sql.Selector)
 
+// LotteryChanceLedger is the predicate function for lotterychanceledger builders.
+type LotteryChanceLedger func(*sql.Selector)
+
+// LotteryDrawRecord is the predicate function for lotterydrawrecord builders.
+type LotteryDrawRecord func(*sql.Selector)
+
+// LotteryPrizePoolCode is the predicate function for lotteryprizepoolcode builders.
+type LotteryPrizePoolCode func(*sql.Selector)
+
 // PaymentAuditLog is the predicate function for paymentauditlog builders.
 type PaymentAuditLog func(*sql.Selector)
 

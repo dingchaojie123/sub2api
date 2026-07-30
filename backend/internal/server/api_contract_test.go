@@ -480,6 +480,124 @@ func TestAPIContracts(t *testing.T) {
 			}`,
 		},
 		{
+			name:       "GET /api/v1/lottery/status",
+			method:     http.MethodGet,
+			path:       "/api/v1/lottery/status",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"available_chances": 2,
+					"daily_used": 1,
+					"daily_limit": 3
+				}
+			}`,
+		},
+		{
+			name:   "POST /api/v1/lottery/draw",
+			method: http.MethodPost,
+			path:   "/api/v1/lottery/draw",
+			headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"id": 700,
+					"user_id": 1,
+					"prize_name": "fourth",
+					"value": 10,
+					"prize_pool_code_id": 701,
+					"prize_redeem_code_id": 702,
+					"code": "PRIZE-10",
+					"created_at": "2025-01-02T03:04:05Z"
+				}
+			}`,
+		},
+		{
+			name:       "GET /api/v1/lottery/records",
+			method:     http.MethodGet,
+			path:       "/api/v1/lottery/records",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": [
+					{
+						"id": 700,
+						"user_id": 1,
+						"prize_name": "fourth",
+						"value": 10,
+						"prize_pool_code_id": 701,
+						"prize_redeem_code_id": 702,
+						"code": "PRIZE-10",
+						"created_at": "2025-01-02T03:04:05Z"
+					}
+				]
+			}`,
+		},
+		{
+			name:       "GET /api/v1/admin/lottery/pool",
+			method:     http.MethodGet,
+			path:       "/api/v1/admin/lottery/pool",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": [
+					{
+						"prize_name": "first",
+						"value": 300,
+						"available": 1,
+						"assigned": 0
+					},
+					{
+						"prize_name": "second",
+						"value": 100,
+						"available": 2,
+						"assigned": 1
+					}
+				]
+			}`,
+		},
+		{
+			name:   "POST /api/v1/admin/lottery/pool/bind",
+			method: http.MethodPost,
+			path:   "/api/v1/admin/lottery/pool/bind",
+			body:   `{"ids":[101,102,101]}`,
+			headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"bound": 2
+				}
+			}`,
+		},
+		{
+			name:   "POST /api/v1/admin/lottery/pool/unbind",
+			method: http.MethodPost,
+			path:   "/api/v1/admin/lottery/pool/unbind",
+			body:   `{"ids":[101]}`,
+			headers: map[string]string{
+				"Content-Type": "application/json",
+			},
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"unbound": 1
+				}
+			}`,
+		},
+		{
 			name: "GET /api/v1/usage/stats",
 			setup: func(t *testing.T, deps *contractDeps) {
 				t.Helper()
@@ -832,7 +950,7 @@ func TestAPIContracts(t *testing.T) {
 					"force_email_on_third_party_signup": false,
 					"default_concurrency": 5,
 					"default_balance": 1.25,
-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
+					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"jimeng":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
 					"auth_source_default_email_platform_quotas": null,
 					"auth_source_default_github_platform_quotas": null,
 					"auth_source_default_google_platform_quotas": null,
@@ -1112,7 +1230,7 @@ func TestAPIContracts(t *testing.T) {
 					"purchase_subscription_url": "",
 					"table_default_page_size": 20,
 					"table_page_size_options": [10, 20, 50],
-					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
+					"default_platform_quotas": {"anthropic":{"daily":null,"weekly":null,"monthly":null},"antigravity":{"daily":null,"weekly":null,"monthly":null},"gemini":{"daily":null,"weekly":null,"monthly":null},"grok":{"daily":null,"weekly":null,"monthly":null},"jimeng":{"daily":null,"weekly":null,"monthly":null},"openai":{"daily":null,"weekly":null,"monthly":null}},
 					"auth_source_default_email_platform_quotas": null,
 					"auth_source_default_github_platform_quotas": null,
 					"auth_source_default_google_platform_quotas": null,
@@ -1371,6 +1489,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	accountRepo := stubAccountRepo{}
 	proxyRepo := stubProxyRepo{}
 	redeemRepo := &stubRedeemCodeRepo{}
+	lotteryRepo := &stubLotteryRepo{now: now}
 
 	cfg := &config.Config{
 		Default: config.DefaultConfig{
@@ -1390,6 +1509,8 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	redeemService := service.NewRedeemService(redeemRepo, userRepo, subscriptionService, nil, nil, nil, nil, nil)
 	redeemHandler := handler.NewRedeemHandler(redeemService)
+	lotteryService := service.NewLotteryService(lotteryRepo)
+	lotteryHandler := handler.NewLotteryHandler(lotteryService)
 
 	settingRepo := newStubSettingRepo()
 	settingService := service.NewSettingService(settingRepo, cfg)
@@ -1400,6 +1521,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	usageHandler := handler.NewUsageHandler(usageService, apiKeyService, nil, nil)
 	adminSettingHandler := adminhandler.NewSettingHandler(settingService, nil, nil, nil, nil, nil, nil)
 	adminAccountHandler := adminhandler.NewAccountHandler(adminService, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	adminLotteryHandler := adminhandler.NewLotteryHandler(lotteryService)
 
 	jwtAuth := func(c *gin.Context) {
 		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{
@@ -1445,10 +1567,19 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Redeem.Use(jwtAuth)
 	v1Redeem.GET("/redeem/history", redeemHandler.GetHistory)
 
+	v1Lottery := v1.Group("")
+	v1Lottery.Use(jwtAuth)
+	v1Lottery.GET("/lottery/status", lotteryHandler.GetStatus)
+	v1Lottery.POST("/lottery/draw", lotteryHandler.Draw)
+	v1Lottery.GET("/lottery/records", lotteryHandler.ListRecords)
+
 	v1Admin := v1.Group("/admin")
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
+	v1Admin.GET("/lottery/pool", adminLotteryHandler.GetPool)
+	v1Admin.POST("/lottery/pool/bind", adminLotteryHandler.BindPoolCodes)
+	v1Admin.POST("/lottery/pool/unbind", adminLotteryHandler.UnbindPoolCodes)
 
 	return &contractDeps{
 		now:         now,
@@ -2797,6 +2928,65 @@ func (r *stubSettingRepo) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+type stubLotteryRepo struct {
+	now time.Time
+}
+
+func (r *stubLotteryRepo) AddChanceGrant(ctx context.Context, userID int64, sourceRedeemCodeID int64, chances int) error {
+	return nil
+}
+
+func (r *stubLotteryRepo) GetAvailableChances(ctx context.Context, userID int64) (int, error) {
+	return 2, nil
+}
+
+func (r *stubLotteryRepo) CountDrawsToday(ctx context.Context, userID int64, now time.Time, loc *time.Location) (int, error) {
+	return 1, nil
+}
+
+func (r *stubLotteryRepo) DrawWithPrizeCode(ctx context.Context, userID int64, prize service.LotteryPrize, now time.Time) (*service.LotteryDrawRecord, error) {
+	return &service.LotteryDrawRecord{
+		ID:                700,
+		UserID:            userID,
+		PrizeName:         "fourth",
+		PrizeValue:        10,
+		PrizePoolCodeID:   701,
+		PrizeRedeemCodeID: 702,
+		Code:              "PRIZE-10",
+		CreatedAt:         r.now,
+	}, nil
+}
+
+func (r *stubLotteryRepo) ListUserDrawRecords(ctx context.Context, userID int64, limit int) ([]service.LotteryDrawRecord, error) {
+	return []service.LotteryDrawRecord{
+		{
+			ID:                700,
+			UserID:            userID,
+			PrizeName:         "fourth",
+			PrizeValue:        10,
+			PrizePoolCodeID:   701,
+			PrizeRedeemCodeID: 702,
+			Code:              "PRIZE-10",
+			CreatedAt:         r.now,
+		},
+	}, nil
+}
+
+func (r *stubLotteryRepo) BindPrizeCodes(ctx context.Context, ids []int64) (int64, error) {
+	return 2, nil
+}
+
+func (r *stubLotteryRepo) UnbindPrizeCodes(ctx context.Context, ids []int64) (int64, error) {
+	return 1, nil
+}
+
+func (r *stubLotteryRepo) GetPoolSummary(ctx context.Context) ([]service.LotteryPoolSummaryItem, error) {
+	return []service.LotteryPoolSummaryItem{
+		{PrizeName: "first", Value: 300, Available: 1, Assigned: 0},
+		{PrizeName: "second", Value: 100, Available: 2, Assigned: 1},
+	}, nil
+}
+
 func paginateLogs(logs []service.UsageLog, params pagination.PaginationParams) []service.UsageLog {
 	start := params.Offset()
 	if start > len(logs) {
@@ -2834,4 +3024,5 @@ var (
 	_ service.UserSubscriptionRepository = (*stubUserSubscriptionRepo)(nil)
 	_ service.UsageLogRepository         = (*stubUsageLogRepo)(nil)
 	_ service.SettingRepository          = (*stubSettingRepo)(nil)
+	_ service.LotteryRepository          = (*stubLotteryRepo)(nil)
 )

@@ -21,6 +21,7 @@ type AdminHandlers struct {
 	GrokOAuth              *admin.GrokOAuthHandler
 	Proxy                  *admin.ProxyHandler
 	Redeem                 *admin.RedeemHandler
+	Lottery                *admin.LotteryHandler
 	Promo                  *admin.PromoHandler
 	Setting                *admin.SettingHandler
 	Ops                    *admin.OpsHandler
@@ -50,6 +51,7 @@ type Handlers struct {
 	APIKey           *APIKeyHandler
 	Usage            *UsageHandler
 	Redeem           *RedeemHandler
+	Lottery          *LotteryHandler
 	Subscription     *SubscriptionHandler
 	Announcement     *AnnouncementHandler
 	ChannelMonitor   *ChannelMonitorUserHandler

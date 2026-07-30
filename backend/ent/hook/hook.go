@@ -225,6 +225,42 @@ func (f IdentityAdoptionDecisionFunc) Mutate(ctx context.Context, m ent.Mutation
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.IdentityAdoptionDecisionMutation", m)
 }
 
+// The LotteryChanceLedgerFunc type is an adapter to allow the use of ordinary
+// function as LotteryChanceLedger mutator.
+type LotteryChanceLedgerFunc func(context.Context, *ent.LotteryChanceLedgerMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LotteryChanceLedgerFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LotteryChanceLedgerMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LotteryChanceLedgerMutation", m)
+}
+
+// The LotteryDrawRecordFunc type is an adapter to allow the use of ordinary
+// function as LotteryDrawRecord mutator.
+type LotteryDrawRecordFunc func(context.Context, *ent.LotteryDrawRecordMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LotteryDrawRecordFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LotteryDrawRecordMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LotteryDrawRecordMutation", m)
+}
+
+// The LotteryPrizePoolCodeFunc type is an adapter to allow the use of ordinary
+// function as LotteryPrizePoolCode mutator.
+type LotteryPrizePoolCodeFunc func(context.Context, *ent.LotteryPrizePoolCodeMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f LotteryPrizePoolCodeFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.LotteryPrizePoolCodeMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.LotteryPrizePoolCodeMutation", m)
+}
+
 // The PaymentAuditLogFunc type is an adapter to allow the use of ordinary
 // function as PaymentAuditLog mutator.
 type PaymentAuditLogFunc func(context.Context, *ent.PaymentAuditLogMutation) (ent.Value, error)

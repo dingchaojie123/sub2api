@@ -397,6 +397,36 @@ func (s *RedeemCodeRepoSuite) TestUse_AlreadyUsed() {
 	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
 }
 
+func (s *RedeemCodeRepoSuite) TestUse_LotteryPoolCodeCanOnlyBeRedeemedByAssignedUser() {
+	winner := s.createUser(uniqueTestValue(s.T(), "lottery-winner") + "@example.com")
+	other := s.createUser(uniqueTestValue(s.T(), "lottery-other") + "@example.com")
+	code := &service.RedeemCode{Code: "LOTTERY-RESERVED", Type: service.RedeemTypeBalance, Value: 10, Status: service.StatusUnused}
+	s.Require().NoError(s.repo.Create(s.ctx, code))
+
+	pool, err := s.client.LotteryPrizePoolCode.Create().
+		SetRedeemCodeID(code.ID).
+		SetPrizeValue(10).
+		SetStatus("available").
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	err = s.repo.Use(s.ctx, code.ID, winner.ID)
+	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+
+	_, err = s.client.LotteryPrizePoolCode.UpdateOneID(pool.ID).
+		SetStatus("assigned").
+		SetAssignedToUserID(winner.ID).
+		SetAssignedAt(time.Now()).
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	err = s.repo.Use(s.ctx, code.ID, other.ID)
+	s.Require().ErrorIs(err, service.ErrRedeemCodeUsed)
+
+	err = s.repo.Use(s.ctx, code.ID, winner.ID)
+	s.Require().NoError(err)
+}
+
 // --- ListByUser ---
 
 func (s *RedeemCodeRepoSuite) TestListByUser() {

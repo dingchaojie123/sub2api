@@ -3,10 +3,19 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import RedeemView from '../RedeemView.vue'
 
-const { listRedeemCodes, batchUpdateRedeemCodes, getAllGroups, showSuccess, showError, showInfo } =
+const {
+  listRedeemCodes,
+  batchUpdateRedeemCodes,
+  getLotteryPool,
+  getAllGroups,
+  showSuccess,
+  showError,
+  showInfo
+} =
   vi.hoisted(() => ({
     listRedeemCodes: vi.fn(),
     batchUpdateRedeemCodes: vi.fn(),
+    getLotteryPool: vi.fn(),
     getAllGroups: vi.fn(),
     showSuccess: vi.fn(),
     showError: vi.fn(),
@@ -25,6 +34,11 @@ vi.mock('@/api/admin', () => ({
     },
     groups: {
       getAll: getAllGroups
+    },
+    lottery: {
+      getPool: getLotteryPool,
+      bindPool: vi.fn(),
+      unbindPool: vi.fn()
     }
   }
 }))
@@ -106,6 +120,7 @@ describe('admin RedeemView batch update', () => {
 
     listRedeemCodes.mockReset()
     batchUpdateRedeemCodes.mockReset()
+    getLotteryPool.mockReset()
     getAllGroups.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
@@ -142,6 +157,7 @@ describe('admin RedeemView batch update', () => {
       pages: 1
     })
     batchUpdateRedeemCodes.mockResolvedValue({ updated: 1, message: 'ok' })
+    getLotteryPool.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
   })
 

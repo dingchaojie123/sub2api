@@ -156,6 +156,7 @@ export default {
     batchImage: 'Batch Images',
     usage: 'Usage',
     redeem: 'Redeem',
+    lottery: 'Lucky Wheel',
     affiliate: 'Affiliate Rebates',
     affiliateManagement: 'Affiliate Rebates',
     affiliateInviteRecords: 'Invite Records',

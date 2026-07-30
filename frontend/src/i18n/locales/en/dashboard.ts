@@ -609,6 +609,40 @@ export default {
     pleaseEnterCode: 'Please enter a redeem code'
   },
 
+  // Lottery
+  lottery: {
+    title: 'Lucky Wheel',
+    description: 'Use your lottery chances to win redeem codes',
+    availableChances: 'Available Chances',
+    todayUsed: 'Today',
+    dailyLimit: 'Daily Limit',
+    dailyUsage: '{used}/{limit}',
+    loading: 'Loading...',
+    drawButton: 'Spin the Wheel',
+    drawing: 'Spinning...',
+    noChancesButton: 'No Chances Left',
+    dailyLimitReached: 'Daily Limit Reached',
+    rulesTitle: 'Prize Rules',
+    prize: 'Prize',
+    probability: 'Probability',
+    firstPrize: 'First Prize',
+    secondPrize: 'Second Prize',
+    thirdPrize: 'Third Prize',
+    fourthPrize: 'Fourth Prize',
+    recordsTitle: 'Winning Records',
+    noRecords: 'Winning records will appear here',
+    copy: 'Copy',
+    copyCode: 'Copy Code',
+    copied: 'Copied',
+    redeemCode: 'Redeem Code',
+    winTitle: 'Congratulations!',
+    loadFailed: 'Unable to load lottery data',
+    statusFailed: 'Failed to load lottery status.',
+    recordsFailed: 'Failed to load winning records.',
+    drawFailed: 'Failed to draw. Please try again.',
+    copyFailed: 'Failed to copy the redeem code.'
+  },
+
   // Profile
   profile: {
     title: 'Profile Settings',

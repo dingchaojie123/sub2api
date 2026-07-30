@@ -243,6 +243,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/lottery',
+    name: 'Lottery',
+    component: () => import('@/views/user/LotteryView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Lucky Wheel',
+      titleKey: 'lottery.title',
+      descriptionKey: 'lottery.description'
+    }
+  },
+  {
     path: '/affiliate',
     name: 'Affiliate',
     component: () => import('@/views/user/AffiliateView.vue'),

@@ -281,6 +281,19 @@ export default {
       noBatchFieldsSelected: '请至少勾选一个要修改的字段',
       batchUpdateSuccess: '成功修改 {count} 个兑换码',
       failedToBatchUpdate: '批量修改兑换码失败',
+      lottery: {
+        poolSummary: '抽奖奖池',
+        emptyPool: '奖池暂无兑换码',
+        availableCount: '可用 {count}',
+        assignedCount: '已分配 {count}',
+        selectedEligibleCount: '{count} 个可加入奖池',
+        ineligibleSelectedHint: '{count} 个已选兑换码不符合余额 $300/$100/$50/$10 且未使用条件',
+        bindSelected: '加入抽奖奖池',
+        bindSuccess: '已加入 {count} 个兑换码到抽奖奖池',
+        noEligibleSelected: '已选兑换码中没有可加入奖池的码',
+        failedToLoadPool: '加载抽奖奖池失败',
+        failedToBind: '加入抽奖奖池失败'
+      },
       batchFields: {
         status: '状态',
         expiresAt: '过期时间',

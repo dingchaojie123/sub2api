@@ -1535,6 +1535,13 @@ export interface RedeemCode {
   group?: Group // 关联的分组
 }
 
+export interface LotteryPoolSummary {
+  prize_name: string
+  value: number
+  available: number
+  assigned: number
+}
+
 export interface GenerateRedeemCodesRequest {
   count: number
   type: RedeemCodeType
@@ -1559,6 +1566,23 @@ export interface BatchUpdateRedeemCodesRequest {
 
 export interface RedeemCodeRequest {
   code: string
+}
+
+export interface LotteryStatus {
+  available_chances: number
+  daily_used: number
+  daily_limit: number
+}
+
+export interface LotteryDrawRecord {
+  id: number
+  user_id: number
+  prize_name: string
+  value: number
+  prize_pool_code_id: number
+  prize_redeem_code_id: number
+  code: string
+  created_at: string
 }
 
 // ==================== Dashboard & Statistics ====================

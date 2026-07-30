@@ -68,6 +68,10 @@ type RedeemCodeRepository interface {
 	SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error)
 }
 
+type lotteryChanceGranter interface {
+	GrantChancesForRedeem(ctx context.Context, userID, redeemCodeID int64, value float64) error
+}
+
 // GenerateCodesRequest 生成兑换码请求
 type GenerateCodesRequest struct {
 	Count int     `json:"count"`
@@ -142,6 +146,12 @@ type RedeemService struct {
 	entClient            *dbent.Client
 	authCacheInvalidator APIKeyAuthCacheInvalidator
 	affiliateService     *AffiliateService
+	lotteryService       lotteryChanceGranter
+}
+
+// SetLotteryService attaches the optional lottery campaign integration.
+func (s *RedeemService) SetLotteryService(lotteryService *LotteryService) {
+	s.lotteryService = lotteryService
 }
 
 // NewRedeemService 创建兑换码服务实例
@@ -508,6 +518,10 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
 
+	if err := s.grantLotteryChancesForRedeem(txCtx, userID, redeemCode); err != nil {
+		return nil, err
+	}
+
 	// 提交事务
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
@@ -528,6 +542,19 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	return redeemCode, nil
+}
+
+func (s *RedeemService) grantLotteryChancesForRedeem(ctx context.Context, userID int64, redeemCode *RedeemCode) error {
+	if s.lotteryService == nil || redeemCode == nil || redeemCode.Type != RedeemTypeBalance || redeemCode.Value <= 0 {
+		return nil
+	}
+	if err := s.lotteryService.GrantChancesForRedeem(ctx, userID, redeemCode.ID, redeemCode.Value); err != nil {
+		if errors.Is(err, ErrLotteryChanceAlreadyGranted) {
+			return nil
+		}
+		return fmt.Errorf("grant lottery chances: %w", err)
+	}
+	return nil
 }
 
 // invalidateRedeemCaches 失效兑换相关的缓存

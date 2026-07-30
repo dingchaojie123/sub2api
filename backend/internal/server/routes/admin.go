@@ -60,6 +60,9 @@ func RegisterAdminRoutes(
 		// 卡密管理
 		registerRedeemCodeRoutes(admin, h)
 
+		// 抽奖奖池管理
+		registerLotteryRoutes(admin, h)
+
 		// 优惠码管理
 		registerPromoCodeRoutes(admin, h)
 
@@ -492,6 +495,15 @@ func registerRedeemCodeRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		codes.POST("/batch-delete", h.Admin.Redeem.BatchDelete)
 		codes.POST("/batch-update", h.Admin.Redeem.BatchUpdate)
 		codes.POST("/:id/expire", h.Admin.Redeem.Expire)
+	}
+}
+
+func registerLotteryRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	lottery := admin.Group("/lottery")
+	{
+		lottery.GET("/pool", h.Admin.Lottery.GetPool)
+		lottery.POST("/pool/bind", h.Admin.Lottery.BindPoolCodes)
+		lottery.POST("/pool/unbind", h.Admin.Lottery.UnbindPoolCodes)
 	}
 }
 

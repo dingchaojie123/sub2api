@@ -614,6 +614,40 @@ export default {
     pleaseEnterCode: '请输入兑换码'
   },
 
+  // Lottery
+  lottery: {
+    title: '幸运转盘',
+    description: '使用抽奖次数赢取兑换码',
+    availableChances: '可用次数',
+    todayUsed: '今日次数',
+    dailyLimit: '每日上限',
+    dailyUsage: '{used}/{limit}',
+    loading: '加载中...',
+    drawButton: '开始抽奖',
+    drawing: '抽奖中...',
+    noChancesButton: '暂无可用次数',
+    dailyLimitReached: '已达今日上限',
+    rulesTitle: '奖项规则',
+    prize: '奖项',
+    probability: '概率',
+    firstPrize: '一等奖',
+    secondPrize: '二等奖',
+    thirdPrize: '三等奖',
+    fourthPrize: '四等奖',
+    recordsTitle: '中奖记录',
+    noRecords: '中奖记录会显示在这里',
+    copy: '复制',
+    copyCode: '复制兑换码',
+    copied: '已复制',
+    redeemCode: '兑换码',
+    winTitle: '恭喜中奖！',
+    loadFailed: '抽奖数据加载失败',
+    statusFailed: '抽奖状态加载失败。',
+    recordsFailed: '中奖记录加载失败。',
+    drawFailed: '抽奖失败，请稍后重试。',
+    copyFailed: '复制兑换码失败。'
+  },
+
   // Profile
   profile: {
     title: '个人设置',

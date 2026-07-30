@@ -6,6 +6,7 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
+	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
@@ -325,7 +326,11 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 	now := time.Now()
 	client := clientFromContext(ctx, r.client)
 	affected, err := client.RedeemCode.Update().
-		Where(redeemcode.IDEQ(id), redeemcode.StatusEQ(service.StatusUnused)).
+		Where(
+			redeemcode.IDEQ(id),
+			redeemcode.StatusEQ(service.StatusUnused),
+			redeemCodeRedeemableByUser(userID),
+		).
 		SetStatus(service.StatusUsed).
 		SetUsedBy(userID).
 		SetUsedAt(now).
@@ -337,6 +342,32 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 		return service.ErrRedeemCodeUsed
 	}
 	return nil
+}
+
+func redeemCodeRedeemableByUser(userID int64) predicate.RedeemCode {
+	return predicate.RedeemCode(func(s *entsql.Selector) {
+		poolAny := entsql.Table("lottery_prize_pool_codes")
+		poolAssigned := entsql.Table("lottery_prize_pool_codes")
+
+		anyActivePoolBinding := entsql.Select(poolAny.C("id")).
+			From(poolAny).
+			Where(entsql.And(
+				entsql.ColumnsEQ(poolAny.C("redeem_code_id"), s.C(redeemcode.FieldID)),
+				entsql.In(poolAny.C("status"), "available", "assigned"),
+			))
+		assignedToUser := entsql.Select(poolAssigned.C("id")).
+			From(poolAssigned).
+			Where(entsql.And(
+				entsql.ColumnsEQ(poolAssigned.C("redeem_code_id"), s.C(redeemcode.FieldID)),
+				entsql.EQ(poolAssigned.C("status"), "assigned"),
+				entsql.EQ(poolAssigned.C("assigned_to_user_id"), userID),
+			))
+
+		s.Where(entsql.Or(
+			entsql.Not(entsql.Exists(anyActivePoolBinding)),
+			entsql.Exists(assignedToUser),
+		))
+	})
 }
 
 func (r *redeemCodeRepository) ListByUser(ctx context.Context, userID int64, limit int) ([]service.RedeemCode, error) {

@@ -274,6 +274,19 @@ export default {
       noBatchFieldsSelected: 'Select at least one field to update',
       batchUpdateSuccess: 'Updated {count} redeem code(s)',
       failedToBatchUpdate: 'Failed to batch update redeem codes',
+      lottery: {
+        poolSummary: 'Lottery pool',
+        emptyPool: 'No prize codes in the pool',
+        availableCount: 'Available {count}',
+        assignedCount: 'Assigned {count}',
+        selectedEligibleCount: '{count} eligible for lottery pool',
+        ineligibleSelectedHint: '{count} selected code(s) do not match balance $300/$100/$50/$10 and unused',
+        bindSelected: 'Add to Lottery Pool',
+        bindSuccess: 'Added {count} code(s) to the lottery pool',
+        noEligibleSelected: 'No selected codes can be added to the lottery pool',
+        failedToLoadPool: 'Failed to load lottery pool',
+        failedToBind: 'Failed to add codes to lottery pool'
+      },
       batchFields: {
         status: 'Status',
         expiresAt: 'Expires At',

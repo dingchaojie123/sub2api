@@ -139,6 +139,38 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_bucket")
 	requireIndex(t, tx, "ops_ingress_reject_aggregates", "idx_ops_ingress_reject_aggregates_ip_bucket")
 
+	// Lottery redeem wheel tables and critical uniqueness guarantees.
+	requireTable(t, tx, "lottery_chance_ledger")
+	requireColumn(t, tx, "lottery_chance_ledger", "user_id", "bigint", 0, false)
+	requireColumn(t, tx, "lottery_chance_ledger", "delta", "integer", 0, false)
+	requireColumn(t, tx, "lottery_chance_ledger", "reason", "text", 0, false)
+	requireColumn(t, tx, "lottery_chance_ledger", "source_redeem_code_id", "bigint", 0, true)
+	requireColumn(t, tx, "lottery_chance_ledger", "draw_record_id", "bigint", 0, true)
+	requireColumn(t, tx, "lottery_chance_ledger", "created_at", "timestamp with time zone", 0, false)
+	requirePartialUniqueIndexDefinition(t, tx, "lottery_chance_ledger", "idx_lottery_chance_ledger_source_redeem", "source_redeem_code_id", "delta > 0")
+	requireIndex(t, tx, "lottery_chance_ledger", "idx_lottery_chance_ledger_user_created")
+
+	requireTable(t, tx, "lottery_prize_pool_codes")
+	requireColumn(t, tx, "lottery_prize_pool_codes", "redeem_code_id", "bigint", 0, false)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "prize_value", "numeric", 0, false)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "status", "text", 0, false)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "assigned_to_user_id", "bigint", 0, true)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "assigned_draw_record_id", "bigint", 0, true)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "assigned_at", "timestamp with time zone", 0, true)
+	requireColumn(t, tx, "lottery_prize_pool_codes", "created_at", "timestamp with time zone", 0, false)
+	requireConstraintDefinitionContains(t, tx, "lottery_prize_pool_codes", "lottery_prize_pool_codes_redeem_code_id_key", "UNIQUE", "redeem_code_id")
+	requireIndex(t, tx, "lottery_prize_pool_codes", "idx_lottery_pool_value_status")
+
+	requireTable(t, tx, "lottery_draw_records")
+	requireColumn(t, tx, "lottery_draw_records", "user_id", "bigint", 0, false)
+	requireColumn(t, tx, "lottery_draw_records", "prize_name", "text", 0, false)
+	requireColumn(t, tx, "lottery_draw_records", "prize_value", "numeric", 0, false)
+	requireColumn(t, tx, "lottery_draw_records", "prize_pool_code_id", "bigint", 0, false)
+	requireColumn(t, tx, "lottery_draw_records", "prize_redeem_code_id", "bigint", 0, false)
+	requireColumn(t, tx, "lottery_draw_records", "created_at", "timestamp with time zone", 0, false)
+	requireConstraintDefinitionContains(t, tx, "lottery_draw_records", "lottery_draw_records_prize_pool_code_id_key", "UNIQUE", "prize_pool_code_id")
+	requireConstraintDefinitionContains(t, tx, "lottery_draw_records", "lottery_draw_records_prize_redeem_code_id_key", "UNIQUE", "prize_redeem_code_id")
+
 	// user_allowed_groups table should exist
 	var uagRegclass sql.NullString
 	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.user_allowed_groups')").Scan(&uagRegclass))
@@ -203,6 +235,14 @@ SELECT EXISTS (
 `, table, index).Scan(&exists)
 	require.NoError(t, err, "query pg_indexes for %s.%s", table, index)
 	require.True(t, exists, "expected index %s on %s", index, table)
+}
+
+func requireTable(t *testing.T, tx *sql.Tx, table string) {
+	t.Helper()
+
+	var regclass sql.NullString
+	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass($1)", "public."+table).Scan(&regclass))
+	require.True(t, regclass.Valid, "expected %s table to exist", table)
 }
 
 func requireIndexAbsent(t *testing.T, tx *sql.Tx, table, index string) {

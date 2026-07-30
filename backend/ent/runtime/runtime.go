@@ -23,6 +23,9 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/idempotencyrecord"
 	"github.com/Wei-Shaw/sub2api/ent/identityadoptiondecision"
+	"github.com/Wei-Shaw/sub2api/ent/lotterychanceledger"
+	"github.com/Wei-Shaw/sub2api/ent/lotterydrawrecord"
+	"github.com/Wei-Shaw/sub2api/ent/lotteryprizepoolcode"
 	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
 	"github.com/Wei-Shaw/sub2api/ent/paymentorder"
 	"github.com/Wei-Shaw/sub2api/ent/paymentproviderinstance"
@@ -1159,6 +1162,28 @@ func init() {
 	identityadoptiondecisionDescDecidedAt := identityadoptiondecisionFields[4].Descriptor()
 	// identityadoptiondecision.DefaultDecidedAt holds the default value on creation for the decided_at field.
 	identityadoptiondecision.DefaultDecidedAt = identityadoptiondecisionDescDecidedAt.Default.(func() time.Time)
+	lotterychanceledgerFields := schema.LotteryChanceLedger{}.Fields()
+	_ = lotterychanceledgerFields
+	// lotterychanceledgerDescCreatedAt is the schema descriptor for created_at field.
+	lotterychanceledgerDescCreatedAt := lotterychanceledgerFields[5].Descriptor()
+	// lotterychanceledger.DefaultCreatedAt holds the default value on creation for the created_at field.
+	lotterychanceledger.DefaultCreatedAt = lotterychanceledgerDescCreatedAt.Default.(func() time.Time)
+	lotterydrawrecordFields := schema.LotteryDrawRecord{}.Fields()
+	_ = lotterydrawrecordFields
+	// lotterydrawrecordDescCreatedAt is the schema descriptor for created_at field.
+	lotterydrawrecordDescCreatedAt := lotterydrawrecordFields[5].Descriptor()
+	// lotterydrawrecord.DefaultCreatedAt holds the default value on creation for the created_at field.
+	lotterydrawrecord.DefaultCreatedAt = lotterydrawrecordDescCreatedAt.Default.(func() time.Time)
+	lotteryprizepoolcodeFields := schema.LotteryPrizePoolCode{}.Fields()
+	_ = lotteryprizepoolcodeFields
+	// lotteryprizepoolcodeDescStatus is the schema descriptor for status field.
+	lotteryprizepoolcodeDescStatus := lotteryprizepoolcodeFields[2].Descriptor()
+	// lotteryprizepoolcode.DefaultStatus holds the default value on creation for the status field.
+	lotteryprizepoolcode.DefaultStatus = lotteryprizepoolcodeDescStatus.Default.(string)
+	// lotteryprizepoolcodeDescCreatedAt is the schema descriptor for created_at field.
+	lotteryprizepoolcodeDescCreatedAt := lotteryprizepoolcodeFields[6].Descriptor()
+	// lotteryprizepoolcode.DefaultCreatedAt holds the default value on creation for the created_at field.
+	lotteryprizepoolcode.DefaultCreatedAt = lotteryprizepoolcodeDescCreatedAt.Default.(func() time.Time)
 	paymentauditlogFields := schema.PaymentAuditLog{}.Fields()
 	_ = paymentauditlogFields
 	// paymentauditlogDescOrderID is the schema descriptor for order_id field.
