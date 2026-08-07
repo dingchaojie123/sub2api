@@ -496,6 +496,10 @@ export default {
           '自定义首页内容，支持 Markdown/HTML。如果输入的是链接（以 http:// 或 https:// 开头），则会使用该链接作为 iframe 的 src 属性，这允许你设置任意网页作为首页。设置后首页的状态信息将不再显示。',
         homeContentIframeWarning:
           '⚠️ iframe 模式提示：部分网站设置了 X-Frame-Options 或 CSP 安全策略，禁止被嵌入到 iframe 中。如果页面显示空白或报错，请确认目标网站允许被嵌入，或考虑使用 HTML 模式自行构建页面内容。',
+        modelPricingPageData: '模型列表展示数据',
+        modelPricingPageDataHint:
+          '填写模型列表页面使用的 JSON 分组数据。仅用于展示价格，不会修改实际计费规则。',
+        modelPricingPageDataInvalid: '模型列表展示数据必须是有效的 JSON 数组',
         hideCcsImportButton: '隐藏 CCS 导入按钮',
         hideCcsImportButtonHint: '启用后将在 API Keys 页面隐藏"导入 CCS"按钮'
       },
@@ -520,7 +524,7 @@ export default {
       },
       customMenu: {
         title: '自定义菜单页面',
-        description: '添加自定义 iframe 页面到侧边栏导航。每个页面可以设置为普通用户或管理员可见。',
+        description: '添加自定义页面或外部链接到侧边栏导航。每个菜单项可以设置可见角色和打开方式。',
         itemLabel: '菜单项 #{n}',
         name: '菜单名称',
         namePlaceholder: '如：帮助中心',
@@ -534,6 +538,9 @@ export default {
         visibility: '可见角色',
         visibilityUser: '普通用户',
         visibilityAdmin: '管理员',
+        openMode: '打开方式',
+        openModeEmbed: '内嵌页面',
+        openModeExternal: '新标签打开',
         add: '添加菜单项',
         remove: '删除',
         moveUp: '上移',

@@ -247,7 +247,7 @@ FROM redeem_codes
 WHERE id = ANY($1)
   AND type = $2
   AND status = $3
-  AND value IN (10, 50, 100, 300)
+  AND value IN (30, 10, 5, 2)
   AND (expires_at IS NULL OR expires_at > NOW())
 ON CONFLICT (redeem_code_id) DO NOTHING
 `, pq.Array(ids), service.RedeemTypeBalance, service.StatusUnused)

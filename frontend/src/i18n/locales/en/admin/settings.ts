@@ -501,6 +501,11 @@ export default {
         homeContentPlaceholder: 'Enter custom content for the home page. Supports Markdown & HTML. If a URL is entered, it will be displayed as an iframe.',
         homeContentHint: 'Customize the home page content. Supports Markdown/HTML. If you enter a URL (starting with http:// or https://), it will be used as an iframe src to embed an external page. When set, the default status information will no longer be displayed.',
         homeContentIframeWarning: '⚠️ iframe mode note: Some websites have X-Frame-Options or CSP security policies that prevent embedding in iframes. If the page appears blank or shows an error, please verify the target website allows embedding, or consider using HTML mode to build your own content.',
+        modelPricingPageData: 'Model Pricing Page Data',
+        modelPricingPageDataHint:
+          'JSON groups used by the model pricing page. This only changes displayed prices and does not modify billing rules.',
+        modelPricingPageDataInvalid:
+          'Model pricing page data must be a valid JSON array',
         hideCcsImportButton: 'Hide CCS Import Button',
         hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page'
       },
@@ -525,7 +530,7 @@ export default {
       },
       customMenu: {
         title: 'Custom Menu Pages',
-        description: 'Add custom iframe pages to the sidebar navigation. Each page can be visible to regular users or administrators.',
+        description: 'Add custom pages or external links to the sidebar navigation. Each item can define visibility and opening mode.',
         itemLabel: 'Menu Item #{n}',
         name: 'Menu Name',
         namePlaceholder: 'e.g. Help Center',
@@ -539,6 +544,9 @@ export default {
         visibility: 'Visible To',
         visibilityUser: 'Regular Users',
         visibilityAdmin: 'Administrators',
+        openMode: 'Open Mode',
+        openModeEmbed: 'Embedded Page',
+        openModeExternal: 'Open in New Tab',
         add: 'Add Menu Item',
         remove: 'Remove',
         moveUp: 'Move Up',

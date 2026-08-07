@@ -32,21 +32,21 @@ type LotteryPrize struct {
 }
 
 var LotteryPrizes = []LotteryPrize{
-	{Name: "first", Value: 300, Probability: 1},
-	{Name: "second", Value: 100, Probability: 5},
-	{Name: "third", Value: 50, Probability: 20},
-	{Name: "fourth", Value: 10, Probability: 74},
+	{Name: "first", Value: 30, Probability: 1},
+	{Name: "second", Value: 10, Probability: 5},
+	{Name: "third", Value: 5, Probability: 20},
+	{Name: "fourth", Value: 2, Probability: 74},
 }
 
 var lotteryChanceTiersByCents = map[int64]int{
-	88800:   1,
-	168800:  2,
-	258800:  3,
-	358800:  5,
-	458800:  7,
-	688800:  14,
-	888800:  20,
-	1288800: 30,
+	8800:   1,
+	16800:  2,
+	25800:  3,
+	35800:  5,
+	45800:  7,
+	68800:  9,
+	88800:  12,
+	128800: 15,
 }
 
 // LotteryDrawRecord is a completed lottery draw with its assigned balance code.

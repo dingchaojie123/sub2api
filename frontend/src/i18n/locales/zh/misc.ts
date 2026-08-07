@@ -73,6 +73,8 @@ export default {
   customPage: {
     title: '自定义页面',
     openInNewTab: '新窗口打开',
+    externalDesc: '该页面配置为外部链接，请在新窗口中打开。',
+    embedBlockedDesc: '该外部页面可能禁止被内嵌显示，请使用新窗口打开继续访问。',
     notFoundTitle: '页面不存在',
     notFoundDesc: '该自定义页面不存在或已被删除。',
     notConfiguredTitle: '页面链接未配置',

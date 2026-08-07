@@ -287,7 +287,7 @@ export default {
         availableCount: '可用 {count}',
         assignedCount: '已分配 {count}',
         selectedEligibleCount: '{count} 个可加入奖池',
-        ineligibleSelectedHint: '{count} 个已选兑换码不符合余额 $300/$100/$50/$10 且未使用条件',
+        ineligibleSelectedHint: '{count} 个已选兑换码不符合余额 $30/$10/$5/$2 且未使用条件',
         bindSelected: '加入抽奖奖池',
         bindSuccess: '已加入 {count} 个兑换码到抽奖奖池',
         noEligibleSelected: '已选兑换码中没有可加入奖池的码',

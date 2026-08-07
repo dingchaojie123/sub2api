@@ -524,6 +524,20 @@ export default {
     }
   },
 
+  modelList: {
+    title: '模型与价格',
+    description: '按你可用的分组查看模型价格。',
+    refresh: '重置分组',
+    groupCount: '{count} 个模型',
+    columns: {
+      model: '模型',
+      platformInput: '本平台输入',
+      platformOutput: '本平台输出',
+      officialInput: '官方输入',
+      officialOutput: '官方输出'
+    }
+  },
+
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',
@@ -616,20 +630,22 @@ export default {
 
   // Lottery
   lottery: {
-    title: '幸运转盘',
+    title: '幸运盲盒',
     description: '使用抽奖次数赢取兑换码',
     availableChances: '可用次数',
     todayUsed: '今日次数',
     dailyLimit: '每日上限',
     dailyUsage: '{used}/{limit}',
     loading: '加载中...',
-    drawButton: '开始抽奖',
-    drawing: '抽奖中...',
+    drawButton: '开启盲盒',
+    drawing: '开启中...',
     noChancesButton: '暂无可用次数',
     dailyLimitReached: '已达今日上限',
     rulesTitle: '奖项规则',
     prize: '奖项',
-    probability: '概率',
+    prizeCodeReward: '余额兑换码奖励',
+    blindBoxSubtitle: '开启盲盒，抽取专属余额兑换码',
+    blindBoxFace: '余额兑换码',
     firstPrize: '一等奖',
     secondPrize: '二等奖',
     thirdPrize: '三等奖',
@@ -641,6 +657,7 @@ export default {
     copied: '已复制',
     redeemCode: '兑换码',
     winTitle: '恭喜中奖！',
+    noticeTitle: '抽奖提示',
     loadFailed: '抽奖数据加载失败',
     statusFailed: '抽奖状态加载失败。',
     recordsFailed: '中奖记录加载失败。',

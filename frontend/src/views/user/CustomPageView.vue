@@ -76,6 +76,36 @@
           ></div>
         </div>
 
+        <!-- External link mode -->
+        <div
+          v-else-if="isExternalMode"
+          class="flex h-full items-center justify-center p-10 text-center"
+        >
+          <div class="max-w-md">
+            <div
+              class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300"
+            >
+              <Icon name="externalLink" size="lg" />
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ menuItem.label }}
+            </h3>
+            <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+              {{ t('customPage.externalDesc') }}
+            </p>
+            <a
+              v-if="externalUrl"
+              :href="externalUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-primary mt-5"
+            >
+              <Icon name="externalLink" size="sm" class="mr-1.5" :stroke-width="2" />
+              {{ t('customPage.openInNewTab') }}
+            </a>
+          </div>
+        </div>
+
         <!-- URL not configured -->
         <div v-else-if="!isValidUrl" class="flex h-full items-center justify-center p-10 text-center">
           <div class="max-w-md">
@@ -95,6 +125,31 @@
 
         <!-- Iframe embed mode -->
         <div v-else class="custom-embed-shell">
+          <div
+            v-if="showEmbedFallback"
+            class="custom-embed-fallback"
+          >
+            <div class="custom-embed-fallback-card">
+              <div class="custom-embed-fallback-icon">
+                <Icon name="externalLink" size="lg" />
+              </div>
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ menuItem.label }}
+              </h3>
+              <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+                {{ t('customPage.embedBlockedDesc') }}
+              </p>
+              <a
+                :href="embeddedUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary mt-5"
+              >
+                <Icon name="externalLink" size="sm" class="mr-1.5" :stroke-width="2" />
+                {{ t('customPage.openInNewTab') }}
+              </a>
+            </div>
+          </div>
           <a
             :href="embeddedUrl"
             target="_blank"
@@ -108,6 +163,7 @@
             :src="embeddedUrl"
             class="custom-embed-frame"
             allowfullscreen
+            @load="handleIframeLoad"
           ></iframe>
         </div>
       </div>
@@ -126,6 +182,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
+import { sanitizeUrl } from '@/utils/url'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -148,7 +205,10 @@ const markdownContainer = ref<HTMLElement | null>(null)
 const tocItems = ref<TocItem[]>([])
 const tocVisible = ref(typeof window !== 'undefined' ? window.innerWidth > 768 : true)
 const activeHeadingId = ref('')
+const iframeLoaded = ref(false)
+const iframeFallbackVisible = ref(false)
 let themeObserver: MutationObserver | null = null
+let iframeFallbackTimer: ReturnType<typeof setTimeout> | null = null
 
 const menuItemId = computed(() => route.params.id as string)
 
@@ -172,9 +232,15 @@ const markdownSlug = computed(() => {
 })
 
 const isMarkdownMode = computed(() => !!markdownSlug.value)
+const isExternalMode = computed(() => menuItem.value?.open_mode === 'external')
+
+const externalUrl = computed(() => {
+  if (!menuItem.value || !isExternalMode.value) return ''
+  return sanitizeUrl(menuItem.value.url)
+})
 
 const embeddedUrl = computed(() => {
-  if (!menuItem.value || isMarkdownMode.value) return ''
+  if (!menuItem.value || isMarkdownMode.value || isExternalMode.value) return ''
   return buildEmbeddedUrl(
     menuItem.value.url,
     authStore.user?.id,
@@ -189,6 +255,8 @@ const isValidUrl = computed(() => {
   const url = embeddedUrl.value
   return url.startsWith('http://') || url.startsWith('https://')
 })
+
+const showEmbedFallback = computed(() => isValidUrl.value && (!iframeLoaded.value || iframeFallbackVisible.value))
 
 function generateHeadingId(text: string, index: number): string {
   const base = text
@@ -334,6 +402,31 @@ function injectCopyButtons() {
   })
 }
 
+function clearIframeFallbackTimer() {
+  if (iframeFallbackTimer) {
+    clearTimeout(iframeFallbackTimer)
+    iframeFallbackTimer = null
+  }
+}
+
+function resetIframeFallback() {
+  clearIframeFallbackTimer()
+  iframeLoaded.value = false
+  iframeFallbackVisible.value = false
+  if (!isValidUrl.value || isExternalMode.value || isMarkdownMode.value) return
+  iframeFallbackTimer = setTimeout(() => {
+    if (!iframeLoaded.value) {
+      iframeFallbackVisible.value = true
+    }
+  }, 1800)
+}
+
+function handleIframeLoad() {
+  iframeLoaded.value = true
+  iframeFallbackVisible.value = false
+  clearIframeFallbackTimer()
+}
+
 watch(markdownSlug, (slug) => {
   if (slug) {
     fetchAndRenderMarkdown(slug)
@@ -342,6 +435,8 @@ watch(markdownSlug, (slug) => {
     tocItems.value = []
   }
 }, { immediate: true })
+
+watch(embeddedUrl, resetIframeFallback, { immediate: true })
 
 onMounted(async () => {
   pageTheme.value = detectTheme()
@@ -366,6 +461,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearIframeFallbackTimer()
   if (themeObserver) {
     themeObserver.disconnect()
     themeObserver = null
@@ -447,6 +543,21 @@ onUnmounted(() => {
 .custom-open-fab {
   @apply absolute right-3 top-3 z-10;
   @apply shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-dark-800/80;
+}
+
+.custom-embed-fallback {
+  @apply absolute inset-0 z-20 flex items-center justify-center p-6 text-center;
+  @apply bg-white/95 dark:bg-dark-950/95 backdrop-blur-sm;
+}
+
+.custom-embed-fallback-card {
+  @apply max-w-md rounded-xl border border-gray-200 bg-white px-8 py-7 shadow-sm;
+  @apply dark:border-dark-600 dark:bg-dark-800;
+}
+
+.custom-embed-fallback-icon {
+  @apply mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full;
+  @apply bg-primary-50 text-primary-600 dark:bg-primary-950/40 dark:text-primary-300;
 }
 
 .custom-embed-frame {

@@ -75,6 +75,8 @@ export default {
   customPage: {
     title: 'Custom Page',
     openInNewTab: 'Open in new tab',
+    externalDesc: 'This page is configured as an external link. Open it in a new tab.',
+    embedBlockedDesc: 'This external page may block embedded display. Open it in a new tab to continue.',
     notFoundTitle: 'Page not found',
     notFoundDesc: 'This custom page does not exist or has been removed.',
     notConfiguredTitle: 'Page URL not configured',

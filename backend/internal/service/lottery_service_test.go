@@ -16,18 +16,19 @@ func TestLotteryChanceGrantForBalanceValue(t *testing.T) {
 		value float64
 		want  int
 	}{
-		{name: "888 grants one chance", value: 888, want: 1},
-		{name: "1688 grants two chances", value: 1688, want: 2},
-		{name: "2588 grants three chances", value: 2588, want: 3},
-		{name: "3588 grants five chances", value: 3588, want: 5},
-		{name: "4588 grants seven chances", value: 4588, want: 7},
-		{name: "6888 grants fourteen chances", value: 6888, want: 14},
-		{name: "8888 grants twenty chances", value: 8888, want: 20},
-		{name: "12888 grants thirty chances", value: 12888, want: 30},
-		{name: "lower non-tier value grants none", value: 887.99, want: 0},
-		{name: "fractional value that rounds to a tier grants none", value: 887.995, want: 0},
-		{name: "value with more than cents precision grants none", value: 888.001, want: 0},
-		{name: "higher non-tier value grants none", value: 889, want: 0},
+		{name: "88 grants one chance", value: 88, want: 1},
+		{name: "168 grants two chances", value: 168, want: 2},
+		{name: "258 grants three chances", value: 258, want: 3},
+		{name: "358 grants five chances", value: 358, want: 5},
+		{name: "458 grants seven chances", value: 458, want: 7},
+		{name: "688 grants nine chances", value: 688, want: 9},
+		{name: "888 grants twelve chances", value: 888, want: 12},
+		{name: "1288 grants fifteen chances", value: 1288, want: 15},
+		{name: "old lower tier no longer grants chances", value: 1688, want: 0},
+		{name: "lower non-tier value grants none", value: 87.99, want: 0},
+		{name: "fractional value that rounds to a tier grants none", value: 87.995, want: 0},
+		{name: "value with more than cents precision grants none", value: 88.001, want: 0},
+		{name: "higher non-tier value grants none", value: 89, want: 0},
 	}
 
 	for _, tc := range cases {
@@ -35,6 +36,17 @@ func TestLotteryChanceGrantForBalanceValue(t *testing.T) {
 			require.Equal(t, tc.want, LotteryChanceGrantForBalanceValue(tc.value))
 		})
 	}
+}
+
+func TestLotteryPrizesUseUpdatedDenominations(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, []LotteryPrize{
+		{Name: "first", Value: 30, Probability: 1},
+		{Name: "second", Value: 10, Probability: 5},
+		{Name: "third", Value: 5, Probability: 20},
+		{Name: "fourth", Value: 2, Probability: 74},
+	}, LotteryPrizes)
 }
 
 func TestLotteryServiceDrawEnforcesDailyLimit(t *testing.T) {

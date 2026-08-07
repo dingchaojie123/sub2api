@@ -773,6 +773,31 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("allows saving other settings when model pricing page data is empty", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      contact_info: "QQ: 123456",
+      model_pricing_page_data: "",
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(showError).not.toHaveBeenCalledWith(
+      "admin.settings.site.modelPricingPageDataInvalid",
+    );
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contact_info: "QQ: 123456",
+        model_pricing_page_data: "[]",
+      }),
+    );
+  });
+
   it("submits Anthropic cache TTL injection gateway setting", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,

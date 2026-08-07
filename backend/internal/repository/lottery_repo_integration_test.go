@@ -25,7 +25,7 @@ func TestLotteryRepositoryDrawConsumesChanceAndAssignsPrizeCodeOnce(t *testing.T
 	code, err := integrationEntClient.RedeemCode.Create().
 		SetCode("LOT-" + unique).
 		SetType(service.RedeemTypeBalance).
-		SetValue(10).
+		SetValue(2).
 		SetStatus(service.StatusUnused).
 		SetNotes("").
 		SetValidityDays(30).
@@ -46,7 +46,7 @@ func TestLotteryRepositoryDrawConsumesChanceAndAssignsPrizeCodeOnce(t *testing.T
 	require.EqualValues(t, 1, bound)
 
 	require.NoError(t, repo.AddChanceGrant(ctx, user.ID, code.ID, 1))
-	draw, err := repo.DrawWithPrizeCode(ctx, user.ID, service.LotteryPrize{Name: "fourth", Value: 10, Probability: 74}, time.Now())
+	draw, err := repo.DrawWithPrizeCode(ctx, user.ID, service.LotteryPrize{Name: "fourth", Value: 2, Probability: 74}, time.Now())
 	require.NoError(t, err)
 	require.Equal(t, code.ID, draw.PrizeRedeemCodeID)
 	require.Equal(t, code.Code, draw.Code)
@@ -55,7 +55,7 @@ func TestLotteryRepositoryDrawConsumesChanceAndAssignsPrizeCodeOnce(t *testing.T
 	require.NoError(t, err)
 	require.Zero(t, available)
 
-	_, err = repo.DrawWithPrizeCode(ctx, user.ID, service.LotteryPrize{Name: "fourth", Value: 10, Probability: 74}, time.Now())
+	_, err = repo.DrawWithPrizeCode(ctx, user.ID, service.LotteryPrize{Name: "fourth", Value: 2, Probability: 74}, time.Now())
 	require.ErrorIs(t, err, service.ErrLotteryInsufficientChances)
 }
 
@@ -67,7 +67,7 @@ func TestLotteryRepositoryPoolSummaryCountsOnlyRedeemableInventory(t *testing.T)
 	availableCode, err := integrationEntClient.RedeemCode.Create().
 		SetCode("LSA-" + suffix).
 		SetType(service.RedeemTypeBalance).
-		SetValue(10).
+		SetValue(2).
 		SetStatus(service.StatusUnused).
 		SetNotes("").
 		SetValidityDays(30).
@@ -76,7 +76,7 @@ func TestLotteryRepositoryPoolSummaryCountsOnlyRedeemableInventory(t *testing.T)
 	usedCode, err := integrationEntClient.RedeemCode.Create().
 		SetCode("LSU-" + suffix).
 		SetType(service.RedeemTypeBalance).
-		SetValue(10).
+		SetValue(2).
 		SetStatus(service.StatusUsed).
 		SetNotes("").
 		SetValidityDays(30).
@@ -94,7 +94,7 @@ func TestLotteryRepositoryPoolSummaryCountsOnlyRedeemableInventory(t *testing.T)
 
 	_, err = integrationDB.ExecContext(ctx, `
 INSERT INTO lottery_prize_pool_codes (redeem_code_id, prize_value, status)
-VALUES ($1, 10, 'available')
+VALUES ($1, 2, 'available')
 ON CONFLICT (redeem_code_id) DO NOTHING
 `, usedCode.ID)
 	require.NoError(t, err)

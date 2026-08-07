@@ -519,6 +519,20 @@ export default {
     }
   },
 
+  modelList: {
+    title: 'Models & Pricing',
+    description: 'View model pricing by available group.',
+    refresh: 'Reset group',
+    groupCount: '{count} models',
+    columns: {
+      model: 'Model',
+      platformInput: 'Platform Input',
+      platformOutput: 'Platform Output',
+      officialInput: 'Official Input',
+      officialOutput: 'Official Output'
+    }
+  },
+
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',
@@ -618,13 +632,15 @@ export default {
     dailyLimit: 'Daily Limit',
     dailyUsage: '{used}/{limit}',
     loading: 'Loading...',
-    drawButton: 'Spin the Wheel',
-    drawing: 'Spinning...',
+    drawButton: 'Open Box',
+    drawing: 'Opening...',
     noChancesButton: 'No Chances Left',
     dailyLimitReached: 'Daily Limit Reached',
     rulesTitle: 'Prize Rules',
     prize: 'Prize',
-    probability: 'Probability',
+    prizeCodeReward: 'Balance redeem code reward',
+    blindBoxSubtitle: 'Open the box to reveal a balance redeem code',
+    blindBoxFace: 'Balance Code',
     firstPrize: 'First Prize',
     secondPrize: 'Second Prize',
     thirdPrize: 'Third Prize',
@@ -636,6 +652,7 @@ export default {
     copied: 'Copied',
     redeemCode: 'Redeem Code',
     winTitle: 'Congratulations!',
+    noticeTitle: 'Lottery Notice',
     loadFailed: 'Unable to load lottery data',
     statusFailed: 'Failed to load lottery status.',
     recordsFailed: 'Failed to load winning records.',

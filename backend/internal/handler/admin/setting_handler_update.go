@@ -146,6 +146,7 @@ type UpdateSettingsRequest struct {
 	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
 	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	ModelPricingPageData        *string               `json:"model_pricing_page_data"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -1059,6 +1060,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				response.BadRequest(c, "Custom menu item visibility must be 'user' or 'admin'")
 				return
 			}
+			if item.OpenMode != "" && item.OpenMode != "embed" && item.OpenMode != "external" {
+				response.BadRequest(c, "Custom menu item open_mode must be 'embed' or 'external'")
+				return
+			}
 			if len(item.IconSVG) > maxMenuItemIconSVGLen {
 				response.BadRequest(c, "Custom menu item icon SVG is too large (max 10KB)")
 				return
@@ -1143,6 +1148,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			return
 		}
 		customEndpointsJSON = string(endpointBytes)
+	}
+
+	modelPricingPageDataJSON := previousSettings.ModelPricingPageData
+	if req.ModelPricingPageData != nil {
+		normalized, err := dto.NormalizeModelPricingPageDataJSON(*req.ModelPricingPageData)
+		if err != nil {
+			response.BadRequest(c, "Model pricing page data must be a valid JSON array of groups")
+			return
+		}
+		modelPricingPageDataJSON = normalized
 	}
 
 	// Ops metrics collector interval validation (seconds).
@@ -1357,6 +1372,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TablePageSizeOptions:                   req.TablePageSizeOptions,
 		CustomMenuItems:                        customMenuJSON,
 		CustomEndpoints:                        customEndpointsJSON,
+		ModelPricingPageData:                   modelPricingPageDataJSON,
 		DefaultConcurrency:                     req.DefaultConcurrency,
 		DefaultBalance:                         req.DefaultBalance,
 		AffiliateRebateRate:                    affiliateRebateRate,
@@ -1885,6 +1901,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TablePageSizeOptions:                                   updatedSettings.TablePageSizeOptions,
 		CustomMenuItems:                                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),
 		CustomEndpoints:                                        dto.ParseCustomEndpoints(updatedSettings.CustomEndpoints),
+		ModelPricingPageData:                                   updatedSettings.ModelPricingPageData,
 		DefaultConcurrency:                                     updatedSettings.DefaultConcurrency,
 		DefaultBalance:                                         updatedSettings.DefaultBalance,
 		AffiliateRebateRate:                                    updatedSettings.AffiliateRebateRate,

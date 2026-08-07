@@ -2,6 +2,7 @@ package dto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -14,6 +15,7 @@ type CustomMenuItem struct {
 	IconSVG    string `json:"icon_svg"`
 	URL        string `json:"url"`
 	PageSlug   string `json:"page_slug,omitempty"`
+	OpenMode   string `json:"open_mode,omitempty"`
 	Visibility string `json:"visibility"` // "user" or "admin"
 	SortOrder  int    `json:"sort_order"`
 }
@@ -23,6 +25,22 @@ type CustomEndpoint struct {
 	Name        string `json:"name"`
 	Endpoint    string `json:"endpoint"`
 	Description string `json:"description"`
+}
+
+type ModelPricingPageRow struct {
+	Model          string `json:"model"`
+	PlatformInput  string `json:"platform_input"`
+	PlatformOutput string `json:"platform_output"`
+	OfficialInput  string `json:"official_input"`
+	OfficialOutput string `json:"official_output"`
+}
+
+type ModelPricingPageGroup struct {
+	ID         string                `json:"id"`
+	Name       string                `json:"name"`
+	Provider   string                `json:"provider"`
+	Multiplier string                `json:"multiplier,omitempty"`
+	Rows       []ModelPricingPageRow `json:"rows"`
 }
 
 // SystemSettings represents the admin settings API response payload.
@@ -145,6 +163,7 @@ type SystemSettings struct {
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	ModelPricingPageData        string           `json:"model_pricing_page_data"`
 
 	DefaultConcurrency           int                          `json:"default_concurrency"`
 	DefaultBalance               float64                      `json:"default_balance"`
@@ -339,6 +358,7 @@ type PublicSettings struct {
 	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
 	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint         `json:"custom_endpoints"`
+	ModelPricingPageData             []ModelPricingPageGroup  `json:"model_pricing_page_data"`
 	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
@@ -539,4 +559,59 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 		return []CustomEndpoint{}
 	}
 	return items
+}
+
+func ParseModelPricingPageData(raw string) []ModelPricingPageGroup {
+	normalized, err := NormalizeModelPricingPageDataJSON(raw)
+	if err != nil {
+		return []ModelPricingPageGroup{}
+	}
+	var groups []ModelPricingPageGroup
+	if err := json.Unmarshal([]byte(normalized), &groups); err != nil {
+		return []ModelPricingPageGroup{}
+	}
+	return groups
+}
+
+func NormalizeModelPricingPageDataJSON(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "[]", nil
+	}
+	var groups []ModelPricingPageGroup
+	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
+		return "", err
+	}
+	if groups == nil {
+		groups = []ModelPricingPageGroup{}
+	}
+	for groupIndex := range groups {
+		group := &groups[groupIndex]
+		group.ID = strings.TrimSpace(group.ID)
+		group.Name = strings.TrimSpace(group.Name)
+		group.Provider = strings.TrimSpace(group.Provider)
+		group.Multiplier = strings.TrimSpace(group.Multiplier)
+		if group.ID == "" || group.Name == "" || group.Provider == "" {
+			return "", fmt.Errorf("group %d requires id, name and provider", groupIndex+1)
+		}
+		if len(group.Rows) == 0 {
+			return "", fmt.Errorf("group %d requires at least one row", groupIndex+1)
+		}
+		for rowIndex := range group.Rows {
+			row := &group.Rows[rowIndex]
+			row.Model = strings.TrimSpace(row.Model)
+			row.PlatformInput = strings.TrimSpace(row.PlatformInput)
+			row.PlatformOutput = strings.TrimSpace(row.PlatformOutput)
+			row.OfficialInput = strings.TrimSpace(row.OfficialInput)
+			row.OfficialOutput = strings.TrimSpace(row.OfficialOutput)
+			if row.Model == "" {
+				return "", fmt.Errorf("group %d row %d requires model", groupIndex+1, rowIndex+1)
+			}
+		}
+	}
+	b, err := json.Marshal(groups)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }

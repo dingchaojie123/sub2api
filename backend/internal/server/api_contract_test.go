@@ -509,10 +509,10 @@ func TestAPIContracts(t *testing.T) {
 					"id": 700,
 					"user_id": 1,
 					"prize_name": "fourth",
-					"value": 10,
+					"value": 2,
 					"prize_pool_code_id": 701,
 					"prize_redeem_code_id": 702,
-					"code": "PRIZE-10",
+					"code": "PRIZE-2",
 					"created_at": "2025-01-02T03:04:05Z"
 				}
 			}`,
@@ -529,11 +529,11 @@ func TestAPIContracts(t *testing.T) {
 					{
 						"id": 700,
 						"user_id": 1,
-						"prize_name": "fourth",
-						"value": 10,
+							"prize_name": "fourth",
+							"value": 2,
 						"prize_pool_code_id": 701,
 						"prize_redeem_code_id": 702,
-						"code": "PRIZE-10",
+							"code": "PRIZE-2",
 						"created_at": "2025-01-02T03:04:05Z"
 					}
 				]
@@ -550,13 +550,13 @@ func TestAPIContracts(t *testing.T) {
 				"data": [
 					{
 						"prize_name": "first",
-						"value": 300,
+							"value": 30,
 						"available": 1,
 						"assigned": 0
 					},
 					{
 						"prize_name": "second",
-						"value": 100,
+							"value": 10,
 						"available": 2,
 						"assigned": 1
 					}
@@ -2949,10 +2949,10 @@ func (r *stubLotteryRepo) DrawWithPrizeCode(ctx context.Context, userID int64, p
 		ID:                700,
 		UserID:            userID,
 		PrizeName:         "fourth",
-		PrizeValue:        10,
+		PrizeValue:        2,
 		PrizePoolCodeID:   701,
 		PrizeRedeemCodeID: 702,
-		Code:              "PRIZE-10",
+		Code:              "PRIZE-2",
 		CreatedAt:         r.now,
 	}, nil
 }
@@ -2963,10 +2963,10 @@ func (r *stubLotteryRepo) ListUserDrawRecords(ctx context.Context, userID int64,
 			ID:                700,
 			UserID:            userID,
 			PrizeName:         "fourth",
-			PrizeValue:        10,
+			PrizeValue:        2,
 			PrizePoolCodeID:   701,
 			PrizeRedeemCodeID: 702,
-			Code:              "PRIZE-10",
+			Code:              "PRIZE-2",
 			CreatedAt:         r.now,
 		},
 	}, nil
@@ -2982,8 +2982,8 @@ func (r *stubLotteryRepo) UnbindPrizeCodes(ctx context.Context, ids []int64) (in
 
 func (r *stubLotteryRepo) GetPoolSummary(ctx context.Context) ([]service.LotteryPoolSummaryItem, error) {
 	return []service.LotteryPoolSummaryItem{
-		{PrizeName: "first", Value: 300, Available: 1, Assigned: 0},
-		{PrizeName: "second", Value: 100, Available: 2, Assigned: 1},
+		{PrizeName: "first", Value: 30, Available: 1, Assigned: 0},
+		{PrizeName: "second", Value: 10, Available: 2, Assigned: 1},
 	}, nil
 }
 

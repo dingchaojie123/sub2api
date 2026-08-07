@@ -5643,6 +5643,24 @@
                 </p>
               </div>
 
+              <!-- Model Pricing Page Data -->
+              <div>
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{ t("admin.settings.site.modelPricingPageData") }}
+                </label>
+                <textarea
+                  v-model="form.model_pricing_page_data"
+                  rows="10"
+                  class="input font-mono text-sm"
+                  :placeholder="modelPricingPageDataPlaceholder"
+                ></textarea>
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.modelPricingPageDataHint") }}
+                </p>
+              </div>
+
               <!-- Hide CCS Import Button -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -5791,8 +5809,25 @@
                     </select>
                   </div>
 
-                  <!-- URL (full width) -->
-                  <div class="sm:col-span-2">
+                  <!-- Open Mode -->
+                  <div>
+                    <label
+                      class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                    >
+                      {{ t("admin.settings.customMenu.openMode") }}
+                    </label>
+                    <select v-model="item.open_mode" class="input text-sm">
+                      <option value="embed">
+                        {{ t("admin.settings.customMenu.openModeEmbed") }}
+                      </option>
+                      <option value="external">
+                        {{ t("admin.settings.customMenu.openModeExternal") }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <!-- URL -->
+                  <div>
                     <label
                       class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
                     >
@@ -7816,6 +7851,8 @@ const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
 const forwardedClientIpHeaderDraft = ref("");
 const tablePageSizeOptionsInput = ref("10, 20, 50, 100");
+const modelPricingPageDataPlaceholder =
+  '[{"id":"gpt-pro","name":"gpt pro","provider":"openai","multiplier":"","rows":[]}]';
 
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true);
@@ -8432,6 +8469,7 @@ const form = reactive<SettingsForm>({
     label: string;
     icon_svg: string;
     url: string;
+    open_mode?: "embed" | "external";
     visibility: "user" | "admin";
     sort_order: number;
   }>,
@@ -8440,6 +8478,7 @@ const form = reactive<SettingsForm>({
     endpoint: string;
     description: string;
   }>,
+  model_pricing_page_data: "[]",
   frontend_url: "",
   smtp_host: "",
   smtp_port: 587,
@@ -9320,6 +9359,7 @@ function addMenuItem() {
     label: "",
     icon_svg: "",
     url: "",
+    open_mode: "embed",
     visibility: "user",
     sort_order: form.custom_menu_items.length,
   });
@@ -9511,6 +9551,21 @@ async function loadSettings() {
       if (value !== null && value !== undefined) {
         (form as Record<string, unknown>)[key] = value;
       }
+    }
+    if (Array.isArray(form.custom_menu_items)) {
+      form.custom_menu_items = form.custom_menu_items.map((item) => ({
+        ...item,
+        open_mode: item.open_mode === "external" ? "external" : "embed",
+      }));
+    }
+    if (Array.isArray(form.model_pricing_page_data)) {
+      form.model_pricing_page_data = JSON.stringify(
+        form.model_pricing_page_data,
+        null,
+        2,
+      );
+    } else if (typeof form.model_pricing_page_data !== "string") {
+      form.model_pricing_page_data = "[]";
     }
     if (!form.claude_oauth_system_prompt_blocks?.trim()) {
       form.claude_oauth_system_prompt_blocks =
@@ -9873,6 +9928,20 @@ async function saveSettings() {
       );
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
+    const modelPricingPageDataJSON =
+      form.model_pricing_page_data.trim() || "[]";
+    try {
+      const modelPricingPageData = JSON.parse(modelPricingPageDataJSON);
+      if (!Array.isArray(modelPricingPageData)) {
+        appStore.showError(
+          t("admin.settings.site.modelPricingPageDataInvalid"),
+        );
+        return;
+      }
+    } catch {
+      appStore.showError(t("admin.settings.site.modelPricingPageDataInvalid"));
+      return;
+    }
 
     const payload: UpdateSettingsRequest = {
       registration_enabled: form.registration_enabled,
@@ -9920,8 +9989,12 @@ async function saveSettings() {
       hide_ccs_import_button: form.hide_ccs_import_button,
       table_default_page_size: form.table_default_page_size,
       table_page_size_options: form.table_page_size_options,
-      custom_menu_items: form.custom_menu_items,
+      custom_menu_items: form.custom_menu_items.map((item) => ({
+        ...item,
+        open_mode: item.open_mode === "external" ? "external" : "embed",
+      })),
       custom_endpoints: form.custom_endpoints,
+      model_pricing_page_data: modelPricingPageDataJSON,
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,

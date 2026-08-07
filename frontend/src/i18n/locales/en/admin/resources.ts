@@ -280,7 +280,7 @@ export default {
         availableCount: 'Available {count}',
         assignedCount: 'Assigned {count}',
         selectedEligibleCount: '{count} eligible for lottery pool',
-        ineligibleSelectedHint: '{count} selected code(s) do not match balance $300/$100/$50/$10 and unused',
+        ineligibleSelectedHint: '{count} selected code(s) do not match balance $30/$10/$5/$2 and unused',
         bindSelected: 'Add to Lottery Pool',
         bindSuccess: 'Added {count} code(s) to the lottery pool',
         noEligibleSelected: 'No selected codes can be added to the lottery pool',

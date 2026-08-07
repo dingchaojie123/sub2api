@@ -155,6 +155,7 @@ export default {
     apiKeys: 'API Keys',
     batchImage: 'Batch Images',
     usage: 'Usage',
+    modelList: 'Model List',
     redeem: 'Redeem',
     lottery: 'Lucky Wheel',
     affiliate: 'Affiliate Rebates',

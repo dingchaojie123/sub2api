@@ -873,7 +873,7 @@ const {
   getId: (code) => code.id
 })
 
-const lotteryEligibleValues = new Set([300, 100, 50, 10])
+const lotteryEligibleValues = new Set([30, 10, 5, 2])
 
 const isLotteryEligibleCode = (code: RedeemCode) =>
   code.type === 'balance' && code.status === 'unused' && lotteryEligibleValues.has(code.value)

@@ -171,6 +171,7 @@ export interface CustomMenuItem {
   icon_svg: string
   url: string
   page_slug?: string
+  open_mode?: 'embed' | 'external'
   visibility: 'user' | 'admin'
   sort_order: number
 }
@@ -179,6 +180,22 @@ export interface CustomEndpoint {
   name: string
   endpoint: string
   description: string
+}
+
+export interface ModelPricingPageRow {
+  model: string
+  platform_input: string
+  platform_output: string
+  official_input: string
+  official_output: string
+}
+
+export interface ModelPricingPageGroup {
+  id: string
+  name: string
+  provider: string
+  multiplier?: string
+  rows: ModelPricingPageRow[]
 }
 
 export interface LoginAgreementDocument {
@@ -216,6 +233,7 @@ export interface PublicSettings {
   table_page_size_options: number[]
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  model_pricing_page_data?: ModelPricingPageGroup[]
   linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean
