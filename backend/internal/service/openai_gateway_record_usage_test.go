@@ -2049,6 +2049,51 @@ func TestOpenAIGatewayServiceRecordUsage_GrokVideoUsesDefaultRateCard(t *testing
 	require.Equal(t, VideoBillingDefaultDurationSeconds, *usageRepo.lastLog.VideoDurationSeconds)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_JimengVideoBillsPerSecond(t *testing.T) {
+	groupID := int64(1262)
+	videoPrice720P := 0.5
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{}, nil)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:            "jimeng-video-10s",
+			ResponseID:           "jimeng-video-10s",
+			Model:                JimengVideoBillingModel,
+			BillingModel:         JimengVideoBillingModel,
+			ImageCount:           1,
+			VideoCount:           1,
+			VideoResolution:      VideoBillingResolution720P,
+			VideoDurationSeconds: 10,
+			Duration:             time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      101262,
+			GroupID: i64p(groupID),
+			Group: &Group{
+				ID:                   groupID,
+				Platform:             PlatformJimeng,
+				RateMultiplier:       1,
+				VideoRateIndependent: true,
+				VideoRateMultiplier:  1,
+				VideoPrice720P:       &videoPrice720P,
+			},
+		},
+		User:    &User{ID: 201262},
+		Account: &Account{ID: 301262, Platform: PlatformJimeng},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 5.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 5.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.NotNil(t, usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(BillingModeVideo), *usageRepo.lastLog.BillingMode)
+	require.Equal(t, 1, usageRepo.lastLog.VideoCount)
+	require.NotNil(t, usageRepo.lastLog.VideoDurationSeconds)
+	require.Equal(t, 10, *usageRepo.lastLog.VideoDurationSeconds)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_GroupImagePriceOverridesChannelImagePrice(t *testing.T) {
 	groupID := int64(127)
 	channelPrice := 0.201

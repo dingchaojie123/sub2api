@@ -1377,6 +1377,7 @@ const (
 	defaultGrokImagineVideo15Price480P  = 0.08
 	defaultGrokImagineVideo15Price720P  = 0.14
 	defaultGrokImagineVideo15Price1080P = 0.25
+	defaultJimengVideoPricePerSecond    = 0.5
 
 	// Codex alpha/search 网页搜索单次默认价：OpenAI 官方 web search 定价 $10/1000 次。
 	defaultWebSearchPricePerCall = 0.01
@@ -1547,6 +1548,10 @@ func (s *BillingService) getDefaultImagePrice(model string, imageSize string) fl
 func (s *BillingService) getDefaultVideoPrice(model string, resolution string) float64 {
 	if price, ok := getDefaultGrokImagineVideoPrice(model, resolution); ok {
 		return price
+	}
+	normalizedModel := strings.ToLower(strings.TrimSpace(model))
+	if normalizedModel == JimengVideoBillingModel || normalizedModel == strings.ToLower(JimengVideoRoutingModel) {
+		return defaultJimengVideoPricePerSecond
 	}
 
 	// The bundled LiteLLM schema does not expose an output video generation price.

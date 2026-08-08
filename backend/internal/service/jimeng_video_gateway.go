@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 type JimengVideoEndpoint string
@@ -117,7 +119,7 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 	if responseID == "" {
 		responseID = strings.TrimSpace(taskID)
 	}
-	return &OpenAIForwardResult{
+	result := &OpenAIForwardResult{
 		RequestID:        responseID,
 		ResponseID:       responseID,
 		Usage:            parsed.Usage,
@@ -128,7 +130,16 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 		UpstreamEndpoint: jimengVideoUpstreamEndpoint(endpoint),
 		ResponseHeaders:  resp.Header.Clone(),
 		Duration:         time.Since(startTime),
-	}, nil
+	}
+	if endpoint == JimengVideoEndpointGenerations {
+		billingMeta := jimengVideoBillingMetadataFromRequest(body)
+		result.HasUsage = true
+		result.ImageCount = 1
+		result.VideoCount = 1
+		result.VideoResolution = billingMeta.VideoResolution
+		result.VideoDurationSeconds = billingMeta.VideoDurationSeconds
+	}
+	return result, nil
 }
 
 func jimengVideoUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
@@ -138,4 +149,72 @@ func jimengVideoUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
 	default:
 		return "/v1/video/generations"
 	}
+}
+
+type jimengVideoBillingMetadata struct {
+	VideoResolution      string
+	VideoDurationSeconds int
+}
+
+func jimengVideoBillingMetadataFromRequest(body []byte) jimengVideoBillingMetadata {
+	return jimengVideoBillingMetadata{
+		VideoResolution: NormalizeVideoBillingResolutionOrDefault(firstJimengJSONText(body,
+			"resolution",
+			"size",
+			"quality",
+			"data.resolution",
+			"data.size",
+			"parameters.resolution",
+			"parameters.size",
+			"video.resolution",
+			"video.size",
+		)),
+		VideoDurationSeconds: NormalizeVideoBillingDurationSecondsOrDefault(firstJimengJSONInt(body,
+			"duration",
+			"duration_seconds",
+			"seconds",
+			"data.duration",
+			"data.duration_seconds",
+			"parameters.duration",
+			"parameters.duration_seconds",
+			"video.duration",
+			"video.duration_seconds",
+		)),
+	}
+}
+
+func firstJimengJSONText(body []byte, paths ...string) string {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return ""
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if value.Exists() {
+			if text := strings.TrimSpace(value.String()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func firstJimengJSONInt(body []byte, paths ...string) int {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return 0
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() {
+			continue
+		}
+		if value.Type == gjson.String {
+			parsed, err := strconv.Atoi(strings.TrimSpace(value.String()))
+			if err == nil {
+				return parsed
+			}
+			continue
+		}
+		return int(value.Int())
+	}
+	return 0
 }

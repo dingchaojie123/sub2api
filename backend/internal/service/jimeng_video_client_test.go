@@ -146,6 +146,33 @@ func TestForwardJimengVideoGenerationUsesAccountCredentialAndReturnsUsage(t *tes
 	require.Equal(t, "video-v1", result.Model)
 }
 
+func TestForwardJimengVideoGenerationSynthesizesVideoUsageForAcceptedTask(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_video","status":"processing"}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"video-v1","prompt":"hello","duration":10,"resolution":"720p"}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", bytes.NewReader(body))
+
+	result, err := svc.ForwardJimengVideo(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.NoError(t, err)
+	require.True(t, result.HasUsage)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, 1, result.VideoCount)
+	require.Equal(t, VideoBillingResolution720P, result.VideoResolution)
+	require.Equal(t, 10, result.VideoDurationSeconds)
+}
+
 func TestJimengVideoRoutingModelMatchesFixedAccountModel(t *testing.T) {
 	account := &Account{
 		Platform: PlatformJimeng,

@@ -448,7 +448,8 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 }
 
 func isGrokVideoBillingModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "grok-imagine-video")
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(normalized, "grok-imagine-video") || normalized == JimengVideoBillingModel
 }
 
 func isGrokVideoUsageResult(result *OpenAIForwardResult, billingModels []string) bool {

@@ -810,8 +810,8 @@ func TestComputeTokenBreakdown_GptImage2ImageEditIssue4386(t *testing.T) {
 
 	cost := svc.computeTokenBreakdown(pricing, tokens, 1.0, "", false)
 
-	wantTextInput := float64(19) * 5e-6    // 0.000095
-	wantImageInput := float64(352) * 8e-6  // 0.002816
+	wantTextInput := float64(19) * 5e-6     // 0.000095
+	wantImageInput := float64(352) * 8e-6   // 0.002816
 	wantImageOutput := float64(439) * 30e-6 // 0.013170
 	require.InDelta(t, wantTextInput, cost.InputCost, 1e-15, "InputCost 仅含文本输入")
 	require.InDelta(t, wantImageInput, cost.ImageInputCost, 1e-15, "图片输入按 $8/1M 独立计费")
@@ -965,6 +965,19 @@ func TestCalculateVideoCostBillsPerSecond(t *testing.T) {
 	require.InDelta(t, 0.07*15, fifteenSeconds.TotalCost, 1e-10)
 	require.InDelta(t, 0.07*8, defaultDuration.TotalCost, 1e-10)
 	require.InDelta(t, 0.07*15, clampedDuration.TotalCost, 1e-10)
+}
+
+func TestCalculateJimengVideoCostBillsPerSecond(t *testing.T) {
+	svc := newTestBillingService()
+
+	fiveSeconds := svc.CalculateVideoCost(JimengVideoBillingModel, "720p", 1, 5, nil, 1.0)
+	tenSeconds := svc.CalculateVideoCost(JimengVideoBillingModel, "720p", 1, 10, nil, 1.0)
+	fifteenSeconds := svc.CalculateVideoCost(JimengVideoBillingModel, "720p", 1, 15, nil, 1.0)
+
+	require.InDelta(t, 2.5, fiveSeconds.TotalCost, 1e-10)
+	require.InDelta(t, 5.0, tenSeconds.TotalCost, 1e-10)
+	require.InDelta(t, 7.5, fifteenSeconds.TotalCost, 1e-10)
+	require.Equal(t, string(BillingModeVideo), tenSeconds.BillingMode)
 }
 
 func TestCalculateGrokImagineImageCostUsesDefaultRateCard(t *testing.T) {

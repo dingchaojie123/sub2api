@@ -10,6 +10,7 @@ IMAGE_TAG="${SUB2API_IMAGE:-croge-registry.cn-beijing.cr.aliyuncs.com/croge/crog
 
 docker build \
     -t "${IMAGE_TAG}" \
+    --platform linux/amd64 \
     --build-arg GOPROXY=https://goproxy.cn,direct \
     --build-arg GOSUMDB=sum.golang.google.cn \
     -f "${REPO_ROOT}/Dockerfile" \
