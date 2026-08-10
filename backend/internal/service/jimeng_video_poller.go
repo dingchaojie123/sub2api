@@ -268,7 +268,7 @@ func (s *JimengVideoPollerService) ProcessTask(ctx context.Context, task *Jimeng
 	if s.Repo == nil || s.Gateway == nil {
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, ErrJimengVideoTaskRepositoryMissing
 	}
-	if NormalizeJimengTaskStatus(task.BillingStatus) != JimengVideoBillingStatusHeld {
+	if strings.TrimSpace(task.BillingStatus) != JimengVideoBillingStatusHeld {
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeSkipped}, nil
 	}
 	opts := s.options()
