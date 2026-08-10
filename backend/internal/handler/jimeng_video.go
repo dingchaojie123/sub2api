@@ -75,16 +75,18 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 			return
 		}
-		idempotencyKey = strings.TrimSpace(c.GetHeader("Idempotency-Key"))
-		if idempotencyKey == "" {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Idempotency-Key is required for video generation")
-			return
-		}
-		if len(idempotencyKey) > service.JimengVideoIdempotencyKeyMaxLength {
+		rawIdempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+		if len(rawIdempotencyKey) > service.JimengVideoIdempotencyKeyMaxLength {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Idempotency-Key must be at most 255 characters")
 			return
 		}
 		requestPayloadHash = service.HashUsageRequestPayload(body)
+		idempotencyKey, legacyIdempotency := resolveJimengVideoIdempotencyKey(rawIdempotencyKey, requestPayloadHash)
+		if legacyIdempotency {
+			reqLog.Info("jimeng_video.legacy_idempotency_key_fallback",
+				zap.String("request_payload_hash", requestPayloadHash),
+			)
+		}
 		existingTask, lookupErr := h.gatewayService.GetJimengVideoTaskByIdempotencyKey(
 			c.Request.Context(), subject.UserID, apiKey.ID, idempotencyKey,
 		)
@@ -453,7 +455,23 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 	}
 }
 
+const legacyJimengVideoIdempotencyKeyPrefix = "legacy:"
+
 var errJimengVideoResponseAlreadyWritten = errors.New("jimeng video response already written")
+
+// resolveJimengVideoIdempotencyKey keeps old callers working by deriving a stable
+// internal key from the payload hash when the header is absent.
+func resolveJimengVideoIdempotencyKey(rawKey string, requestPayloadHash string) (string, bool) {
+	rawKey = strings.TrimSpace(rawKey)
+	if rawKey != "" {
+		return rawKey, false
+	}
+	requestPayloadHash = strings.TrimSpace(requestPayloadHash)
+	if requestPayloadHash == "" {
+		return "", true
+	}
+	return legacyJimengVideoIdempotencyKeyPrefix + requestPayloadHash, true
+}
 
 func (h *OpenAIGatewayHandler) createAndReserveJimengVideoTask(
 	c *gin.Context,
