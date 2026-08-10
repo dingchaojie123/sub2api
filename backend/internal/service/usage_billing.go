@@ -127,6 +127,7 @@ type BatchImageBalanceHoldCommand struct {
 	RequestPayloadHash string
 	UserID             int64
 	BatchID            string
+	HoldRequestID      string
 	HoldAmount         float64
 	ActualAmount       float64
 }
@@ -137,6 +138,7 @@ func (c *BatchImageBalanceHoldCommand) Normalize() {
 	}
 	c.RequestID = strings.TrimSpace(c.RequestID)
 	c.BatchID = strings.TrimSpace(c.BatchID)
+	c.HoldRequestID = strings.TrimSpace(c.HoldRequestID)
 	if strings.TrimSpace(c.RequestFingerprint) == "" {
 		c.RequestFingerprint = buildBatchImageBalanceHoldFingerprint(c)
 	}

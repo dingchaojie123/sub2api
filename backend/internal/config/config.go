@@ -97,6 +97,7 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	JimengVideo             JimengVideoConfig             `mapstructure:"jimeng_video"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 }
 
@@ -228,6 +229,16 @@ type BatchImageConfig struct {
 	VertexOutputRetentionHours   int    `mapstructure:"vertex_output_retention_hours"`
 	VertexBatchPredictionBaseURL string `mapstructure:"vertex_batch_prediction_base_url"`
 	VertexGCSBaseURL             string `mapstructure:"vertex_gcs_base_url"`
+}
+
+type JimengVideoConfig struct {
+	PollerEnabled              bool `mapstructure:"poller_enabled"`
+	PollIntervalSeconds        int  `mapstructure:"poll_interval_seconds"`
+	PollBatchSize              int  `mapstructure:"poll_batch_size"`
+	PollLeaseTTLSeconds        int  `mapstructure:"poll_lease_ttl_seconds"`
+	PollUpstreamTimeoutSeconds int  `mapstructure:"poll_upstream_timeout_seconds"`
+	SubmitTimeoutSeconds       int  `mapstructure:"submit_timeout_seconds"`
+	MaxProcessingSeconds       int  `mapstructure:"max_processing_seconds"`
 }
 
 // ImageStorageConfig 配置异步图片任务结果上传的 S3 兼容对象存储。
@@ -2039,6 +2050,14 @@ func setDefaults() {
 	viper.SetDefault("batch_image.vertex_batch_prediction_base_url", "")
 	viper.SetDefault("batch_image.vertex_gcs_base_url", "")
 
+	viper.SetDefault("jimeng_video.poller_enabled", true)
+	viper.SetDefault("jimeng_video.poll_interval_seconds", 30)
+	viper.SetDefault("jimeng_video.poll_batch_size", 25)
+	viper.SetDefault("jimeng_video.poll_lease_ttl_seconds", 120)
+	viper.SetDefault("jimeng_video.poll_upstream_timeout_seconds", 30)
+	viper.SetDefault("jimeng_video.submit_timeout_seconds", 600)
+	viper.SetDefault("jimeng_video.max_processing_seconds", 7200)
+
 	// Image storage (async image task result offload to S3-compatible object storage)
 	viper.SetDefault("image_storage.enabled", false)
 	viper.SetDefault("image_storage.region", "auto")
@@ -2861,6 +2880,26 @@ func (c *Config) Validate() error {
 		}
 		if c.BatchImage.VertexOutputRetentionHours <= 0 {
 			return fmt.Errorf("batch_image.vertex_output_retention_hours must be positive")
+		}
+	}
+	if c.JimengVideo.PollerEnabled {
+		if c.JimengVideo.PollIntervalSeconds <= 0 {
+			return fmt.Errorf("jimeng_video.poll_interval_seconds must be positive")
+		}
+		if c.JimengVideo.PollBatchSize <= 0 {
+			return fmt.Errorf("jimeng_video.poll_batch_size must be positive")
+		}
+		if c.JimengVideo.PollLeaseTTLSeconds <= 0 {
+			return fmt.Errorf("jimeng_video.poll_lease_ttl_seconds must be positive")
+		}
+		if c.JimengVideo.PollUpstreamTimeoutSeconds <= 0 {
+			return fmt.Errorf("jimeng_video.poll_upstream_timeout_seconds must be positive")
+		}
+		if c.JimengVideo.SubmitTimeoutSeconds <= 0 {
+			return fmt.Errorf("jimeng_video.submit_timeout_seconds must be positive")
+		}
+		if c.JimengVideo.MaxProcessingSeconds <= 0 {
+			return fmt.Errorf("jimeng_video.max_processing_seconds must be positive")
 		}
 	}
 	if c.Dashboard.Enabled {

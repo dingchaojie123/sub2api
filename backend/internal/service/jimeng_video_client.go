@@ -241,7 +241,7 @@ func NormalizeJimengTaskStatus(status string) string {
 		return JimengTaskStatusProcessing
 	case "success", "succeeded", "completed", "complete", "done":
 		return JimengTaskStatusSucceeded
-	case "fail", "failed", "failure", "error", "cancelled", "canceled", "rejected", "refunded":
+	case "fail", "failed", "failure", "error", "cancelled", "canceled", "rejected", "refunded", "timeout", "timed_out", "expired":
 		return JimengTaskStatusFailed
 	default:
 		return normalized

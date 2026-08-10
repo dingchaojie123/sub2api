@@ -306,6 +306,18 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.ActualAmount-cmd.HoldAmount > 0.00000001 {
 		return nil, service.ErrBatchImageSettlementCostExceedsHold
 	}
+	holdRequestID := strings.TrimSpace(cmd.HoldRequestID)
+	if holdRequestID == "" {
+		holdRequestID = service.BatchImageHoldRequestID(cmd.BatchID)
+	}
+	held, heldErr := batchImageHoldClaimExists(ctx, tx, holdRequestID, cmd.APIKeyID)
+	if heldErr != nil {
+		return nil, heldErr
+	}
+	if !held {
+		logger.LegacyPrintf("repository.usage_billing", "[BatchImage] capture failed, hold was never reserved: batch=%s", cmd.BatchID)
+		return nil, service.ErrBatchImageHoldNotReserved
+	}
 	var balance, frozen float64
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
@@ -337,7 +349,11 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	}
 	// 释放前校验该 job 确实预留过 hold（hold request id 已被 claim），
 	// 防止从未成功冻结的 job 触发"幻影释放"，从其他用户的冻结资金池中凭空生成余额。
-	held, heldErr := batchImageHoldClaimExists(ctx, tx, service.BatchImageHoldRequestID(cmd.BatchID), cmd.APIKeyID)
+	holdRequestID := strings.TrimSpace(cmd.HoldRequestID)
+	if holdRequestID == "" {
+		holdRequestID = service.BatchImageHoldRequestID(cmd.BatchID)
+	}
+	held, heldErr := batchImageHoldClaimExists(ctx, tx, holdRequestID, cmd.APIKeyID)
 	if heldErr != nil {
 		return nil, heldErr
 	}

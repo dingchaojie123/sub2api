@@ -142,11 +142,12 @@ func TestForwardJimengVideoGenerationUsesAccountCredentialAndReturnsUsage(t *tes
 	require.Equal(t, "Bearer jimeng-upstream-key", upstream.lastReq.Header.Get("Authorization"))
 	require.Equal(t, []byte(`{"model":"video-v1","prompt":"hello"}`), upstream.lastBody)
 	require.Equal(t, "task_forward", result.ResponseID)
+	require.False(t, result.HasUsage)
 	require.True(t, result.Usage.InputTokens > 0)
 	require.Equal(t, "video-v1", result.Model)
 }
 
-func TestForwardJimengVideoGenerationSynthesizesVideoUsageForAcceptedTask(t *testing.T) {
+func TestForwardJimengVideoGenerationDoesNotBillAcceptedTask(t *testing.T) {
 	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
@@ -166,11 +167,14 @@ func TestForwardJimengVideoGenerationSynthesizesVideoUsageForAcceptedTask(t *tes
 	}, JimengVideoEndpointGenerations, "", body)
 
 	require.NoError(t, err)
-	require.True(t, result.HasUsage)
+	require.False(t, result.HasUsage)
 	require.Equal(t, 1, result.ImageCount)
 	require.Equal(t, 1, result.VideoCount)
 	require.Equal(t, VideoBillingResolution720P, result.VideoResolution)
 	require.Equal(t, 10, result.VideoDurationSeconds)
+	require.Equal(t, JimengTaskStatusProcessing, result.TaskStatus)
+	require.Equal(t, http.StatusOK, result.ResponseStatusCode)
+	require.Equal(t, []byte(`{"task_id":"task_video","status":"processing"}`), result.ResponseBody)
 }
 
 func TestJimengVideoRoutingModelMatchesFixedAccountModel(t *testing.T) {
@@ -201,6 +205,9 @@ func TestNormalizeJimengTaskStatus(t *testing.T) {
 		{input: "error", want: JimengTaskStatusFailed},
 		{input: "cancelled", want: JimengTaskStatusFailed},
 		{input: "refunded", want: JimengTaskStatusFailed},
+		{input: "timeout", want: JimengTaskStatusFailed},
+		{input: "timed_out", want: JimengTaskStatusFailed},
+		{input: "expired", want: JimengTaskStatusFailed},
 		{input: "custom", want: "custom"},
 	}
 

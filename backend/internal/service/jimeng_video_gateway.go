@@ -39,6 +39,29 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 	taskID string,
 	body []byte,
 ) (*OpenAIForwardResult, error) {
+	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, true)
+}
+
+func (s *OpenAIGatewayService) ForwardJimengVideoBuffered(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	endpoint JimengVideoEndpoint,
+	taskID string,
+	body []byte,
+) (*OpenAIForwardResult, error) {
+	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, false)
+}
+
+func (s *OpenAIGatewayService) forwardJimengVideo(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	endpoint JimengVideoEndpoint,
+	taskID string,
+	body []byte,
+	writeSuccessResponse bool,
+) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("jimeng upstream transport is unavailable")
@@ -113,7 +136,9 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 	if err != nil {
 		return nil, err
 	}
-	writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+	if writeSuccessResponse {
+		writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+	}
 
 	responseID := strings.TrimSpace(parsed.TaskID)
 	if responseID == "" {
@@ -130,16 +155,46 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 		UpstreamEndpoint: jimengVideoUpstreamEndpoint(endpoint),
 		ResponseHeaders:  resp.Header.Clone(),
 		Duration:         time.Since(startTime),
+		TaskStatus:       parsed.Status,
+		ResponseStatusCode: resp.StatusCode,
+		ResponseContentType: strings.TrimSpace(resp.Header.Get("Content-Type")),
+		ResponseBody:     append([]byte(nil), respBody...),
 	}
 	if endpoint == JimengVideoEndpointGenerations {
 		billingMeta := jimengVideoBillingMetadataFromRequest(body)
-		result.HasUsage = true
+		result.HasUsage = false
 		result.ImageCount = 1
 		result.VideoCount = 1
 		result.VideoResolution = billingMeta.VideoResolution
 		result.VideoDurationSeconds = billingMeta.VideoDurationSeconds
 	}
 	return result, nil
+}
+
+func (s *OpenAIGatewayService) WriteJimengVideoForwardResult(c *gin.Context, result *OpenAIForwardResult) {
+	if c == nil || result == nil {
+		return
+	}
+	status := result.ResponseStatusCode
+	if status == 0 {
+		status = http.StatusOK
+	}
+	contentType := strings.TrimSpace(result.ResponseContentType)
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	headers := result.ResponseHeaders.Clone()
+	if headers == nil {
+		headers = make(http.Header)
+	}
+	if headers.Get("Content-Type") == "" {
+		headers.Set("Content-Type", contentType)
+	}
+	resp := &http.Response{
+		StatusCode: status,
+		Header:     headers,
+	}
+	writeGrokMediaResponse(c, resp, result.ResponseBody, s.responseHeaderFilter)
 }
 
 func jimengVideoUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
@@ -151,13 +206,13 @@ func jimengVideoUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
 	}
 }
 
-type jimengVideoBillingMetadata struct {
+type JimengVideoBillingMetadata struct {
 	VideoResolution      string
 	VideoDurationSeconds int
 }
 
-func jimengVideoBillingMetadataFromRequest(body []byte) jimengVideoBillingMetadata {
-	return jimengVideoBillingMetadata{
+func jimengVideoBillingMetadataFromRequest(body []byte) JimengVideoBillingMetadata {
+	return JimengVideoBillingMetadata{
 		VideoResolution: NormalizeVideoBillingResolutionOrDefault(firstJimengJSONText(body,
 			"resolution",
 			"size",
@@ -181,6 +236,10 @@ func jimengVideoBillingMetadataFromRequest(body []byte) jimengVideoBillingMetada
 			"video.duration_seconds",
 		)),
 	}
+}
+
+func JimengVideoBillingMetadataFromRequest(body []byte) JimengVideoBillingMetadata {
+	return jimengVideoBillingMetadataFromRequest(body)
 }
 
 func firstJimengJSONText(body []byte, paths ...string) string {

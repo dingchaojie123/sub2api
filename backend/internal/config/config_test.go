@@ -576,6 +576,20 @@ func TestLoadDefaultBatchImageQueueDisabled(t *testing.T) {
 	require.False(t, cfg.BatchImage.QueueEnabled)
 }
 
+func TestLoadDefaultJimengVideoPollerConfig(t *testing.T) {
+	resetViperWithJWTSecret(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.True(t, cfg.JimengVideo.PollerEnabled)
+	require.Equal(t, 30, cfg.JimengVideo.PollIntervalSeconds)
+	require.Equal(t, 25, cfg.JimengVideo.PollBatchSize)
+	require.Equal(t, 120, cfg.JimengVideo.PollLeaseTTLSeconds)
+	require.Equal(t, 30, cfg.JimengVideo.PollUpstreamTimeoutSeconds)
+	require.Equal(t, 600, cfg.JimengVideo.SubmitTimeoutSeconds)
+	require.Equal(t, 7200, cfg.JimengVideo.MaxProcessingSeconds)
+}
+
 func TestLoadIdempotencyConfigFromEnv(t *testing.T) {
 	resetViperWithJWTSecret(t)
 	t.Setenv("IDEMPOTENCY_OBSERVE_ONLY", "false")

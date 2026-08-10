@@ -261,6 +261,14 @@ type OpenAIForwardResult struct {
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
 	// 上游不返回 usage 字段，>0 时走按次计费（分组单价 × 次数 × 倍率）。
 	WebSearchCalls int
+	// TaskStatus is used by async media providers. For Jimeng video it is the
+	// normalized upstream task status; only a final succeeded status is billable.
+	TaskStatus string
+	// ResponseStatusCode/ContentType/Body preserve a buffered upstream response
+	// so the caller can persist task billing state before writing to the client.
+	ResponseStatusCode  int
+	ResponseContentType string
+	ResponseBody        []byte
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool
