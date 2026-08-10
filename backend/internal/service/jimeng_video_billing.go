@@ -17,10 +17,12 @@ const (
 	JimengVideoTaskStatusSubmitting     = "submitting"
 	JimengVideoIdempotencyKeyMaxLength = 255
 
-	JimengVideoBillingStatusHeld     = "held"
-	JimengVideoBillingStatusCaptured = "captured"
-	JimengVideoBillingStatusReleased = "released"
-	JimengVideoBillingStatusNone     = "none"
+	JimengVideoBillingStatusHeld         = "held"
+	JimengVideoBillingStatusSettling     = "settling"
+	JimengVideoBillingStatusSettlingNone = "settling_none"
+	JimengVideoBillingStatusCaptured     = "captured"
+	JimengVideoBillingStatusReleased     = "released"
+	JimengVideoBillingStatusNone         = "none"
 
 	jimengVideoHoldRequestPrefix    = "jimeng_video_hold:"
 	jimengVideoCaptureRequestPrefix = "jimeng_video_capture:"
@@ -122,6 +124,11 @@ type MarkJimengVideoSettledParams struct {
 	LastErrorMessage string
 }
 
+type ClaimJimengVideoSettlementParams struct {
+	TaskID      string
+	FinalStatus string
+}
+
 type JimengVideoTaskRepository interface {
 	CreateJimengVideoTask(ctx context.Context, params CreateJimengVideoTaskParams) (*JimengVideoTask, error)
 	GetJimengVideoTaskByIdempotencyKey(ctx context.Context, userID int64, apiKeyID int64, idempotencyKey string) (*JimengVideoTask, error)
@@ -129,6 +136,7 @@ type JimengVideoTaskRepository interface {
 	MarkJimengVideoTaskSubmitted(ctx context.Context, params MarkJimengVideoSubmittedParams) (*JimengVideoTask, error)
 	MarkJimengVideoTaskStatus(ctx context.Context, params MarkJimengVideoStatusParams) (*JimengVideoTask, error)
 	MarkJimengVideoTaskSubmitFailed(ctx context.Context, localTaskID string, code string, message string) error
+	ClaimJimengVideoTaskSettlement(ctx context.Context, params ClaimJimengVideoSettlementParams) (*JimengVideoTask, bool, error)
 	MarkJimengVideoTaskSettled(ctx context.Context, params MarkJimengVideoSettledParams) (*JimengVideoTask, error)
 }
 
@@ -400,10 +408,38 @@ func (s *OpenAIGatewayService) SettleJimengVideoTask(ctx context.Context, in *Ji
 		return nil
 	}
 	if finalStatus == JimengTaskStatusSucceeded {
-		return s.captureJimengVideoTask(ctx, in)
+		if err := validateJimengVideoSuccessfulSettlement(in); err != nil {
+			return err
+		}
 	}
-	if finalStatus == JimengTaskStatusFailed {
-		return s.releaseJimengVideoTask(ctx, in)
+	repo, err := s.jimengVideoTaskRepo()
+	if err != nil {
+		return err
+	}
+	claimedTask, claimed, err := repo.ClaimJimengVideoTaskSettlement(ctx, ClaimJimengVideoSettlementParams{
+		TaskID:      task.TaskID,
+		FinalStatus: finalStatus,
+	})
+	if err != nil {
+		return err
+	}
+	if !claimed || claimedTask == nil {
+		return nil
+	}
+	settlement := *in
+	settlement.Task = claimedTask
+	settlement.FinalStatus = NormalizeJimengTaskStatus(claimedTask.Status)
+	if settlement.FinalStatus == "" {
+		settlement.FinalStatus = finalStatus
+	}
+	if settlement.FinalStatus == JimengTaskStatusSucceeded {
+		if err := validateJimengVideoSuccessfulSettlement(&settlement); err != nil {
+			return err
+		}
+		return s.captureJimengVideoTask(ctx, &settlement)
+	}
+	if settlement.FinalStatus == JimengTaskStatusFailed {
+		return s.releaseJimengVideoTask(ctx, &settlement)
 	}
 	return nil
 }
@@ -418,12 +454,12 @@ func (s *OpenAIGatewayService) captureJimengVideoTask(ctx context.Context, in *J
 		actualCost = 0
 	}
 
-	isSubscriptionBill := in.Subscription != nil && in.APIKey != nil && in.APIKey.Group != nil && in.APIKey.Group.IsSubscriptionType()
+	isSubscriptionBill := jimengVideoTaskUsesSubscriptionBilling(task)
 	if isSubscriptionBill {
 		if err := s.recordJimengVideoSubscriptionUsage(in); err != nil {
 			return ErrJimengVideoSettlementBillingFailed.WithCause(err)
 		}
-	} else if task.BillingStatus == JimengVideoBillingStatusHeld {
+	} else if task.BillingStatus == JimengVideoBillingStatusHeld || task.BillingStatus == JimengVideoBillingStatusSettling {
 		if err := s.CaptureJimengVideoBalanceHold(ctx, task, actualCost, in.RequestPayloadHash); err != nil {
 			return err
 		}
@@ -449,7 +485,7 @@ func (s *OpenAIGatewayService) releaseJimengVideoTask(ctx context.Context, in *J
 	if task.BillingStatus == JimengVideoBillingStatusCaptured || task.BillingStatus == JimengVideoBillingStatusReleased {
 		return nil
 	}
-	if task.BillingStatus == JimengVideoBillingStatusHeld {
+	if task.BillingStatus == JimengVideoBillingStatusHeld || task.BillingStatus == JimengVideoBillingStatusSettling {
 		if err := s.ReleaseJimengVideoBalanceHold(ctx, task, in.RequestPayloadHash); err != nil {
 			return err
 		}
@@ -463,6 +499,43 @@ func (s *OpenAIGatewayService) releaseJimengVideoTask(ctx context.Context, in *J
 		return err
 	}
 	return nil
+}
+
+func validateJimengVideoSuccessfulSettlement(in *JimengVideoSettlementInput) error {
+	if in == nil || in.Task == nil {
+		return ErrJimengVideoTaskNotFound
+	}
+	if in.APIKey == nil || in.Account == nil {
+		return ErrJimengVideoSettlementBillingFailed.WithCause(errors.New("video settlement missing api key or account"))
+	}
+	if jimengVideoTaskUsesSubscriptionBilling(in.Task) && in.Subscription == nil {
+		return ErrJimengVideoSettlementBillingFailed.WithCause(errors.New("video subscription settlement missing subscription"))
+	}
+	return nil
+}
+
+func jimengVideoTaskUsesSubscriptionBilling(task *JimengVideoTask) bool {
+	if task == nil {
+		return false
+	}
+	switch strings.TrimSpace(task.BillingStatus) {
+	case JimengVideoBillingStatusNone, JimengVideoBillingStatusSettlingNone:
+		return true
+	default:
+		return false
+	}
+}
+
+func isPendingJimengVideoBillingStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case JimengVideoBillingStatusHeld,
+		JimengVideoBillingStatusNone,
+		JimengVideoBillingStatusSettling,
+		JimengVideoBillingStatusSettlingNone:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *OpenAIGatewayService) recordJimengVideoSubscriptionUsage(in *JimengVideoSettlementInput) error {

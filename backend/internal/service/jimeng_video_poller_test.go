@@ -64,6 +64,31 @@ func TestJimengVideoPollerSucceededSettlesHeldTask(t *testing.T) {
 	require.Equal(t, task.UserID, poller.BalanceCache.(*jimengVideoPollerBalanceCacheStub).invalidatedUserIDs[0])
 }
 
+func TestJimengVideoPollerSucceededSettlesSubscriptionTask(t *testing.T) {
+	now := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
+	task := newJimengVideoPollerTestTask("vidtask_subscription", "task_subscription", JimengTaskStatusProcessing, now.Add(-time.Minute))
+	task.BillingStatus = JimengVideoBillingStatusNone
+	repo := &jimengVideoPollerRepoStub{claimTasks: []*JimengVideoTask{task}}
+	gateway := &jimengVideoPollerGatewayStub{
+		forwardResult: &OpenAIForwardResult{
+			TaskStatus:          JimengTaskStatusSucceeded,
+			ResponseStatusCode:  200,
+			ResponseContentType: "application/json",
+			ResponseBody:        []byte(`{"status":"succeeded"}`),
+			UpstreamEndpoint:    "/v1/video/generations/task_subscription",
+		},
+	}
+	poller := newJimengVideoPollerTestService(repo, gateway, now)
+	poller.Subscriptions = &jimengVideoPollerSubscriptionStub{sub: &UserSubscription{ID: 42}}
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, JimengVideoPollerOutcomeSucceeded, result.Outcome)
+	require.Len(t, gateway.settlements, 1)
+	require.Equal(t, JimengVideoBillingStatusNone, gateway.settlements[0].Task.BillingStatus)
+}
+
 func TestJimengVideoPollerFailedSettlesByReleasingHold(t *testing.T) {
 	now := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
 	task := newJimengVideoPollerTestTask("vidtask_failed", "task_failed", JimengTaskStatusProcessing, now.Add(-time.Minute))

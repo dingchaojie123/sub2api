@@ -362,6 +362,21 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			return
 		}
 		videoTask = submittedTask
+		if strings.TrimSpace(submittedTask.TaskID) != strings.TrimSpace(result.ResponseID) || submittedTask.SettledAt != nil {
+			reqLog.Warn("jimeng_video.submit_result_ignored_after_task_finalized",
+				zap.String("local_task_id", submittedTask.LocalTaskID),
+				zap.String("upstream_task_id", result.ResponseID),
+				zap.String("persisted_task_id", submittedTask.TaskID),
+				zap.String("status", submittedTask.Status),
+				zap.String("billing_status", submittedTask.BillingStatus),
+			)
+			if strings.TrimSpace(submittedTask.ResponseBody) != "" {
+				writeStoredJimengVideoResponse(c, submittedTask)
+				return
+			}
+			h.writeUnsubmittedJimengVideoIdempotencyResponse(c, submittedTask)
+			return
+		}
 		if err := h.gatewayService.BindVideoRequestAccount(
 			requestCtx, service.PlatformJimeng, apiKey.GroupID, result.ResponseID, subject.UserID, apiKey.ID, account.ID,
 		); err != nil {
@@ -399,10 +414,18 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video task status")
 			return
 		}
-		if service.IsTerminalJimengVideoTaskStatus(status) {
+		persistedStatus := service.NormalizeJimengTaskStatus(updatedTask.Status)
+		if persistedStatus == "" {
+			persistedStatus = service.NormalizeJimengTaskStatus(status)
+		}
+		if updatedTask.SettledAt != nil && strings.TrimSpace(updatedTask.ResponseBody) != "" {
+			writeStoredJimengVideoResponse(c, updatedTask)
+			return
+		}
+		if service.IsTerminalJimengVideoTaskStatus(persistedStatus) {
 			if settleErr := h.gatewayService.SettleJimengVideoTask(requestCtx, &service.JimengVideoSettlementInput{
 				Task:               updatedTask,
-				FinalStatus:        status,
+				FinalStatus:        persistedStatus,
 				APIKey:             apiKey,
 				User:               apiKey.User,
 				Account:            account,
@@ -420,6 +443,10 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 				return
 			}
 			h.invalidateJimengVideoBalanceCache(requestCtx, updatedTask.UserID)
+		}
+		if service.IsTerminalJimengVideoTaskStatus(persistedStatus) && persistedStatus != service.NormalizeJimengTaskStatus(status) && strings.TrimSpace(updatedTask.ResponseBody) != "" {
+			writeStoredJimengVideoResponse(c, updatedTask)
+			return
 		}
 		h.gatewayService.WriteJimengVideoForwardResult(c, result)
 		return

@@ -102,12 +102,30 @@ func (r *usageBillingRepository) MarkJimengVideoTaskSubmitted(ctx context.Contex
 	}
 	row := r.db.QueryRowContext(ctx, `
 		UPDATE jimeng_video_tasks
-		SET task_id = NULLIF($2, ''),
-			status = $3,
-			response_status = $4,
-			response_content_type = $5,
-			response_body = $6,
-			submitted_at = COALESCE(submitted_at, NOW()),
+		SET task_id = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN NULLIF($2, '')
+				ELSE task_id
+			END,
+			status = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN $3
+				ELSE status
+			END,
+			response_status = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN $4
+				ELSE response_status
+			END,
+			response_content_type = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN $5
+				ELSE response_content_type
+			END,
+			response_body = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN $6
+				ELSE response_body
+			END,
+			submitted_at = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN COALESCE(submitted_at, NOW())
+				ELSE submitted_at
+			END,
 			updated_at = NOW()
 		WHERE local_task_id = $1
 		RETURNING `+jimengVideoTaskColumns(),
@@ -132,23 +150,32 @@ func (r *usageBillingRepository) MarkJimengVideoTaskStatus(ctx context.Context, 
 	status := strings.TrimSpace(params.Status)
 	row := r.db.QueryRowContext(ctx, `
 		UPDATE jimeng_video_tasks
-		SET status = $2,
-			last_error_code = NULLIF($3, ''),
-			last_error_message = NULLIF($4, ''),
+		SET status = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN $2
+				ELSE status
+			END,
+			last_error_code = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN NULLIF($3, '')
+				ELSE last_error_code
+			END,
+			last_error_message = CASE
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') THEN NULLIF($4, '')
+				ELSE last_error_message
+			END,
 			response_status = CASE
-				WHEN $5 > 0 THEN $5
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $5 > 0 THEN $5
 				ELSE response_status
 			END,
 			response_content_type = CASE
-				WHEN NULLIF($6, '') IS NULL THEN response_content_type
-				ELSE $6
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND NULLIF($6, '') IS NOT NULL THEN $6
+				ELSE response_content_type
 			END,
 			response_body = CASE
-				WHEN $7 = '' THEN response_body
-				ELSE $7
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $7 <> '' THEN $7
+				ELSE response_body
 			END,
 			finished_at = CASE
-				WHEN $2 IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW())
+				WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $2 IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW())
 				ELSE finished_at
 			END,
 			updated_at = NOW()
@@ -176,50 +203,66 @@ func (r *usageBillingRepository) MarkJimengVideoTaskSubmitFailed(ctx context.Con
 	res, err := r.db.ExecContext(ctx, `
 		WITH release_state AS (
 			SELECT task.id,
-				task.billing_status = 'held' AND (
-					task.hold_amount <= 0
-					OR NOT EXISTS (
-						SELECT 1
-						FROM usage_billing_dedup hold_dedup
-						WHERE hold_dedup.request_id = task.hold_id
-							AND hold_dedup.api_key_id = task.api_key_id
-					) AND NOT EXISTS (
-						SELECT 1
-						FROM usage_billing_dedup_archive hold_archive
-						WHERE hold_archive.request_id = task.hold_id
-							AND hold_archive.api_key_id = task.api_key_id
+				CASE
+					WHEN task.billing_status IN ('none', 'settling_none') THEN true
+					WHEN task.billing_status IN ('held', 'settling') THEN (
+						task.hold_amount <= 0
+						OR NOT EXISTS (
+							SELECT 1
+							FROM usage_billing_dedup hold_dedup
+							WHERE hold_dedup.request_id = task.hold_id
+								AND hold_dedup.api_key_id = task.api_key_id
+						) AND NOT EXISTS (
+							SELECT 1
+							FROM usage_billing_dedup_archive hold_archive
+							WHERE hold_archive.request_id = task.hold_id
+								AND hold_archive.api_key_id = task.api_key_id
+						)
+						OR EXISTS (
+							SELECT 1
+							FROM usage_billing_dedup release_dedup
+							WHERE release_dedup.request_id = task.release_id
+								AND release_dedup.api_key_id = task.api_key_id
+						)
+						OR EXISTS (
+							SELECT 1
+							FROM usage_billing_dedup_archive release_archive
+							WHERE release_archive.request_id = task.release_id
+								AND release_archive.api_key_id = task.api_key_id
+						)
 					)
-					OR EXISTS (
-						SELECT 1
-						FROM usage_billing_dedup release_dedup
-						WHERE release_dedup.request_id = task.release_id
-							AND release_dedup.api_key_id = task.api_key_id
-					)
-					OR EXISTS (
-						SELECT 1
-						FROM usage_billing_dedup_archive release_archive
-						WHERE release_archive.request_id = task.release_id
-							AND release_archive.api_key_id = task.api_key_id
-					)
-				) AS can_mark_released
+					ELSE false
+				END AS can_mark_released
 			FROM jimeng_video_tasks task
 			WHERE task.local_task_id = $1
 		)
 		UPDATE jimeng_video_tasks task
-		SET status = 'failed',
+		SET status = CASE
+				WHEN task.settled_at IS NULL THEN 'failed'
+				ELSE task.status
+			END,
 			billing_status = CASE
-				WHEN release_state.can_mark_released THEN 'released'
+				WHEN task.settled_at IS NULL AND release_state.can_mark_released THEN 'released'
 				ELSE task.billing_status
 			END,
 			actual_cost = CASE
-				WHEN release_state.can_mark_released THEN 0
+				WHEN task.settled_at IS NULL AND release_state.can_mark_released THEN 0
 				ELSE task.actual_cost
 			END,
-			last_error_code = NULLIF($2, ''),
-			last_error_message = NULLIF($3, ''),
-			finished_at = COALESCE(task.finished_at, NOW()),
+			last_error_code = CASE
+				WHEN task.settled_at IS NULL THEN NULLIF($2, '')
+				ELSE task.last_error_code
+			END,
+			last_error_message = CASE
+				WHEN task.settled_at IS NULL THEN NULLIF($3, '')
+				ELSE task.last_error_message
+			END,
+			finished_at = CASE
+				WHEN task.settled_at IS NULL THEN COALESCE(task.finished_at, NOW())
+				ELSE task.finished_at
+			END,
 			settled_at = CASE
-				WHEN release_state.can_mark_released THEN COALESCE(task.settled_at, NOW())
+				WHEN task.settled_at IS NULL AND release_state.can_mark_released THEN NOW()
 				ELSE task.settled_at
 			END,
 			updated_at = NOW()
@@ -239,6 +282,50 @@ func (r *usageBillingRepository) MarkJimengVideoTaskSubmitFailed(ctx context.Con
 	return nil
 }
 
+func (r *usageBillingRepository) ClaimJimengVideoTaskSettlement(ctx context.Context, params service.ClaimJimengVideoSettlementParams) (*service.JimengVideoTask, bool, error) {
+	if r == nil || r.db == nil {
+		return nil, false, sql.ErrConnDone
+	}
+	taskID := strings.TrimSpace(params.TaskID)
+	finalStatus := strings.TrimSpace(params.FinalStatus)
+	if taskID == "" || finalStatus == "" {
+		return nil, false, service.ErrJimengVideoTaskNotFound
+	}
+	row := r.db.QueryRowContext(ctx, `
+		UPDATE jimeng_video_tasks
+		SET status = CASE
+				WHEN billing_status IN ('held', 'none') THEN $2
+				ELSE status
+			END,
+			billing_status = CASE
+				WHEN billing_status IN ('none', 'settling_none') THEN 'settling_none'
+				ELSE 'settling'
+			END,
+			finished_at = CASE
+				WHEN $2 IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW())
+				ELSE finished_at
+			END,
+			updated_at = NOW()
+		WHERE task_id = $1
+			AND settled_at IS NULL
+			AND (
+				billing_status IN ('held', 'none')
+				OR (billing_status IN ('settling', 'settling_none') AND status = $2)
+			)
+		RETURNING `+jimengVideoTaskColumns(),
+		taskID,
+		finalStatus,
+	)
+	task, err := scanJimengVideoTask(row)
+	if err == nil {
+		return task, true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil
+	}
+	return nil, false, err
+}
+
 func (r *usageBillingRepository) MarkJimengVideoTaskSettled(ctx context.Context, params service.MarkJimengVideoSettledParams) (*service.JimengVideoTask, error) {
 	if r == nil || r.db == nil {
 		return nil, sql.ErrConnDone
@@ -254,6 +341,8 @@ func (r *usageBillingRepository) MarkJimengVideoTaskSettled(ctx context.Context,
 			settled_at = COALESCE(settled_at, NOW()),
 			updated_at = NOW()
 		WHERE task_id = $1
+			AND billing_status IN ('settling', 'settling_none')
+			AND settled_at IS NULL
 		RETURNING `+jimengVideoTaskColumns(),
 		strings.TrimSpace(params.TaskID),
 		strings.TrimSpace(params.Status),
@@ -264,7 +353,34 @@ func (r *usageBillingRepository) MarkJimengVideoTaskSettled(ctx context.Context,
 	)
 	task, err := scanJimengVideoTask(row)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			existing, existingErr := r.getJimengVideoTaskByTaskID(ctx, params.TaskID)
+			if existingErr == nil {
+				if existing != nil && existing.SettledAt != nil {
+					return existing, nil
+				}
+				return nil, errors.New("jimeng video task settlement was not claimed")
+			}
+			return nil, translatePersistenceError(existingErr, service.ErrJimengVideoTaskNotFound, nil)
+		}
 		return nil, translatePersistenceError(err, service.ErrJimengVideoTaskNotFound, nil)
+	}
+	return task, nil
+}
+
+func (r *usageBillingRepository) getJimengVideoTaskByTaskID(ctx context.Context, taskID string) (*service.JimengVideoTask, error) {
+	if r == nil || r.db == nil {
+		return nil, sql.ErrConnDone
+	}
+	row := r.db.QueryRowContext(ctx, `
+		SELECT `+jimengVideoTaskColumns()+`
+		FROM jimeng_video_tasks
+		WHERE task_id = $1
+		LIMIT 1
+	`, strings.TrimSpace(taskID))
+	task, err := scanJimengVideoTask(row)
+	if err != nil {
+		return nil, err
 	}
 	return task, nil
 }
@@ -299,10 +415,12 @@ func (r *usageBillingRepository) ClaimJimengVideoTasksForPolling(ctx context.Con
 		WHERE task.id IN (
 			SELECT candidate.id
 			FROM jimeng_video_tasks AS candidate
-			WHERE candidate.billing_status = 'held'
+			WHERE candidate.billing_status IN ('held', 'none', 'settling', 'settling_none')
+				AND candidate.settled_at IS NULL
 				AND (candidate.poll_lease_until IS NULL OR candidate.poll_lease_until <= NOW())
 				AND (
-					candidate.status IN ('processing', 'succeeded', 'failed')
+					NULLIF(candidate.task_id, '') IS NOT NULL
+					OR candidate.status IN ('processing', 'succeeded', 'failed')
 					OR (candidate.status = 'submitting' AND candidate.submitted_at IS NOT NULL)
 					OR (candidate.status = 'submitting' AND candidate.submitted_at IS NULL AND candidate.created_at <= $4)
 				)

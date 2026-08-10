@@ -111,6 +111,34 @@ func TestSettleJimengVideoTaskFailedReleasesHoldWithoutUsageAccounting(t *testin
 	require.Equal(t, JimengVideoBillingStatusReleased, billingRepo.settled[0].BillingStatus)
 }
 
+func TestSettleJimengVideoTaskSkipsDifferentInFlightSettlement(t *testing.T) {
+	task := &JimengVideoTask{
+		LocalTaskID:   "vidtask_inflight",
+		TaskID:        "task_inflight",
+		UserID:        1,
+		APIKeyID:      2,
+		AccountID:     3,
+		Status:        JimengTaskStatusSucceeded,
+		BillingStatus: JimengVideoBillingStatusSettling,
+		HoldID:        JimengVideoHoldRequestID("vidtask_inflight"),
+		CaptureID:     JimengVideoCaptureRequestID("vidtask_inflight"),
+		ReleaseID:     JimengVideoReleaseRequestID("vidtask_inflight"),
+		HoldAmount:    5,
+	}
+	billingRepo := &jimengVideoBillingRepoStub{task: task}
+	svc := &OpenAIGatewayService{usageBillingRepo: billingRepo}
+
+	err := svc.SettleJimengVideoTask(context.Background(), &JimengVideoSettlementInput{
+		Task:        task,
+		FinalStatus: JimengTaskStatusFailed,
+	})
+
+	require.NoError(t, err)
+	require.Empty(t, billingRepo.captures)
+	require.Empty(t, billingRepo.releases)
+	require.Empty(t, billingRepo.settled)
+}
+
 type jimengVideoBillingRepoStub struct {
 	UsageBillingRepository
 
@@ -211,6 +239,28 @@ func (r *jimengVideoBillingRepoStub) MarkJimengVideoTaskSubmitFailed(_ context.C
 	r.task.Status = JimengTaskStatusFailed
 	r.task.BillingStatus = JimengVideoBillingStatusReleased
 	return nil
+}
+
+func (r *jimengVideoBillingRepoStub) ClaimJimengVideoTaskSettlement(_ context.Context, params ClaimJimengVideoSettlementParams) (*JimengVideoTask, bool, error) {
+	if r.task == nil {
+		return nil, false, ErrJimengVideoTaskNotFound
+	}
+	if r.task.TaskID != params.TaskID {
+		return nil, false, nil
+	}
+	if r.task.BillingStatus == JimengVideoBillingStatusCaptured || r.task.BillingStatus == JimengVideoBillingStatusReleased {
+		return nil, false, nil
+	}
+	if (r.task.BillingStatus == JimengVideoBillingStatusSettling || r.task.BillingStatus == JimengVideoBillingStatusSettlingNone) && r.task.Status != params.FinalStatus {
+		return nil, false, nil
+	}
+	if r.task.BillingStatus == JimengVideoBillingStatusNone || r.task.BillingStatus == JimengVideoBillingStatusSettlingNone {
+		r.task.BillingStatus = JimengVideoBillingStatusSettlingNone
+	} else {
+		r.task.BillingStatus = JimengVideoBillingStatusSettling
+	}
+	r.task.Status = params.FinalStatus
+	return r.task, true, nil
 }
 
 func (r *jimengVideoBillingRepoStub) MarkJimengVideoTaskSettled(_ context.Context, params MarkJimengVideoSettledParams) (*JimengVideoTask, error) {

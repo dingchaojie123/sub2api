@@ -268,7 +268,7 @@ func (s *JimengVideoPollerService) ProcessTask(ctx context.Context, task *Jimeng
 	if s.Repo == nil || s.Gateway == nil {
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, ErrJimengVideoTaskRepositoryMissing
 	}
-	if strings.TrimSpace(task.BillingStatus) != JimengVideoBillingStatusHeld {
+	if !isPendingJimengVideoBillingStatus(task.BillingStatus) {
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeSkipped}, nil
 	}
 	opts := s.options()
@@ -327,10 +327,14 @@ func (s *JimengVideoPollerService) ProcessTask(ctx context.Context, task *Jimeng
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, err
 	}
 	task = updated
-	if IsTerminalJimengVideoTaskStatus(upstreamStatus) {
-		return s.settleFromTask(ctx, task, upstreamStatus, result)
+	persistedStatus := NormalizeJimengTaskStatus(task.Status)
+	if persistedStatus == "" {
+		persistedStatus = upstreamStatus
 	}
-	return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeProcessing, Status: upstreamStatus}, nil
+	if IsTerminalJimengVideoTaskStatus(persistedStatus) {
+		return s.settleFromTask(ctx, task, persistedStatus, result)
+	}
+	return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeProcessing, Status: persistedStatus}, nil
 }
 
 func (s *JimengVideoPollerService) settleFromTask(ctx context.Context, task *JimengVideoTask, finalStatus string, upstream *OpenAIForwardResult) (JimengVideoPollerTaskResult, error) {
@@ -352,6 +356,9 @@ func (s *JimengVideoPollerService) settleFromTask(ctx context.Context, task *Jim
 	}
 	apiKey, err := s.loadAPIKey(ctx, task.APIKeyID)
 	if err != nil {
+		if finalStatus == JimengTaskStatusSucceeded {
+			return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, err
+		}
 		apiKey = nil
 	}
 	var user *User
@@ -367,11 +374,20 @@ func (s *JimengVideoPollerService) settleFromTask(ctx context.Context, task *Jim
 	}
 	account, err := s.loadAccount(ctx, task.AccountID)
 	if err != nil {
+		if finalStatus == JimengTaskStatusSucceeded {
+			return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, err
+		}
 		account = nil
 	}
 	subscription, err := s.loadSubscription(ctx, task, apiKey)
 	if err != nil {
+		if finalStatus == JimengTaskStatusSucceeded {
+			return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, err
+		}
 		subscription = nil
+	}
+	if finalStatus == JimengTaskStatusSucceeded && jimengVideoTaskUsesSubscriptionBilling(task) && subscription == nil {
+		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, ErrSubscriptionNotFound
 	}
 	upstreamEndpoint := jimengVideoUpstreamEndpoint(JimengVideoEndpointStatus)
 	if upstream != nil && strings.TrimSpace(upstream.UpstreamEndpoint) != "" {

@@ -52,4 +52,4 @@ CREATE INDEX IF NOT EXISTS idx_jimeng_video_tasks_billing_status
 
 CREATE INDEX IF NOT EXISTS idx_jimeng_video_tasks_polling
     ON jimeng_video_tasks(billing_status, status, poll_lease_until, updated_at)
-    WHERE billing_status = 'held';
+    WHERE billing_status IN ('held', 'none', 'settling', 'settling_none') AND settled_at IS NULL;
