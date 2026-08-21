@@ -32,6 +32,10 @@ export function resolveCcSwitchImportConfig(
       }
     case 'openai':
     case 'jimeng':
+    case 'doubao':
+    case 'qwen':
+    case 'kimi':
+    case 'deepseek':
       return {
         app: 'codex',
         endpoint: baseUrl,

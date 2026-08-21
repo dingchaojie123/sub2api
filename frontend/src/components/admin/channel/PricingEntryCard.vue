@@ -226,6 +226,39 @@
             />
           </div>
         </div>
+
+        <!-- Video mode -->
+        <div v-else-if="entry.billing_mode === 'video'">
+          <!-- Default video price per generated second -->
+          <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
+            {{ t('admin.channels.form.defaultVideoPrice') }}
+            <span class="ml-1 font-normal text-gray-400">$/{{ t('admin.channels.form.second') }}</span>
+          </label>
+          <div class="mt-1 w-48">
+            <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
+              type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
+          </div>
+
+          <!-- Video tiers, e.g. resolution or audio mode -->
+          <div class="mt-3 flex items-center justify-between">
+            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              {{ t('admin.channels.form.videoTiers') }}
+            </label>
+            <button type="button" @click="addInterval" class="text-xs text-primary-600 hover:text-primary-700">
+              + {{ t('admin.channels.form.addTier') }}
+            </button>
+          </div>
+          <div v-if="entry.intervals && entry.intervals.length > 0" class="mt-2 space-y-2">
+            <IntervalRow
+              v-for="(iv, idx) in entry.intervals"
+              :key="idx"
+              :interval="iv"
+              :mode="entry.billing_mode"
+              @update="updateInterval(idx, $event)"
+              @remove="removeInterval(idx)"
+            />
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -239,7 +272,11 @@ import Icon from '@/components/icons/Icon.vue'
 import IntervalRow from './IntervalRow.vue'
 import ModelTagInput from './ModelTagInput.vue'
 import type { PricingFormEntry, IntervalFormEntry } from './types'
-import { perTokenToMTok, getPlatformTagClass } from './types'
+import {
+  billingModesForPlatform,
+  perTokenToMTok,
+  getPlatformTagClass,
+} from './types'
 import type { BillingMode } from '@/api/admin/channels'
 import channelsAPI from '@/api/admin/channels'
 
@@ -258,11 +295,17 @@ const emit = defineEmits<{
 // Collapse state: entries with existing models default to collapsed
 const collapsed = ref(props.entry.models.length > 0)
 
-const billingModeOptions = computed(() => [
-  { value: 'token', label: t('admin.channels.billingMode.token') },
-  { value: 'per_request', label: t('admin.channels.billingMode.perRequest') },
-  { value: 'image', label: t('admin.channels.billingMode.image') }
-])
+const billingModeOptions = computed(() =>
+  billingModesForPlatform(props.platform, props.entry.billing_mode).map((value) => ({
+    value,
+    label: {
+      token: t('admin.channels.billingMode.token'),
+      per_request: t('admin.channels.billingMode.perRequest'),
+      image: t('admin.channels.billingMode.image'),
+      video: t('admin.channels.billingMode.video'),
+    }[value],
+  })),
+)
 
 const billingModeLabel = computed(() => {
   const opt = billingModeOptions.value.find(o => o.value === props.entry.billing_mode)

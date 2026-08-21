@@ -1030,12 +1030,21 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
+	if service.IsPPVideoPlatform(platform) {
+		writeModelsList(c, platform, nil)
+		return
+	}
+
 	// Fallback to default models
 	if platform == service.PlatformOpenAI || platform == service.PlatformJimeng {
 		c.JSON(http.StatusOK, gin.H{
 			"object": "list",
 			"data":   openai.DefaultModels,
 		})
+		return
+	}
+	if service.IsOpenAICompatiblePlatform(platform) {
+		writeModelsList(c, platform, nil)
 		return
 	}
 
@@ -1237,6 +1246,8 @@ func defaultModelIDsForPlatform(platform string) []string {
 	switch platform {
 	case service.PlatformOpenAI, service.PlatformJimeng:
 		return openai.DefaultModelIDs()
+	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
+		return nil
 	case service.PlatformGemini:
 		ids := make([]string, 0, len(geminicli.DefaultModels))
 		for _, model := range geminicli.DefaultModels {

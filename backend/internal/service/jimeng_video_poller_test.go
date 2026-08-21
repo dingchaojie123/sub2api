@@ -309,7 +309,7 @@ type jimengVideoPollerGatewayStub struct {
 	releaseHolds []*JimengVideoTask
 }
 
-func (g *jimengVideoPollerGatewayStub) ForwardJimengVideoBuffered(_ context.Context, _ *gin.Context, account *Account, _ JimengVideoEndpoint, taskID string, _ []byte) (*OpenAIForwardResult, error) {
+func (g *jimengVideoPollerGatewayStub) ForwardJimengVideoBuffered(_ context.Context, _ *gin.Context, account *Account, _ JimengVideoEndpoint, taskID string, _ []byte, _ ...string) (*OpenAIForwardResult, error) {
 	accountID := int64(0)
 	if account != nil {
 		accountID = account.ID

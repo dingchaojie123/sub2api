@@ -306,21 +306,10 @@ func (s *OpenAIGatewayService) CalculateJimengVideoCost(ctx context.Context, api
 	}
 	videoMultiplier = resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
-	result := &OpenAIForwardResult{
-		Model:                JimengVideoDefaultModel,
-		BillingModel:         JimengVideoBillingModel,
-		UpstreamModel:        JimengVideoDefaultModel,
-		ImageCount:           1,
-		VideoCount:           1,
-		VideoResolution:      meta.VideoResolution,
-		VideoDurationSeconds: meta.VideoDurationSeconds,
-	}
-	if s != nil && s.billingService != nil {
-		return s.calculateOpenAIRecordUsageCost(ctx, result, apiKey,
-			usageBillingModelCandidates(JimengVideoBillingModel, result.BillingModel, result.Model, result.UpstreamModel),
-			baseMultiplier, baseMultiplier, videoMultiplier, baseMultiplier, UsageTokens{}, "", false)
-	}
 	billing := NewBillingService(nil, nil)
+	if s != nil && s.billingService != nil {
+		billing = s.billingService
+	}
 	return billing.CalculateVideoCost(
 		JimengVideoBillingModel,
 		NormalizeVideoBillingResolutionOrDefault(meta.VideoResolution),

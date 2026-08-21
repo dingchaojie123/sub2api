@@ -171,7 +171,7 @@ func calculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, reques
 		return nil
 	}
 	switch pricing.BillingMode {
-	case BillingModePerRequest, BillingModeImage:
+	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
 		return calculatePerRequestStatsCost(pricing, requestCount)
 	default:
 		return calculateTokenStatsCost(pricing, tokens)
@@ -240,6 +240,12 @@ func applyAccountStatsCost(
 	requestCount := 1
 	if usageLog != nil && usageLog.ImageCount > 0 {
 		requestCount = usageLog.ImageCount
+	}
+	if usageLog != nil && usageLog.VideoDurationSeconds != nil && *usageLog.VideoDurationSeconds > 0 {
+		requestCount = *usageLog.VideoDurationSeconds
+		if usageLog.VideoCount > 0 {
+			requestCount *= usageLog.VideoCount
+		}
 	}
 	usageLog.AccountStatsCost = resolveAccountStatsCost(
 		ctx, cs, bs, accountID, groupID, model, tokens, requestCount, totalCost,

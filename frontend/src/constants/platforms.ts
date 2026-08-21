@@ -1,0 +1,137 @@
+export const PROVIDER_PLATFORMS = ['doubao', 'qwen', 'kimi', 'deepseek'] as const
+
+export type ProviderPlatform = (typeof PROVIDER_PLATFORMS)[number]
+
+export const VIDEO_ACCOUNT_PLATFORMS = ['kling', 'happyhourse', 'seedance'] as const
+
+export type VideoAccountPlatform = (typeof VIDEO_ACCOUNT_PLATFORMS)[number]
+
+export const CHANNEL_PRICING_PLATFORMS = [
+  'anthropic',
+  'openai',
+  'gemini',
+  'antigravity',
+  'grok',
+  'jimeng',
+  'doubao',
+  'qwen',
+  'kimi',
+  'deepseek',
+  'kling',
+  'happyhourse',
+  'seedance'
+] as const
+
+export interface ProviderPlatformMetadata {
+  id: ProviderPlatform
+  label: string
+  defaultBaseUrl: string
+  baseUrlPlaceholder: string
+  apiKeyPlaceholder: string
+  accountType: 'apikey'
+  modelPlatform: string
+}
+
+export interface VideoAccountPlatformMetadata {
+  id: VideoAccountPlatform
+  label: string
+  defaultBaseUrl: string
+  baseUrlPlaceholder: string
+  apiKeyPlaceholder: string
+  accountType: 'apikey'
+  authScheme: 'bearer'
+}
+
+export const PROVIDER_PLATFORM_METADATA: Record<ProviderPlatform, ProviderPlatformMetadata> = {
+  doubao: {
+    id: 'doubao',
+    label: '豆包',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    baseUrlPlaceholder: 'https://ark.cn-beijing.volces.com/api/v3',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    modelPlatform: 'doubao'
+  },
+  qwen: {
+    id: 'qwen',
+    label: '千问',
+    defaultBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    baseUrlPlaceholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    modelPlatform: 'qwen'
+  },
+  kimi: {
+    id: 'kimi',
+    label: 'Kimi',
+    defaultBaseUrl: 'https://api.moonshot.cn/v1',
+    baseUrlPlaceholder: 'https://api.moonshot.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    modelPlatform: 'moonshot'
+  },
+  deepseek: {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    defaultBaseUrl: 'https://api.deepseek.com',
+    baseUrlPlaceholder: 'https://api.deepseek.com',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    modelPlatform: 'deepseek'
+  }
+}
+
+export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
+  VideoAccountPlatform,
+  VideoAccountPlatformMetadata
+> = {
+  kling: {
+    id: 'kling',
+    label: 'K-Ling',
+    defaultBaseUrl: 'https://app.ppapi.ai/v1',
+    baseUrlPlaceholder: 'https://app.ppapi.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  happyhourse: {
+    id: 'happyhourse',
+    label: 'Happy-Hourse',
+    defaultBaseUrl: 'https://app.ppapi.ai/v1',
+    baseUrlPlaceholder: 'https://app.ppapi.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  seedance: {
+    id: 'seedance',
+    label: 'Seedance',
+    defaultBaseUrl: 'https://app.ppapi.ai/v1',
+    baseUrlPlaceholder: 'https://app.ppapi.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  }
+}
+
+export function isProviderPlatform(platform: string): platform is ProviderPlatform {
+  return (PROVIDER_PLATFORMS as readonly string[]).includes(platform)
+}
+
+export function isVideoAccountPlatform(platform: string): platform is VideoAccountPlatform {
+  return (VIDEO_ACCOUNT_PLATFORMS as readonly string[]).includes(platform)
+}
+
+export function getPlatformMetadata(platform: string): ProviderPlatformMetadata {
+  if (isProviderPlatform(platform)) {
+    return PROVIDER_PLATFORM_METADATA[platform]
+  }
+
+  throw new Error(`Unknown provider platform: ${platform}`)
+}
+
+export function getVideoAccountPlatformMetadata(
+  platform: VideoAccountPlatform
+): VideoAccountPlatformMetadata {
+  return VIDEO_ACCOUNT_PLATFORM_METADATA[platform]
+}

@@ -129,6 +129,59 @@ func TestExtractUpstreamModelIDs(t *testing.T) {
 	}
 }
 
+func TestFilterUpstreamModelsForPlatform(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		platform string
+		models   []string
+		want     []string
+	}{
+		{
+			name:     "Kling keeps only Kling models",
+			platform: PlatformKling,
+			models:   []string{"kling-v3", "gpt-5", "Kling-v4"},
+			want:     []string{"kling-v3", "Kling-v4"},
+		},
+		{
+			name:     "Happy Horse keeps only Happy Horse models",
+			platform: PlatformHappyHourse,
+			models:   []string{"happyhorse-1.0-t2v", "kling-v3", "happyhorse-1.0-i2v"},
+			want:     []string{"happyhorse-1.0-t2v", "happyhorse-1.0-i2v"},
+		},
+		{
+			name:     "Seedance keeps only PP upstream model families",
+			platform: PlatformSeedance,
+			models: []string{
+				"by-seedance2.0-933",
+				"doubao-seedance-2-0-260128",
+				"seedance2.0-431",
+				"gpt-5",
+			},
+			want: []string{
+				"doubao-seedance-2-0-260128",
+				"seedance2.0-431",
+			},
+		},
+		{
+			name:     "non video platforms are unchanged",
+			platform: PlatformOpenAI,
+			models:   []string{"gpt-5", "qwen3"},
+			want:     []string{"gpt-5", "qwen3"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tt.want, filterUpstreamModelsForPlatform(tt.platform, tt.models))
+		})
+	}
+}
+
 func TestBuildUpstreamModelsRequestsForAPIKeyAccounts(t *testing.T) {
 	t.Parallel()
 

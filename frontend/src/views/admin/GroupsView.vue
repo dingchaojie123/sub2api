@@ -995,7 +995,7 @@
           </p>
         </div>
 
-        <!-- 视频生成计费配置（仅 Grok 平台） -->
+        <!-- 视频生成计费配置 -->
         <div
           v-if="supportsVideoPricingPlatform(createForm.platform)"
           class="border-t pt-4"
@@ -1006,7 +1006,15 @@
             {{ t(videoPricingI18nKey("title")) }}
           </label>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t(videoPricingI18nKey("description")) }}
+            {{
+              t(
+                videoPricingI18nKey(
+                  isPPVideoPricingPlatform(createForm.platform)
+                    ? "ppDescription"
+                    : "description",
+                ),
+              )
+            }}
           </p>
           <div class="mb-4">
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -1034,6 +1042,7 @@
               placeholder="1"
             />
           </div>
+          <template v-if="usesGroupVideoPriceConfig(createForm.platform)">
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">480p ($/s)</label>
@@ -1085,6 +1094,7 @@
               </div>
             </div>
           </div>
+          </template>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -2509,7 +2519,7 @@
           </p>
         </div>
 
-        <!-- 视频生成计费配置（仅 Grok 平台） -->
+        <!-- 视频生成计费配置 -->
         <div
           v-if="supportsVideoPricingPlatform(editForm.platform)"
           class="border-t pt-4"
@@ -2520,7 +2530,15 @@
             {{ t(videoPricingI18nKey("title")) }}
           </label>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t(videoPricingI18nKey("description")) }}
+            {{
+              t(
+                videoPricingI18nKey(
+                  isPPVideoPricingPlatform(editForm.platform)
+                    ? "ppDescription"
+                    : "description",
+                ),
+              )
+            }}
           </p>
           <div class="mb-4">
             <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -2548,6 +2566,7 @@
               placeholder="1"
             />
           </div>
+          <template v-if="usesGroupVideoPriceConfig(editForm.platform)">
           <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="input-label">480p ($/s)</label>
@@ -2599,6 +2618,7 @@
               </div>
             </div>
           </div>
+          </template>
         </div>
 
         <!-- 高峰时段倍率配置（仅订阅类型分组） -->
@@ -3631,8 +3651,10 @@ import {
   getImagePricePlaceholder,
   getVideoPricePlaceholder,
   imagePricingI18nKey,
+  isPPVideoPricingPlatform,
   supportsImagePricingPlatform,
   supportsVideoPricingPlatform,
+  usesGroupVideoPriceConfig,
   videoPricingI18nKey,
 } from "./groupsImagePricing";
 
@@ -3821,6 +3843,13 @@ const platformOptions = computed(() => [
   { value: "antigravity", label: "Antigravity" },
   { value: "grok", label: "Grok" },
   { value: "jimeng", label: "即梦" },
+  { value: "doubao", label: "豆包" },
+  { value: "qwen", label: "千问" },
+  { value: "kimi", label: "Kimi" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "kling", label: "K-Ling" },
+  { value: "happyhourse", label: "Happy-Hourse" },
+  { value: "seedance", label: "Seedance" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -3831,6 +3860,13 @@ const platformFilterOptions = computed(() => [
   { value: "antigravity", label: "Antigravity" },
   { value: "grok", label: "Grok" },
   { value: "jimeng", label: "即梦" },
+  { value: "doubao", label: "豆包" },
+  { value: "qwen", label: "千问" },
+  { value: "kimi", label: "Kimi" },
+  { value: "deepseek", label: "DeepSeek" },
+  { value: "kling", label: "K-Ling" },
+  { value: "happyhourse", label: "Happy-Hourse" },
+  { value: "seedance", label: "Seedance" },
 ]);
 
 const editStatusOptions = computed(() => [
@@ -4032,7 +4068,7 @@ const createForm = reactive({
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
-  // 视频生成计费配置（仅 Grok 平台）
+  // 视频生成计费配置（Grok 和 PP 视频平台使用分组每秒单价）
   video_rate_independent: false,
   video_rate_multiplier: 1,
   video_price_480p: null as number | null,
@@ -4379,7 +4415,7 @@ const editForm = reactive({
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
   image_price_4k: null as number | null,
-  // 视频生成计费配置（仅 Grok 平台）
+  // 视频生成计费配置（Grok 和 PP 视频平台使用分组每秒单价）
   video_rate_independent: false,
   video_rate_multiplier: 1,
   video_price_480p: null as number | null,

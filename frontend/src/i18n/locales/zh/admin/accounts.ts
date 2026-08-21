@@ -255,6 +255,13 @@ export default {
         antigravity: 'Antigravity',
         grok: 'Grok',
         jimeng: '即梦',
+        doubao: '豆包',
+        qwen: '千问',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        kling: 'K-Ling',
+        happyhourse: 'Happy-Hourse',
+        seedance: 'Seedance',
       },
       types: {
         oauth: 'OAuth',
@@ -600,6 +607,14 @@ export default {
       jimeng: {
         baseUrlHint: '请输入您自己的 OpenAI-compatible 即梦代理 Base URL。',
         apiKeyHint: '您自己的即梦代理 API Key。'
+      },
+      videoPlatform: {
+        baseUrlHint: '请输入该视频平台或其代理的 Base URL。',
+        apiKeyHint: 'API Key 将按 Bearer 鉴权方式保存。'
+      },
+      openaiCompatible: {
+        baseUrlHint: '已预填官方 OpenAI-compatible 地址，也可以替换为代理或自建兼容接口。',
+        apiKeyHint: '请输入该平台的 API Key。'
       },
       anthropic: {
         apiKeyPassthrough: '自动透传（仅替换认证）',

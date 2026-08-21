@@ -168,7 +168,8 @@ func isBareOrSubpathOf(path, root string) bool {
 // account platform and the normalized inbound endpoint.
 //
 // Platform-specific rules:
-//   - OpenAI, Grok, and Jimeng text compatibility routes forward to /v1/responses
+//   - OpenAI, Grok, Jimeng, Doubao, Qwen, Kimi, and DeepSeek text compatibility
+//     routes forward to /v1/responses
 //     (with optional subpath such as /v1/responses/compact preserved from
 //     the raw URL); native endpoints such as embeddings and alpha search
 //     retain their paths. Grok raw Chat requests override this through the
@@ -182,7 +183,9 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	inbound = strings.TrimSpace(inbound)
 
 	switch platform {
-	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng:
+	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng,
+		service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek,
+		service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance:
 		if inbound == EndpointEmbeddings || inbound == EndpointAlphaSearch || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideosEdits || inbound == EndpointVideosExtensions || inbound == EndpointVideos {
 			return inbound
 		}

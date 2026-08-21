@@ -64,7 +64,8 @@ func (h *GatewayHandler) KeyBillingInfo(c *gin.Context) {
 func (h *GatewayHandler) resolveKeyBillingRate(c *gin.Context, apiKey *service.APIKey) (float64, bool) {
 	groupRate := apiKey.Group.RateMultiplier
 	switch apiKey.Group.Platform {
-	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng:
+	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng,
+		service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
 		if h.openAIGatewayService == nil {
 			return 0, false
 		}

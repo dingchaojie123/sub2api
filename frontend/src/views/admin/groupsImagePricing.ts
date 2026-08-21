@@ -8,8 +8,20 @@ export const imagePricingPlatforms = new Set([
 export const supportsImagePricingPlatform = (platform: string): boolean =>
   imagePricingPlatforms.has(platform);
 
+export const ppVideoPricingPlatforms = new Set([
+  "kling",
+  "happyhourse",
+  "seedance",
+]);
+
 export const supportsVideoPricingPlatform = (platform: string): boolean =>
-  platform === "grok";
+  ["grok", ...ppVideoPricingPlatforms].includes(platform);
+
+export const isPPVideoPricingPlatform = (platform: string): boolean =>
+  ppVideoPricingPlatforms.has(platform);
+
+export const usesGroupVideoPriceConfig = (platform: string): boolean =>
+  ["grok", "kling", "happyhourse", "seedance"].includes(platform);
 
 export const imagePricingI18nKey = (_platform: string, key: string): string =>
   `admin.groups.imagePricing.${key}`;

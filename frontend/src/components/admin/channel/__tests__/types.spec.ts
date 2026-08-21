@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { validateIntervals, type IntervalFormEntry } from '../types'
+import {
+  billingModesForPlatform,
+  validateIntervals,
+  type IntervalFormEntry,
+} from '../types'
 
 function makeInterval(over: Partial<IntervalFormEntry>): IntervalFormEntry {
   return {
@@ -79,5 +83,20 @@ describe('validateIntervals', () => {
       ]
       expect(validateIntervals(intervals, 'image', t)).toContain('maxGreaterThanMin')
     })
+  })
+})
+
+describe('billingModesForPlatform', () => {
+  it('does not offer channel video-per-second pricing for Kling and Happy-Hourse', () => {
+    expect(billingModesForPlatform('kling')).not.toContain('video')
+    expect(billingModesForPlatform('happyhourse')).not.toContain('video')
+  })
+
+  it('does not offer channel video-per-second pricing for Seedance', () => {
+    expect(billingModesForPlatform('seedance')).toEqual(['token', 'per_request', 'image'])
+  })
+
+  it('keeps an existing legacy mode selectable so it can be viewed and saved', () => {
+    expect(billingModesForPlatform('seedance', 'video')).toEqual(['token', 'per_request', 'image', 'video'])
   })
 })

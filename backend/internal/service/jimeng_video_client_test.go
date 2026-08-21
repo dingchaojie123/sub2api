@@ -18,17 +18,31 @@ type jimengHTTPUpstreamRecorder struct {
 	lastReq      *http.Request
 	lastBody     []byte
 	lastProxyURL string
+	requestURLs  []string
+	requests     []*http.Request
+	bodies       [][]byte
+	responses    []*http.Response
 	resp         *http.Response
 }
 
 func (u *jimengHTTPUpstreamRecorder) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	u.lastReq = req
 	u.lastProxyURL = proxyURL
+	if req != nil {
+		u.requestURLs = append(u.requestURLs, req.URL.String())
+		u.requests = append(u.requests, req)
+	}
 	if req != nil && req.Body != nil {
 		body, _ := io.ReadAll(req.Body)
 		u.lastBody = body
+		u.bodies = append(u.bodies, body)
 		_ = req.Body.Close()
 		req.Body = io.NopCloser(bytes.NewReader(body))
+	}
+	if len(u.responses) > 0 {
+		resp := u.responses[0]
+		u.responses = u.responses[1:]
+		return resp, nil
 	}
 	return u.resp, nil
 }
@@ -63,7 +77,7 @@ func TestJimengVideoClientCreateGenerationUsesVideoEndpointAndBearerAuth(t *test
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, "/v1/video/generations", gotPath)
+	require.Equal(t, "/v1/videos/generations", gotPath)
 	require.Equal(t, "Bearer jimeng-key", gotAuth)
 	require.Equal(t, "video-v1", gotBody["model"])
 	require.Equal(t, "make a short video", gotBody["prompt"])
@@ -76,7 +90,7 @@ func TestJimengVideoClientCreateGenerationUsesVideoEndpointAndBearerAuth(t *test
 func TestJimengVideoClientQueryGenerationExtractsNestedTaskIDAndNormalizesStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/v1/video/generations/task_456", r.URL.Path)
+		require.Equal(t, "/v1/videos/task_456", r.URL.Path)
 		require.Equal(t, "Bearer jimeng-key", r.Header.Get("Authorization"))
 		_, _ = w.Write([]byte(`{"data":{"id":"task_456","status":"completed"}}`))
 	}))
@@ -137,14 +151,205 @@ func TestForwardJimengVideoGenerationUsesAccountCredentialAndReturnsUsage(t *tes
 
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.JSONEq(t, `{"task_id":"task_forward","status":"processing","usage":{"input_tokens":11,"output_tokens":13}}`, rec.Body.String())
-	require.Equal(t, "https://jimeng.example/v1/video/generations", upstream.lastReq.URL.String())
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &response))
+	require.Equal(t, "task_forward", response["id"])
+	require.Equal(t, "task_forward", response["task_id"])
+	require.Equal(t, "video.generation.task", response["object"])
+	require.Equal(t, JimengTaskStatusProcessing, response["status"])
+	require.Equal(t, JimengVideoRoutingModel, response["model"])
+	require.Equal(t, "https://jimeng.example/v1/videos/generations", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer jimeng-upstream-key", upstream.lastReq.Header.Get("Authorization"))
-	require.Equal(t, []byte(`{"model":"video-v1","prompt":"hello"}`), upstream.lastBody)
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.lastBody))
 	require.Equal(t, "task_forward", result.ResponseID)
 	require.False(t, result.HasUsage)
 	require.True(t, result.Usage.InputTokens > 0)
-	require.Equal(t, "video-v1", result.Model)
+	require.Equal(t, JimengVideoRoutingModel, result.Model)
+	require.Equal(t, JimengVideoBillingModel, result.BillingModel)
+	require.Equal(t, JimengVideoRoutingModel, result.UpstreamModel)
+}
+
+func TestForwardJimengVideoGenerationNormalizesLegacyModelForUpstream(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_legacy","status":"processing"}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"seedance 2.0","prompt":"hello"}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", bytes.NewReader(body))
+
+	_, err := svc.ForwardJimengVideo(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.lastBody))
+}
+
+func TestForwardJimengVideoGenerationPreservesSelectedSeedanceModel(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_selected","status":"processing"}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"seedance2.0-431","prompt":"hello"}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", bytes.NewReader(body))
+
+	result, err := svc.ForwardJimengVideo(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"seedance2.0-431","prompt":"hello"}`, string(upstream.lastBody))
+	require.Equal(t, "seedance2.0-431", result.Model)
+	require.Equal(t, JimengVideoBillingModel, result.BillingModel)
+	require.Equal(t, "seedance2.0-431", result.UpstreamModel)
+	require.JSONEq(t, `{
+		"id": "task_selected",
+		"task_id": "task_selected",
+		"object": "video.generation.task",
+		"status": "processing",
+		"model": "seedance2.0-431"
+	}`, string(result.ResponseBody))
+}
+
+func TestForwardJimengVideoGenerationFallsBackToLegacyEndpoint(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusNotFound,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"not found"}}`))),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_legacy_submit","status":"submitted"}`))),
+		},
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"video-v1","prompt":"hello"}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(body))
+
+	result, err := svc.ForwardJimengVideoBuffered(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"https://jimeng.example/v1/videos/generations",
+		"https://jimeng.example/v1/video/generations",
+	}, upstream.requestURLs)
+	require.Len(t, upstream.bodies, 2)
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.bodies[0]))
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.bodies[1]))
+	require.Equal(t, JimengTaskStatusProcessing, result.TaskStatus)
+	require.Equal(t, "/v1/video/generations", result.UpstreamEndpoint)
+}
+
+func TestForwardJimengVideoStatusFallsBackToLegacyQueryEndpoint(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusNotFound,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"not found"}}`))),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"task_fallback","status":"completed"}`))),
+		},
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/task_fallback", nil)
+
+	result, err := svc.ForwardJimengVideoBuffered(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointStatus, "task_fallback", nil)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{
+		"https://jimeng.example/v1/videos/task_fallback",
+		"https://jimeng.example/v1/video/generations/task_fallback",
+	}, upstream.requestURLs)
+	require.Equal(t, JimengTaskStatusSucceeded, result.TaskStatus)
+	require.Equal(t, "/v1/video/generations/{task_id}", result.UpstreamEndpoint)
+}
+
+func TestForwardJimengVideoStatusTreatsVideoURLAsCompletedResult(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body: io.NopCloser(bytes.NewReader([]byte(`{
+			"data": {
+				"id": "task_completed_by_url",
+				"status": "processing",
+				"task_result": {
+					"videos": [{"url": "https://cdn.example.com/completed.mp4"}]
+				}
+			}
+		}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/task_completed_by_url", nil)
+
+	result, err := svc.ForwardJimengVideoBuffered(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointStatus, "task_completed_by_url", nil, "seedance2.0-431")
+
+	require.NoError(t, err)
+	require.Equal(t, JimengTaskStatusSucceeded, result.TaskStatus)
+	require.Equal(t, "seedance2.0-431", result.Model)
+	require.Equal(t, JimengVideoBillingModel, result.BillingModel)
+	require.Equal(t, "seedance2.0-431", result.UpstreamModel)
+	require.JSONEq(t, `{
+		"data": {
+			"id": "task_completed_by_url",
+			"status": "processing",
+			"result_url": "https://cdn.example.com/completed.mp4",
+			"url": "https://cdn.example.com/completed.mp4",
+			"video_url": "https://cdn.example.com/completed.mp4",
+			"videos": [{"url": "https://cdn.example.com/completed.mp4", "video_url": "https://cdn.example.com/completed.mp4"}],
+			"task_result": {
+				"videos": [{"url": "https://cdn.example.com/completed.mp4"}]
+			}
+		},
+		"id": "task_completed_by_url",
+		"task_id": "task_completed_by_url",
+		"object": "video.generation.task",
+		"status": "succeeded",
+		"model": "seedance2.0-431",
+		"result_url": "https://cdn.example.com/completed.mp4",
+		"url": "https://cdn.example.com/completed.mp4",
+		"videos": [{"url": "https://cdn.example.com/completed.mp4", "video_url": "https://cdn.example.com/completed.mp4"}],
+		"video_url": "https://cdn.example.com/completed.mp4"
+	}`, string(result.ResponseBody))
 }
 
 func TestForwardJimengVideoGenerationDoesNotBillAcceptedTask(t *testing.T) {
@@ -174,19 +379,212 @@ func TestForwardJimengVideoGenerationDoesNotBillAcceptedTask(t *testing.T) {
 	require.Equal(t, 10, result.VideoDurationSeconds)
 	require.Equal(t, JimengTaskStatusProcessing, result.TaskStatus)
 	require.Equal(t, http.StatusOK, result.ResponseStatusCode)
-	require.Equal(t, []byte(`{"task_id":"task_video","status":"processing"}`), result.ResponseBody)
+	require.JSONEq(t, `{
+		"id": "task_video",
+		"task_id": "task_video",
+		"object": "video.generation.task",
+		"status": "processing",
+		"model": "by-seedance2.0-933"
+	}`, string(result.ResponseBody))
 }
 
-func TestJimengVideoRoutingModelMatchesFixedAccountModel(t *testing.T) {
-	account := &Account{
+func TestNormalizeJimengVideoPublicResponseAddsStableFields(t *testing.T) {
+	raw := []byte(`{
+		"data": {
+			"task_id": "jimeng-task-1",
+			"status": "SUCCESS",
+			"task_result": {
+				"videos": [{"url": "https://cdn.example.com/video.mp4"}]
+			}
+		}
+	}`)
+	parsed, err := parseJimengGenerationResult(raw)
+	require.NoError(t, err)
+
+	body := NormalizeJimengVideoPublicResponse(raw, parsed)
+
+	require.JSONEq(t, `{
+		"data": {
+			"task_id": "jimeng-task-1",
+			"status": "SUCCESS",
+			"result_url": "https://cdn.example.com/video.mp4",
+			"url": "https://cdn.example.com/video.mp4",
+			"video_url": "https://cdn.example.com/video.mp4",
+			"videos": [{"url": "https://cdn.example.com/video.mp4", "video_url": "https://cdn.example.com/video.mp4"}],
+			"task_result": {
+				"videos": [{"url": "https://cdn.example.com/video.mp4"}]
+			}
+		},
+		"id": "jimeng-task-1",
+		"task_id": "jimeng-task-1",
+		"object": "video.generation.task",
+		"status": "succeeded",
+		"model": "by-seedance2.0-933",
+		"result_url": "https://cdn.example.com/video.mp4",
+		"url": "https://cdn.example.com/video.mp4",
+		"videos": [{"url": "https://cdn.example.com/video.mp4", "video_url": "https://cdn.example.com/video.mp4"}],
+		"video_url": "https://cdn.example.com/video.mp4"
+	}`, string(body))
+}
+
+func TestParseJimengGenerationResultInfersSucceededWhenVideoURLExists(t *testing.T) {
+	raw := []byte(`{
+		"data": {
+			"id": "jimeng-task-with-video",
+			"task_result": {
+				"videos": [{"url": "https://cdn.example.com/final.mp4"}]
+			}
+		}
+	}`)
+
+	result, err := parseJimengGenerationResult(raw)
+
+	require.NoError(t, err)
+	require.Equal(t, "jimeng-task-with-video", result.TaskID)
+	require.Equal(t, JimengTaskStatusSucceeded, result.Status)
+}
+
+func TestNormalizeJimengVideoPublicResponseMarksVideoResultSucceeded(t *testing.T) {
+	raw := []byte(`{
+		"data": {
+			"task_id": "jimeng-task-processing-with-video",
+			"status": "processing",
+			"result": {
+				"video_url": "https://cdn.example.com/final-from-result.mp4"
+			}
+		}
+	}`)
+	parsed, err := parseJimengGenerationResult(raw)
+	require.NoError(t, err)
+
+	body := NormalizeJimengVideoPublicResponse(raw, parsed)
+
+	require.JSONEq(t, `{
+		"data": {
+			"task_id": "jimeng-task-processing-with-video",
+			"status": "processing",
+			"result": {
+				"video_url": "https://cdn.example.com/final-from-result.mp4"
+			},
+			"result_url": "https://cdn.example.com/final-from-result.mp4",
+			"url": "https://cdn.example.com/final-from-result.mp4",
+			"videos": [{"url": "https://cdn.example.com/final-from-result.mp4", "video_url": "https://cdn.example.com/final-from-result.mp4"}],
+			"video_url": "https://cdn.example.com/final-from-result.mp4"
+		},
+		"id": "jimeng-task-processing-with-video",
+		"task_id": "jimeng-task-processing-with-video",
+		"object": "video.generation.task",
+		"status": "succeeded",
+		"model": "by-seedance2.0-933",
+		"result_url": "https://cdn.example.com/final-from-result.mp4",
+		"url": "https://cdn.example.com/final-from-result.mp4",
+		"videos": [{"url": "https://cdn.example.com/final-from-result.mp4", "video_url": "https://cdn.example.com/final-from-result.mp4"}],
+		"video_url": "https://cdn.example.com/final-from-result.mp4"
+	}`, string(body))
+}
+
+func TestNormalizeJimengVideoPublicResponseFindsSeedanceNestedContentVideoURL(t *testing.T) {
+	raw := []byte(`{
+		"data": {
+			"data": {
+				"id": "jimeng-seedance-431",
+				"status": "completed",
+				"content": {
+					"video_url": "https://cdn.example.com/seedance-431.mp4"
+				}
+			}
+		}
+	}`)
+	parsed, err := parseJimengGenerationResult(raw)
+	require.NoError(t, err)
+
+	body := NormalizeJimengVideoPublicResponse(raw, parsed, "seedance2.0-431")
+
+	require.JSONEq(t, `{
+		"data": {
+			"data": {
+				"id": "jimeng-seedance-431",
+				"status": "completed",
+				"content": {
+					"video_url": "https://cdn.example.com/seedance-431.mp4"
+				}
+			},
+			"result_url": "https://cdn.example.com/seedance-431.mp4",
+			"url": "https://cdn.example.com/seedance-431.mp4",
+			"video_url": "https://cdn.example.com/seedance-431.mp4",
+			"videos": [{"url": "https://cdn.example.com/seedance-431.mp4", "video_url": "https://cdn.example.com/seedance-431.mp4"}]
+		},
+		"id": "jimeng-seedance-431",
+		"task_id": "jimeng-seedance-431",
+		"object": "video.generation.task",
+		"status": "succeeded",
+		"model": "seedance2.0-431",
+		"result_url": "https://cdn.example.com/seedance-431.mp4",
+		"url": "https://cdn.example.com/seedance-431.mp4",
+		"videos": [{"url": "https://cdn.example.com/seedance-431.mp4", "video_url": "https://cdn.example.com/seedance-431.mp4"}],
+		"video_url": "https://cdn.example.com/seedance-431.mp4"
+	}`, string(body))
+}
+
+func TestNormalizeJimengVideoPublicResponseFindsDownloadURLInVideosArray(t *testing.T) {
+	raw := []byte(`{
+		"data": {
+			"task_id": "jimeng-download-url",
+			"status": "processing",
+			"task_result": {
+				"videos": [{"download_url": "https://cdn.example.com/download-final.mp4"}]
+			}
+		}
+	}`)
+	parsed, err := parseJimengGenerationResult(raw)
+	require.NoError(t, err)
+
+	body := NormalizeJimengVideoPublicResponse(raw, parsed, "seedance2.0-431")
+
+	require.JSONEq(t, `{
+		"data": {
+			"task_id": "jimeng-download-url",
+			"status": "processing",
+			"result_url": "https://cdn.example.com/download-final.mp4",
+			"url": "https://cdn.example.com/download-final.mp4",
+			"video_url": "https://cdn.example.com/download-final.mp4",
+			"videos": [{"url": "https://cdn.example.com/download-final.mp4", "video_url": "https://cdn.example.com/download-final.mp4"}],
+			"task_result": {
+				"videos": [{"download_url": "https://cdn.example.com/download-final.mp4"}]
+			}
+		},
+		"id": "jimeng-download-url",
+		"task_id": "jimeng-download-url",
+		"object": "video.generation.task",
+		"status": "succeeded",
+		"model": "seedance2.0-431",
+		"result_url": "https://cdn.example.com/download-final.mp4",
+		"url": "https://cdn.example.com/download-final.mp4",
+		"videos": [{"url": "https://cdn.example.com/download-final.mp4", "video_url": "https://cdn.example.com/download-final.mp4"}],
+		"video_url": "https://cdn.example.com/download-final.mp4"
+	}`, string(body))
+}
+
+func TestJimengVideoModelsUseAliasesAndAccountMapping(t *testing.T) {
+	legacyAccount := &Account{
 		Platform: PlatformJimeng,
 		Type:     AccountTypeAPIKey,
 		Credentials: map[string]any{
 			"model_mapping": map[string]any{"seedance 2.0": "seedance 2.0"},
 		},
 	}
+	selectedModelAccount := &Account{
+		Platform: PlatformJimeng,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"seedance2.0-431": "seedance2.0-431"},
+		},
+	}
 
-	require.True(t, account.IsModelSupported(JimengVideoRoutingModel))
+	require.Equal(t, "by-seedance2.0-933", JimengVideoRoutingModel)
+	require.True(t, legacyAccount.IsModelSupported(JimengVideoRoutingModel))
+	require.False(t, legacyAccount.IsModelSupported("seedance2.0-431"))
+	require.True(t, selectedModelAccount.IsModelSupported("seedance2.0-431"))
 	require.Equal(t, "video-v1", JimengVideoBillingModel)
 	require.Equal(t, JimengVideoBillingModel, JimengVideoDefaultModel)
 }
@@ -197,8 +595,11 @@ func TestNormalizeJimengTaskStatus(t *testing.T) {
 		want  string
 	}{
 		{input: "pending", want: JimengTaskStatusProcessing},
+		{input: "submitted", want: JimengTaskStatusProcessing},
+		{input: "in_progress", want: JimengTaskStatusProcessing},
 		{input: "processing", want: JimengTaskStatusProcessing},
 		{input: "success", want: JimengTaskStatusSucceeded},
+		{input: "finished", want: JimengTaskStatusSucceeded},
 		{input: "completed", want: JimengTaskStatusSucceeded},
 		{input: "done", want: JimengTaskStatusSucceeded},
 		{input: "failed", want: JimengTaskStatusFailed},

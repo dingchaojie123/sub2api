@@ -863,6 +863,10 @@ export default {
         antigravity: 'Antigravity',
         grok: 'Grok',
         jimeng: '即梦',
+        doubao: '豆包',
+        qwen: '千问',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -967,6 +971,8 @@ export default {
         title: '视频生成计费',
         description:
           '配置 Grok 视频生成的每秒单价（USD/秒），留空则使用默认每秒价（grok-imagine-video：480p $0.05/s、720p $0.07/s；video-1.5：480p $0.08/s、720p $0.14/s、1080p $0.25/s）',
+        ppDescription:
+          'K-Ling、Happy-Hourse、Seedance 均使用当前分组的视频每秒价格。K-Ling 2x 对应 720p，2x Pro 和 4K 对应 1080p；Seedance 4K 对应 1080p。',
         independentMultiplier: '视频倍率独立',
         videoMultiplier: '视频独立倍率',
         modeHint:

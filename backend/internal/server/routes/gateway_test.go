@@ -53,6 +53,24 @@ func newGatewayRoutesTestRouterWithConfig(cfg *config.Config, platform ...string
 	return router
 }
 
+func TestOpenAICompatibleGatewayPlatformsIncludeProviderPlatforms(t *testing.T) {
+	for _, platform := range []string{
+		service.PlatformOpenAI,
+		service.PlatformGrok,
+		service.PlatformJimeng,
+		service.PlatformDoubao,
+		service.PlatformQwen,
+		service.PlatformKimi,
+		service.PlatformDeepSeek,
+	} {
+		require.True(t, isOpenAICompatibleGatewayPlatform(platform), "platform=%s", platform)
+	}
+
+	for _, platform := range []string{service.PlatformAnthropic, service.PlatformGemini, service.PlatformAntigravity} {
+		require.False(t, isOpenAICompatibleGatewayPlatform(platform), "platform=%s", platform)
+	}
+}
+
 func TestGatewayRoutesOpenAIResponsesCompactPathIsRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 
@@ -185,6 +203,25 @@ func TestGatewayRoutesGrokImagesAndVideosPathsAreRegistered(t *testing.T) {
 		router.ServeHTTP(w, req)
 		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should hit Grok video handler", path)
 		require.NotContains(t, w.Body.String(), "not supported for this platform")
+	}
+}
+
+func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformSeedance)
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	for _, route := range []string{
+		"POST /v1/videos/generations",
+		"GET /v1/videos/:request_id",
+		"POST /v1/video/generations",
+		"GET /v1/video/generations/:request_id",
+		"POST /videos/generations",
+		"GET /videos/:request_id",
+	} {
+		require.True(t, registered[route], "%s should be registered", route)
 	}
 }
 

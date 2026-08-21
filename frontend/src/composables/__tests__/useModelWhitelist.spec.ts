@@ -4,7 +4,12 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
 
-import { buildModelMappingObject, getModelsByPlatform, splitModelMappingObject } from '../useModelWhitelist'
+import {
+  buildModelMappingObject,
+  getModelsByPlatform,
+  getPresetMappingsByPlatform,
+  splitModelMappingObject
+} from '../useModelWhitelist'
 
 describe('useModelWhitelist', () => {
   it('openai 模型列表包含 GPT-5.4 官方快照', () => {
@@ -17,9 +22,23 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-5.6')
   })
 
-  it('jimeng 模型列表固定为 Seedance 2.0', () => {
-    expect(getModelsByPlatform('jimeng')).toEqual(['seedance 2.0'])
+  it('jimeng 模型列表固定为当前默认 Seedance 模型', () => {
+    expect(getModelsByPlatform('jimeng')).toEqual(['by-seedance2.0-933'])
     expect(getModelsByPlatform('jimeng')).not.toEqual(getModelsByPlatform('openai'))
+  })
+
+  it('provider platforms resolve to their existing model families', () => {
+    expect(getModelsByPlatform('doubao')).toContain('doubao-pro-256k')
+    expect(getModelsByPlatform('qwen')).toContain('qwen-plus')
+    expect(getModelsByPlatform('kimi')).toContain('moonshot-v1-128k')
+    expect(getModelsByPlatform('deepseek')).toContain('deepseek-reasoner')
+  })
+
+  it('video platforms require upstream model synchronization instead of static presets', () => {
+    for (const platform of ['kling', 'happyhourse', 'seedance']) {
+      expect(getModelsByPlatform(platform)).toEqual([])
+      expect(getPresetMappingsByPlatform(platform)).toEqual([])
+    }
   })
 
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {

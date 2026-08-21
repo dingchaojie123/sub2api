@@ -12,8 +12,9 @@ import (
 )
 
 type JimengVideoPollerRuntime struct {
-	poller *JimengVideoPollerService
-	cfg    *config.Config
+	poller   *JimengVideoPollerService
+	ppPoller *PPVideoPollerService
+	cfg      *config.Config
 
 	mu     sync.Mutex
 	cancel context.CancelFunc
@@ -24,8 +25,21 @@ func NewJimengVideoPollerRuntime(poller *JimengVideoPollerService, cfg *config.C
 	return &JimengVideoPollerRuntime{poller: poller, cfg: cfg}
 }
 
+func (r *JimengVideoPollerRuntime) SetPPVideoPoller(poller *PPVideoPollerService) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.ppPoller = poller
+}
+
 func (r *JimengVideoPollerRuntime) Start() {
-	if r == nil || r.poller == nil || r.cfg == nil || !r.cfg.JimengVideo.PollerEnabled || r.poller.Repo == nil || r.poller.Gateway == nil {
+	if r == nil || r.cfg == nil || !r.cfg.JimengVideo.PollerEnabled {
+		return
+	}
+	if (r.poller == nil || r.poller.Repo == nil || r.poller.Gateway == nil) &&
+		(r.ppPoller == nil || r.ppPoller.Repo == nil || r.ppPoller.Gateway == nil) {
 		return
 	}
 	r.mu.Lock()
@@ -46,10 +60,15 @@ func (r *JimengVideoPollerRuntime) Start() {
 }
 
 func (r *JimengVideoPollerRuntime) run(ctx context.Context) {
-	if r == nil || r.poller == nil {
+	if r == nil || (r.poller == nil && r.ppPoller == nil) {
 		return
 	}
-	interval := r.poller.options().PollInterval
+	interval := 30 * time.Second
+	if r.poller != nil {
+		interval = r.poller.options().PollInterval
+	} else if r.ppPoller != nil {
+		interval = r.ppPoller.options().PollInterval
+	}
 	if interval <= 0 {
 		interval = 30 * time.Second
 	}
@@ -57,13 +76,25 @@ func (r *JimengVideoPollerRuntime) run(ctx context.Context) {
 		if err := ctx.Err(); err != nil {
 			return
 		}
-		stats, err := r.poller.RunOnce(ctx)
-		if err != nil {
-			logger.L().Warn("jimeng_video.poller.run_failed",
-				zap.Int("claimed", stats.Claimed),
-				zap.Int("errors", stats.Errors),
-				zap.Error(err),
-			)
+		if r.poller != nil && r.poller.Repo != nil && r.poller.Gateway != nil {
+			stats, err := r.poller.RunOnce(ctx)
+			if err != nil {
+				logger.L().Warn("jimeng_video.poller.run_failed",
+					zap.Int("claimed", stats.Claimed),
+					zap.Int("errors", stats.Errors),
+					zap.Error(err),
+				)
+			}
+		}
+		if r.ppPoller != nil && r.ppPoller.Repo != nil && r.ppPoller.Gateway != nil {
+			stats, err := r.ppPoller.RunOnce(ctx)
+			if err != nil {
+				logger.L().Warn("pp_video.poller.run_failed",
+					zap.Int("claimed", stats.Claimed),
+					zap.Int("errors", stats.Errors),
+					zap.Error(err),
+				)
+			}
 		}
 		sleepOrDone(ctx, interval)
 	}

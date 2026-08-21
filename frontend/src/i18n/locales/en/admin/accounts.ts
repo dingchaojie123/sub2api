@@ -105,6 +105,13 @@ export default {
         antigravity: 'Antigravity',
         grok: 'Grok',
         jimeng: 'Jimeng',
+        doubao: 'Doubao',
+        qwen: 'Qwen',
+        kimi: 'Kimi',
+        deepseek: 'DeepSeek',
+        kling: 'K-Ling',
+        happyhourse: 'Happy-Hourse',
+        seedance: 'Seedance',
       },
       types: {
         oauth: 'OAuth',
@@ -540,6 +547,14 @@ export default {
       jimeng: {
         baseUrlHint: 'Enter the Base URL of your OpenAI-compatible Jimeng proxy.',
         apiKeyHint: 'API Key for your Jimeng proxy.'
+      },
+      videoPlatform: {
+        baseUrlHint: 'Enter the Base URL for this video platform or its proxy.',
+        apiKeyHint: 'The API key is stored for Bearer authentication.'
+      },
+      openaiCompatible: {
+        baseUrlHint: 'The official OpenAI-compatible endpoint is prefilled. You can replace it with a proxy or self-hosted endpoint.',
+        apiKeyHint: 'Enter the API Key for this platform.'
       },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',

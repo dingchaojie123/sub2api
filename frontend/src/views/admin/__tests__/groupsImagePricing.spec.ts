@@ -7,6 +7,8 @@ import {
   getVideoPricePlaceholder,
   imagePricingPlatforms,
   imagePricingI18nKey,
+  isPPVideoPricingPlatform,
+  usesGroupVideoPriceConfig,
   supportsImagePricingPlatform,
   supportsVideoPricingPlatform,
   videoPricingI18nKey,
@@ -18,9 +20,22 @@ describe("groups image pricing platform support", () => {
     expect(imagePricingPlatforms.has("grok")).toBe(true);
   });
 
-  it("enables video pricing controls for Grok only", () => {
+  it("enables video pricing controls for Grok and PP video platforms", () => {
     expect(supportsVideoPricingPlatform("grok")).toBe(true);
+    expect(supportsVideoPricingPlatform("kling")).toBe(true);
+    expect(supportsVideoPricingPlatform("happyhourse")).toBe(true);
+    expect(supportsVideoPricingPlatform("seedance")).toBe(true);
     expect(supportsVideoPricingPlatform("openai")).toBe(false);
+  });
+
+  it("uses the existing group video price card for per-second PP platforms", () => {
+    expect(isPPVideoPricingPlatform("kling")).toBe(true);
+    expect(isPPVideoPricingPlatform("happyhourse")).toBe(true);
+    expect(isPPVideoPricingPlatform("seedance")).toBe(true);
+    expect(isPPVideoPricingPlatform("grok")).toBe(false);
+    expect(usesGroupVideoPriceConfig("kling")).toBe(true);
+    expect(usesGroupVideoPriceConfig("happyhourse")).toBe(true);
+    expect(usesGroupVideoPriceConfig("seedance")).toBe(true);
   });
 
   it("keeps non-media group platforms out of the image pricing controls", () => {

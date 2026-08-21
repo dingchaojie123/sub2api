@@ -44,7 +44,7 @@ const ModelIconStub = defineComponent({
   template: '<span />',
 })
 
-function mountSelector() {
+function mountSelector(props: Record<string, unknown> = {}) {
   return mount(ModelWhitelistSelector, {
     props: {
       modelValue: [],
@@ -55,6 +55,7 @@ function mountSelector() {
         base_url: 'https://jimeng-proxy.example.com/v1',
         api_key: 'jm-key',
       },
+      ...props,
     },
     global: {
       stubs: {
@@ -71,7 +72,10 @@ describe('ModelWhitelistSelector jimeng mode', () => {
     syncUpstreamModelsPreviewMock.mockReset()
   })
 
-  it('keeps jimeng models fixed to Seedance 2.0 without calling upstream sync', async () => {
+  it('syncs jimeng models from upstream in create flow', async () => {
+    syncUpstreamModelsPreviewMock.mockResolvedValue({
+      models: ['by-seedance2.0-933', 'jimeng-video-live'],
+    })
     const wrapper = mountSelector()
 
     const syncButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.syncUpstreamModels'))
@@ -80,7 +84,49 @@ describe('ModelWhitelistSelector jimeng mode', () => {
     await flushPromises()
 
     expect(syncUpstreamModelsMock).not.toHaveBeenCalled()
-    expect(syncUpstreamModelsPreviewMock).not.toHaveBeenCalled()
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([['seedance 2.0']])
+    expect(syncUpstreamModelsPreviewMock).toHaveBeenCalledWith({
+      platform: 'jimeng',
+      type: 'apikey',
+      base_url: 'https://jimeng-proxy.example.com/v1',
+      api_key: 'jm-key',
+    })
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([[
+      'by-seedance2.0-933',
+      'jimeng-video-live',
+    ]])
   })
+
+  it.each(['kling', 'happyhourse', 'seedance'] as const)(
+    'shows upstream sync for %s video platform in create flow',
+    async (platform) => {
+      syncUpstreamModelsPreviewMock.mockResolvedValue({ models: [`${platform}-live-model`] })
+      const wrapper = mountSelector({
+        platform,
+        syncCredentials: {
+          platform,
+          type: 'apikey',
+          base_url: 'https://app.ppapi.ai/v1',
+          api_key: 'pp-key',
+        },
+      })
+
+      const syncButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.syncUpstreamModels'))
+      expect(syncButton).toBeDefined()
+      await syncButton!.trigger('click')
+      await flushPromises()
+
+      expect(syncUpstreamModelsPreviewMock).toHaveBeenCalledWith({
+        platform,
+        type: 'apikey',
+        base_url: 'https://app.ppapi.ai/v1',
+        api_key: 'pp-key',
+      })
+      expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([[`${platform}-live-model`]])
+
+      await wrapper.find('div.cursor-pointer').trigger('click')
+      expect(
+        wrapper.findAll('button').some(button => button.text().trim() === `${platform}-live-model`)
+      ).toBe(true)
+    }
+  )
 })

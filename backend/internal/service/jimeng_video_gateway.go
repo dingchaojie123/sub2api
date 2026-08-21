@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type JimengVideoEndpoint string
@@ -19,7 +21,8 @@ type JimengVideoEndpoint string
 const (
 	JimengVideoEndpointGenerations JimengVideoEndpoint = "video_generations"
 	JimengVideoEndpointStatus      JimengVideoEndpoint = "video_status"
-	JimengVideoRoutingModel        string              = "seedance 2.0"
+	JimengVideoRoutingModel        string              = "by-seedance2.0-933"
+	JimengVideoLegacyRoutingModel  string              = "seedance 2.0"
 	JimengVideoBillingModel        string              = "video-v1"
 	JimengVideoDefaultModel        string              = JimengVideoBillingModel
 )
@@ -38,8 +41,9 @@ func (s *OpenAIGatewayService) ForwardJimengVideo(
 	endpoint JimengVideoEndpoint,
 	taskID string,
 	body []byte,
+	publicModels ...string,
 ) (*OpenAIForwardResult, error) {
-	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, true)
+	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, true, publicModels...)
 }
 
 func (s *OpenAIGatewayService) ForwardJimengVideoBuffered(
@@ -49,8 +53,9 @@ func (s *OpenAIGatewayService) ForwardJimengVideoBuffered(
 	endpoint JimengVideoEndpoint,
 	taskID string,
 	body []byte,
+	publicModels ...string,
 ) (*OpenAIForwardResult, error) {
-	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, false)
+	return s.forwardJimengVideo(ctx, c, account, endpoint, taskID, body, false, publicModels...)
 }
 
 func (s *OpenAIGatewayService) forwardJimengVideo(
@@ -61,6 +66,7 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 	taskID string,
 	body []byte,
 	writeSuccessResponse bool,
+	publicModels ...string,
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 	if s == nil || s.httpUpstream == nil {
@@ -81,94 +87,407 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 		return nil, err
 	}
 
-	targetURL := buildJimengVideoGenerationURL(baseURL)
-	if endpoint == JimengVideoEndpointStatus {
-		taskID = strings.TrimSpace(taskID)
-		if taskID == "" {
-			return nil, fmt.Errorf("jimeng task id is required")
-		}
-		targetURL = buildJimengVideoGenerationQueryURL(baseURL, taskID)
+	targets, err := jimengVideoUpstreamTargets(baseURL, endpoint, taskID)
+	if err != nil {
+		return nil, err
 	}
-	SetActualOpenAIUpstreamEndpoint(c, jimengVideoUpstreamEndpoint(endpoint))
+	SetActualOpenAIUpstreamEndpoint(c, targets[0].endpoint)
 
-	var bodyReader io.Reader
+	var upstreamBody []byte
+	publicModel := jimengVideoPublicModelFromArgs(publicModels...)
 	if endpoint != JimengVideoEndpointStatus {
 		if len(body) == 0 {
 			return nil, fmt.Errorf("jimeng video request body is empty")
 		}
-		bodyReader = bytes.NewReader(body)
+		if publicModel == "" {
+			publicModel = JimengVideoRequestedModelFromBody(body)
+		}
+		upstreamBody = normalizeJimengVideoGenerationBody(body)
+	}
+	if publicModel == "" {
+		publicModel = JimengVideoRoutingModel
+	}
+	upstreamModel := publicModel
+	if endpoint != JimengVideoEndpointStatus {
+		upstreamModel = NormalizeJimengVideoRequestedModel(gjson.GetBytes(upstreamBody, "model").String())
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
-	upstreamReq, err := http.NewRequestWithContext(upstreamCtx, endpoint.httpMethod(), targetURL, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-	upstreamReq.Header.Set("Authorization", "Bearer "+token)
-	upstreamReq.Header.Set("Accept", "application/json")
-	if endpoint != JimengVideoEndpointStatus {
-		upstreamReq.Header.Set("Content-Type", "application/json")
-	}
-	account.ApplyHeaderOverrides(upstreamReq.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
 	upstreamStart := time.Now()
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
-	SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
-	}
-	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= http.StatusBadRequest {
-		writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
-		return nil, fmt.Errorf("jimeng upstream returned HTTP %d", resp.StatusCode)
+	for idx, target := range targets {
+		var bodyReader io.Reader
+		if endpoint != JimengVideoEndpointStatus {
+			bodyReader = bytes.NewReader(upstreamBody)
+		}
+		upstreamReq, err := http.NewRequestWithContext(upstreamCtx, endpoint.httpMethod(), target.url, bodyReader)
+		if err != nil {
+			return nil, err
+		}
+		upstreamReq.Header.Set("Authorization", "Bearer "+token)
+		upstreamReq.Header.Set("Accept", "application/json")
+		if endpoint != JimengVideoEndpointStatus {
+			upstreamReq.Header.Set("Content-Type", "application/json")
+		}
+		account.ApplyHeaderOverrides(upstreamReq.Header)
+		SetActualOpenAIUpstreamEndpoint(c, target.endpoint)
+
+		resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(upstreamStart).Milliseconds())
+		if err != nil {
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+		}
+
+		respBody, readErr := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, readErr
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			if shouldFallbackJimengVideoEndpoint(resp.StatusCode) && idx+1 < len(targets) {
+				continue
+			}
+			writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+			return nil, fmt.Errorf("jimeng upstream returned HTTP %d", resp.StatusCode)
+		}
+
+		parsed, err := parseJimengGenerationResult(respBody)
+		if err != nil {
+			return nil, err
+		}
+		responseBody := NormalizeJimengVideoPublicResponse(respBody, parsed, publicModel)
+		if writeSuccessResponse {
+			writeGrokMediaResponse(c, resp, responseBody, s.responseHeaderFilter)
+		}
+
+		responseID := strings.TrimSpace(parsed.TaskID)
+		if responseID == "" {
+			responseID = strings.TrimSpace(taskID)
+		}
+		result := &OpenAIForwardResult{
+			RequestID:           responseID,
+			ResponseID:          responseID,
+			Usage:               parsed.Usage,
+			HasUsage:            parsed.HasUsage,
+			Model:               publicModel,
+			BillingModel:        JimengVideoBillingModel,
+			UpstreamModel:       upstreamModel,
+			UpstreamEndpoint:    target.endpoint,
+			ResponseHeaders:     resp.Header.Clone(),
+			Duration:            time.Since(startTime),
+			TaskStatus:          parsed.Status,
+			ResponseStatusCode:  resp.StatusCode,
+			ResponseContentType: strings.TrimSpace(resp.Header.Get("Content-Type")),
+			ResponseBody:        append([]byte(nil), responseBody...),
+		}
+		if endpoint == JimengVideoEndpointGenerations {
+			billingMeta := jimengVideoBillingMetadataFromRequest(body)
+			result.HasUsage = false
+			result.ImageCount = 1
+			result.VideoCount = 1
+			result.VideoResolution = billingMeta.VideoResolution
+			result.VideoDurationSeconds = billingMeta.VideoDurationSeconds
+		}
+		return result, nil
 	}
 
-	parsed, err := parseJimengGenerationResult(respBody)
-	if err != nil {
-		return nil, err
-	}
-	if writeSuccessResponse {
-		writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
+	return nil, fmt.Errorf("jimeng upstream returned no usable response")
+}
+
+func normalizeJimengVideoGenerationBody(body []byte) []byte {
+	if !gjson.ValidBytes(body) {
+		return body
 	}
 
-	responseID := strings.TrimSpace(parsed.TaskID)
-	if responseID == "" {
-		responseID = strings.TrimSpace(taskID)
+	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	if model != "" &&
+		!strings.EqualFold(model, JimengVideoLegacyRoutingModel) &&
+		!strings.EqualFold(model, JimengVideoBillingModel) {
+		return body
 	}
-	result := &OpenAIForwardResult{
-		RequestID:        responseID,
-		ResponseID:       responseID,
-		Usage:            parsed.Usage,
-		HasUsage:         parsed.HasUsage,
-		Model:            JimengVideoDefaultModel,
-		BillingModel:     JimengVideoDefaultModel,
-		UpstreamModel:    JimengVideoDefaultModel,
-		UpstreamEndpoint: jimengVideoUpstreamEndpoint(endpoint),
-		ResponseHeaders:  resp.Header.Clone(),
-		Duration:         time.Since(startTime),
-		TaskStatus:       parsed.Status,
-		ResponseStatusCode: resp.StatusCode,
-		ResponseContentType: strings.TrimSpace(resp.Header.Get("Content-Type")),
-		ResponseBody:     append([]byte(nil), respBody...),
+
+	normalized, err := sjson.SetBytes(body, "model", JimengVideoRoutingModel)
+	if err != nil {
+		return body
 	}
-	if endpoint == JimengVideoEndpointGenerations {
-		billingMeta := jimengVideoBillingMetadataFromRequest(body)
-		result.HasUsage = false
-		result.ImageCount = 1
-		result.VideoCount = 1
-		result.VideoResolution = billingMeta.VideoResolution
-		result.VideoDurationSeconds = billingMeta.VideoDurationSeconds
+	return normalized
+}
+
+func NormalizeJimengVideoRequestedModel(model string) string {
+	model = strings.TrimSpace(model)
+	if model == "" ||
+		strings.EqualFold(model, JimengVideoLegacyRoutingModel) ||
+		strings.EqualFold(model, JimengVideoBillingModel) {
+		return JimengVideoRoutingModel
 	}
-	return result, nil
+	return model
+}
+
+func JimengVideoRequestedModelFromBody(body []byte) string {
+	if !gjson.ValidBytes(body) {
+		return JimengVideoRoutingModel
+	}
+	return NormalizeJimengVideoRequestedModel(gjson.GetBytes(body, "model").String())
+}
+
+func jimengVideoPublicModelFromArgs(models ...string) string {
+	for _, model := range models {
+		if strings.TrimSpace(model) == "" {
+			continue
+		}
+		if normalized := NormalizeJimengVideoRequestedModel(model); normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+func NormalizeJimengVideoPublicResponse(raw []byte, parsed *JimengVideoGenerationResult, publicModels ...string) []byte {
+	if len(raw) == 0 || !gjson.ValidBytes(raw) {
+		return raw
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
+		return raw
+	}
+	taskID := ""
+	status := ""
+	if parsed != nil {
+		taskID = strings.TrimSpace(parsed.TaskID)
+		status = NormalizeJimengTaskStatus(parsed.Status)
+	}
+	if taskID == "" {
+		taskID = extractJimengStringFromBytes(raw, jimengVideoTaskIDPaths()...)
+	}
+	if taskID != "" {
+		payload["id"] = taskID
+		payload["task_id"] = taskID
+	}
+	payload["object"] = "video.generation.task"
+	if status == "" {
+		status = NormalizeJimengTaskStatus(extractJimengStringFromBytes(raw, jimengVideoStatusPaths()...))
+	}
+	if jimengVideoResponseHasFinalVideo(raw) && status != JimengTaskStatusFailed {
+		status = JimengTaskStatusSucceeded
+	}
+	if status != "" {
+		payload["status"] = status
+	}
+	responseModel := jimengVideoPublicModelFromArgs(publicModels...)
+	if responseModel == "" {
+		responseModel = JimengVideoRoutingModel
+	}
+	payload["model"] = responseModel
+	if videoURL := jimengVideoExtractVideoURL(raw); videoURL != "" {
+		jimengVideoSetPublicVideoURL(payload, videoURL)
+	}
+	if usage := jimengVideoPublicUsage(raw, parsed); len(usage) > 0 {
+		payload["usage"] = usage
+	}
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return raw
+	}
+	return normalized
+}
+
+func jimengVideoSetPublicVideoURL(payload map[string]any, videoURL string) {
+	videoURL = strings.TrimSpace(videoURL)
+	if payload == nil || videoURL == "" {
+		return
+	}
+	payload["video_url"] = videoURL
+	payload["url"] = videoURL
+	payload["result_url"] = videoURL
+	jimengVideoSetVideosField(payload, videoURL)
+	jimengVideoSetDataVideoURL(payload, videoURL)
+}
+
+func jimengVideoSetDataVideoURL(payload map[string]any, videoURL string) {
+	videoURL = strings.TrimSpace(videoURL)
+	if payload == nil || videoURL == "" {
+		return
+	}
+	data, ok := payload["data"].(map[string]any)
+	if !ok {
+		if _, exists := payload["data"]; exists {
+			return
+		}
+		data = map[string]any{}
+		payload["data"] = data
+	}
+	data["video_url"] = videoURL
+	data["url"] = videoURL
+	data["result_url"] = videoURL
+	jimengVideoSetVideosField(data, videoURL)
+}
+
+func jimengVideoSetVideosField(payload map[string]any, videoURL string) {
+	if payload == nil || strings.TrimSpace(videoURL) == "" {
+		return
+	}
+	if videos, ok := payload["videos"].([]any); ok && len(videos) > 0 {
+		return
+	}
+	payload["videos"] = []any{map[string]any{"url": videoURL, "video_url": videoURL}}
+}
+
+func jimengVideoResponseHasFinalVideo(body []byte) bool {
+	return jimengVideoExtractFinalVideoURL(body) != ""
+}
+
+func jimengVideoExtractFinalVideoURL(body []byte) string {
+	return extractJimengStringFromBytes(body, jimengVideoVideoURLPaths()...)
+}
+
+func jimengVideoVideoURLPaths() []string {
+	suffixes := []string{
+		"video_url",
+		"result_url",
+		"url",
+		"download_url",
+		"video_url_download",
+		"file_url",
+		"media_url",
+		"play_url",
+		"video_urls.0",
+		"urls.0",
+		"content.video_url",
+		"content.result_url",
+		"content.url",
+		"content.download_url",
+		"content.video_url_download",
+		"content.file_url",
+		"content.media_url",
+		"content.play_url",
+		"result.video_url",
+		"result.result_url",
+		"result.url",
+		"result.download_url",
+		"result.video_url_download",
+		"result.file_url",
+		"result.media_url",
+		"result.play_url",
+		"result.video_urls.0",
+		"result.urls.0",
+		"task_result.video_url",
+		"task_result.result_url",
+		"task_result.url",
+		"task_result.download_url",
+		"task_result.video_url_download",
+		"task_result.file_url",
+		"task_result.media_url",
+		"task_result.play_url",
+		"task_result.video_urls.0",
+		"task_result.urls.0",
+		"task_result.videos.0.url",
+		"task_result.videos.0.video_url",
+		"task_result.videos.0.result_url",
+		"task_result.videos.0.download_url",
+		"task_result.videos.0.video_url_download",
+		"task_result.videos.0.file_url",
+		"task_result.videos.0.media_url",
+		"task_result.videos.0.play_url",
+		"output.video_url",
+		"output.result_url",
+		"output.url",
+		"output.download_url",
+		"output.video_url_download",
+		"output.file_url",
+		"output.media_url",
+		"output.play_url",
+		"output.video_urls.0",
+		"output.urls.0",
+		"output.0.video_url",
+		"output.0.result_url",
+		"output.0.url",
+		"output.0.download_url",
+		"output.0.video_url_download",
+		"output.0.file_url",
+		"output.0.media_url",
+		"output.0.play_url",
+		"outputs.0.video_url",
+		"outputs.0.result_url",
+		"outputs.0.url",
+		"outputs.0.download_url",
+		"outputs.0.video_url_download",
+		"outputs.0.file_url",
+		"outputs.0.media_url",
+		"outputs.0.play_url",
+		"videos.0.url",
+		"videos.0.video_url",
+		"videos.0.result_url",
+		"videos.0.download_url",
+		"videos.0.video_url_download",
+		"videos.0.file_url",
+		"videos.0.media_url",
+		"videos.0.play_url",
+	}
+	prefixes := []string{"", "data.", "data.data.", "data.data.data."}
+	paths := make([]string, 0, len(prefixes)*len(suffixes))
+	for _, prefix := range prefixes {
+		for _, suffix := range suffixes {
+			paths = append(paths, prefix+suffix)
+		}
+	}
+	return paths
+}
+
+func jimengVideoExtractVideoURL(body []byte) string {
+	if videoURL := jimengVideoExtractFinalVideoURL(body); videoURL != "" {
+		return videoURL
+	}
+	return extractJimengStringFromBytes(body,
+		"url",
+		"download_url",
+		"result_url",
+	)
+}
+
+func jimengVideoPublicUsage(raw []byte, parsed *JimengVideoGenerationResult) map[string]any {
+	providerUsage := json.RawMessage(nil)
+	if value := gjson.GetBytes(raw, "usage"); value.Exists() {
+		providerUsage = json.RawMessage(value.Raw)
+	} else if value := gjson.GetBytes(raw, "data.usage"); value.Exists() {
+		providerUsage = json.RawMessage(value.Raw)
+	}
+	if len(providerUsage) == 0 && (parsed == nil || !parsed.HasUsage) {
+		return nil
+	}
+	usage := make(map[string]any)
+	if parsed != nil && parsed.HasUsage {
+		usage["input_tokens"] = parsed.Usage.InputTokens
+		usage["output_tokens"] = parsed.Usage.OutputTokens
+		usage["image_input_tokens"] = parsed.Usage.ImageInputTokens
+		usage["image_output_tokens"] = parsed.Usage.ImageOutputTokens
+		usage["cache_creation_input_tokens"] = parsed.Usage.CacheCreationInputTokens
+		usage["cache_read_input_tokens"] = parsed.Usage.CacheReadInputTokens
+	}
+	if len(providerUsage) > 0 {
+		usage["provider_usage"] = providerUsage
+	}
+	return usage
+}
+
+func extractJimengStringFromBytes(body []byte, paths ...string) string {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return ""
+	}
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() {
+			continue
+		}
+		if text := strings.TrimSpace(value.String()); text != "" {
+			return text
+		}
+	}
+	return ""
 }
 
 func (s *OpenAIGatewayService) WriteJimengVideoForwardResult(c *gin.Context, result *OpenAIForwardResult) {
@@ -200,10 +519,45 @@ func (s *OpenAIGatewayService) WriteJimengVideoForwardResult(c *gin.Context, res
 func jimengVideoUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
 	switch endpoint {
 	case JimengVideoEndpointStatus:
+		return "/v1/videos/{task_id}"
+	default:
+		return "/v1/videos/generations"
+	}
+}
+
+type jimengVideoUpstreamTarget struct {
+	url      string
+	endpoint string
+}
+
+func jimengVideoLegacyUpstreamEndpoint(endpoint JimengVideoEndpoint) string {
+	switch endpoint {
+	case JimengVideoEndpointStatus:
 		return "/v1/video/generations/{task_id}"
 	default:
 		return "/v1/video/generations"
 	}
+}
+
+func jimengVideoUpstreamTargets(baseURL string, endpoint JimengVideoEndpoint, taskID string) ([]jimengVideoUpstreamTarget, error) {
+	if endpoint == JimengVideoEndpointStatus {
+		taskID = strings.TrimSpace(taskID)
+		if taskID == "" {
+			return nil, fmt.Errorf("jimeng task id is required")
+		}
+		return []jimengVideoUpstreamTarget{
+			{url: buildJimengVideoGenerationQueryURL(baseURL, taskID), endpoint: jimengVideoUpstreamEndpoint(endpoint)},
+			{url: buildLegacyJimengVideoGenerationQueryURL(baseURL, taskID), endpoint: jimengVideoLegacyUpstreamEndpoint(endpoint)},
+		}, nil
+	}
+	return []jimengVideoUpstreamTarget{
+		{url: buildJimengVideoGenerationURL(baseURL), endpoint: jimengVideoUpstreamEndpoint(endpoint)},
+		{url: buildLegacyJimengVideoGenerationURL(baseURL), endpoint: jimengVideoLegacyUpstreamEndpoint(endpoint)},
+	}, nil
+}
+
+func shouldFallbackJimengVideoEndpoint(status int) bool {
+	return status == http.StatusNotFound || status == http.StatusMethodNotAllowed
 }
 
 type JimengVideoBillingMetadata struct {

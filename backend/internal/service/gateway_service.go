@@ -1174,7 +1174,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		if cached, found := s.modelsListCache.Get(cacheKey); found {
 			if models, ok := cached.([]string); ok {
 				modelsListCacheHitTotal.Add(1)
-				return cloneStringSlice(models)
+				return cloneStringSlice(filterPPVideoPublicModelsForPlatform(platform, models))
 			}
 		}
 	}
@@ -1213,6 +1213,10 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		if len(mapping) > 0 {
 			hasAnyMapping = true
 			for model := range mapping {
+				if IsPPVideoPlatform(platform) &&
+					len(filterPPVideoPublicModelsForPlatform(platform, []string{model})) == 0 {
+					continue
+				}
 				modelSet[model] = struct{}{}
 			}
 		}
@@ -1238,7 +1242,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		s.modelsListCache.Set(cacheKey, cloneStringSlice(models), s.modelsListCacheTTL)
 		modelsListCacheStoreTotal.Add(1)
 	}
-	return cloneStringSlice(models)
+	return cloneStringSlice(filterPPVideoPublicModelsForPlatform(platform, models))
 }
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {

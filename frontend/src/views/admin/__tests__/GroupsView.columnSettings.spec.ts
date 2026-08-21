@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import type { AdminGroup } from '@/types'
 import GroupsView from '../GroupsView.vue'
@@ -218,6 +218,9 @@ const clickColumnToggle = async (wrapper: ReturnType<typeof mount>, label: strin
   await flushPromises()
 }
 
+const optionValues = (select: VueWrapper) =>
+  select.findAll('option').map((option) => option.attributes('value'))
+
 describe('admin GroupsView column settings', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -379,5 +382,24 @@ describe('admin GroupsView column settings', () => {
     await clickColumnToggle(wrapper, 'Capacity')
     expect(getUsageSummary).toHaveBeenCalledTimes(1)
     expect(getCapacitySummary).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows PP video platforms in group platform selectors', async () => {
+    const wrapper = await mountView()
+
+    await wrapper.get('button[data-tour="groups-create-btn"]').trigger('click')
+    await flushPromises()
+
+    const platformSelects = wrapper.findAll('select').filter((select) => {
+      const values = optionValues(select)
+      return values.includes('anthropic') && values.includes('deepseek')
+    })
+
+    expect(platformSelects.length).toBeGreaterThanOrEqual(2)
+    for (const select of platformSelects) {
+      expect(optionValues(select)).toEqual(
+        expect.arrayContaining(['kling', 'happyhourse', 'seedance']),
+      )
+    }
   })
 })

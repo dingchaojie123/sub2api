@@ -38,6 +38,23 @@ describe('ccswitchImport utils', () => {
     expect(atob(params.get('usageScript') || '')).toBe(baseInput.usageScript)
   })
 
+  it.each(['doubao', 'qwen', 'kimi', 'deepseek'] as GroupPlatform[])(
+    'treats %s imports as OpenAI-compatible',
+    (platform) => {
+      const params = paramsFromDeeplink(
+        buildCcSwitchImportDeeplink({
+          ...baseInput,
+          platform,
+          clientType: 'claude'
+        })
+      )
+
+      expect(params.get('app')).toBe('codex')
+      expect(params.get('endpoint')).toBe(baseInput.baseUrl)
+      expect(params.get('model')).toBe(OPENAI_CC_SWITCH_CODEX_MODEL)
+    }
+  )
+
   it.each([
     { platform: 'anthropic' as GroupPlatform, clientType: 'claude' as const, app: 'claude' },
     { platform: 'gemini' as GroupPlatform, clientType: 'gemini' as const, app: 'gemini' }

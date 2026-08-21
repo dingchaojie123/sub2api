@@ -199,6 +199,39 @@ func TestAccountIsModelSupported(t *testing.T) {
 			expected:       true,
 		},
 		{
+			name:     "jimeng current routing model matches legacy account whitelist",
+			platform: PlatformJimeng,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					JimengVideoLegacyRoutingModel: JimengVideoLegacyRoutingModel,
+				},
+			},
+			requestedModel: JimengVideoRoutingModel,
+			expected:       true,
+		},
+		{
+			name:     "jimeng current routing model matches billing account whitelist",
+			platform: PlatformJimeng,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					JimengVideoBillingModel: JimengVideoBillingModel,
+				},
+			},
+			requestedModel: JimengVideoRoutingModel,
+			expected:       true,
+		},
+		{
+			name:     "jimeng legacy request model matches current account whitelist",
+			platform: PlatformJimeng,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					JimengVideoRoutingModel: JimengVideoRoutingModel,
+				},
+			},
+			requestedModel: JimengVideoLegacyRoutingModel,
+			expected:       true,
+		},
+		{
 			name: "wildcard match not supported",
 			credentials: map[string]any{
 				"model_mapping": map[string]any{
@@ -283,6 +316,17 @@ func TestAccountGetMappedModel(t *testing.T) {
 			},
 			requestedModel: "gemini-3.1-pro-preview-customtools",
 			expected:       "gemini-3.1-pro-preview",
+		},
+		{
+			name:     "jimeng current routing model resolves through billing whitelist",
+			platform: PlatformJimeng,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					JimengVideoBillingModel: JimengVideoBillingModel,
+				},
+			},
+			requestedModel: JimengVideoRoutingModel,
+			expected:       JimengVideoBillingModel,
 		},
 		{
 			name:     "gemini customtools exact mapping wins over normalized fallback",

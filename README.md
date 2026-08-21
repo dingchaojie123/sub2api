@@ -730,6 +730,12 @@ Long-running OpenAI/Grok image generation and editing can be submitted through `
 
 ---
 
+## PP Video Generation
+
+Kling, Happy Horse, and Seedance video generation can be configured as PP upstream accounts and exposed through the site API. See [PP Video Generation API](docs/PP_VIDEO_GENERATION_API.md) for supported routes, task polling, and actual-duration billing.
+
+---
+
 ## Grok / xAI Support
 
 Corgi supports both Grok subscription accounts through xAI OAuth and standard xAI API-key accounts. Both account types forward OpenAI-compatible Responses traffic to xAI.

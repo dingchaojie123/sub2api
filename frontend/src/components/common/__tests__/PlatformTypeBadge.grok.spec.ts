@@ -83,3 +83,21 @@ describe('PlatformTypeBadge OpenAI authentication modes', () => {
     expect(wrapper.text()).toContain('OAuth')
   })
 })
+
+describe('PlatformTypeBadge video account platforms', () => {
+  it.each([
+    ['kling', 'K-Ling', 'bg-sky-100'],
+    ['happyhourse', 'Happy-Hourse', 'bg-emerald-100'],
+    ['seedance', 'Seedance', 'bg-teal-100']
+  ])('renders %s with a distinct platform badge', (platform, label, colorClass) => {
+    const wrapper = mount(PlatformTypeBadge, {
+      props: {
+        platform,
+        type: 'apikey'
+      }
+    })
+
+    expect(wrapper.text()).toContain(label)
+    expect(wrapper.find('span').classes()).toContain(colorClass)
+  })
+})

@@ -739,6 +739,9 @@ func normalizeRequestedModelForLookup(platform, requestedModel string) string {
 	if trimmed == "" {
 		return ""
 	}
+	if aliases := requestedModelLookupAliases(platform, trimmed); len(aliases) > 0 {
+		return aliases[0]
+	}
 	if platform != PlatformGemini && platform != PlatformAntigravity {
 		return trimmed
 	}
@@ -746,6 +749,44 @@ func normalizeRequestedModelForLookup(platform, requestedModel string) string {
 		return "gemini-3.1-pro-preview"
 	}
 	return trimmed
+}
+
+func requestedModelLookupAliases(platform, requestedModel string) []string {
+	trimmed := strings.TrimSpace(requestedModel)
+	if trimmed == "" {
+		return nil
+	}
+	addAlias := func(aliases []string, alias string) []string {
+		alias = strings.TrimSpace(alias)
+		if alias == "" || alias == trimmed {
+			return aliases
+		}
+		for _, existing := range aliases {
+			if existing == alias {
+				return aliases
+			}
+		}
+		return append(aliases, alias)
+	}
+
+	switch platform {
+	case PlatformJimeng:
+		if !strings.EqualFold(trimmed, JimengVideoRoutingModel) &&
+			!strings.EqualFold(trimmed, JimengVideoLegacyRoutingModel) &&
+			!strings.EqualFold(trimmed, JimengVideoBillingModel) {
+			return nil
+		}
+		var aliases []string
+		aliases = addAlias(aliases, JimengVideoRoutingModel)
+		aliases = addAlias(aliases, JimengVideoLegacyRoutingModel)
+		aliases = addAlias(aliases, JimengVideoBillingModel)
+		return aliases
+	case PlatformGemini, PlatformAntigravity:
+		if trimmed == "gemini-3.1-pro-preview-customtools" {
+			return []string{"gemini-3.1-pro-preview"}
+		}
+	}
+	return nil
 }
 
 func mappingSupportsRequestedModel(mapping map[string]string, requestedModel string) bool {
@@ -792,8 +833,12 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	if mappingSupportsRequestedModel(mapping, requestedModel) {
 		return true
 	}
-	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	return normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized)
+	for _, alias := range requestedModelLookupAliases(a.Platform, requestedModel) {
+		if mappingSupportsRequestedModel(mapping, alias) {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMappedModel 获取映射后的模型名（支持通配符，最长优先匹配）
@@ -813,9 +858,8 @@ func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string,
 	if mappedModel, matched := resolveRequestedModelInMapping(mapping, requestedModel); matched {
 		return mappedModel, true
 	}
-	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	if normalized != requestedModel {
-		if mappedModel, matched := resolveRequestedModelInMapping(mapping, normalized); matched {
+	for _, alias := range requestedModelLookupAliases(a.Platform, requestedModel) {
+		if mappedModel, matched := resolveRequestedModelInMapping(mapping, alias); matched {
 			return mappedModel, true
 		}
 	}
@@ -1259,6 +1303,12 @@ func (a *Account) GetOpenAIBaseURL() string {
 	if a == nil {
 		return ""
 	}
+	if IsPPVideoPlatform(a.Platform) {
+		if a.Type != AccountTypeAPIKey {
+			return ""
+		}
+		return a.GetCredential("base_url")
+	}
 	if a.IsJimeng() {
 		if a.Type != AccountTypeAPIKey {
 			return ""
@@ -1362,7 +1412,7 @@ func (a *Account) GetOpenAIApiKey() string {
 	if a == nil || a.Type != AccountTypeAPIKey {
 		return ""
 	}
-	if !a.IsOpenAI() && !a.IsJimeng() {
+	if !a.IsOpenAI() && !a.IsJimeng() && !IsPPVideoPlatform(a.Platform) {
 		return ""
 	}
 	return a.GetCredential("api_key")

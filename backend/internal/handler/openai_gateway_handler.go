@@ -141,6 +141,10 @@ func allowOpenAICompatibleMessagesDispatch(apiKey *service.APIKey) bool {
 	if apiKey.Group.Platform == service.PlatformJimeng {
 		return true
 	}
+	switch apiKey.Group.Platform {
+	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
+		return true
+	}
 	return apiKey.Group.AllowMessagesDispatch
 }
 

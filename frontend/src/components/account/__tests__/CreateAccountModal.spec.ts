@@ -7,11 +7,13 @@ const {
   probeUpstreamBillingMock,
   importCodexSessionMock,
   createOpenAICodexPATMock,
+  authIsSimpleMode,
 } = vi.hoisted(() => ({
   createAccountMock: vi.fn(),
   probeUpstreamBillingMock: vi.fn(),
   importCodexSessionMock: vi.fn(),
   createOpenAICodexPATMock: vi.fn(),
+  authIsSimpleMode: { value: true },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -23,7 +25,11 @@ vi.mock('@/stores/app', () => ({
 }))
 
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ isSimpleMode: true }),
+  useAuthStore: () => ({
+    get isSimpleMode() {
+      return authIsSimpleMode.value
+    },
+  }),
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -84,6 +90,28 @@ const OAuthAuthorizationFlowStub = defineComponent({
   `,
 })
 
+const GroupSelectorStub = defineComponent({
+  name: 'GroupSelector',
+  props: {
+    modelValue: {
+      type: Array,
+      default: () => [],
+    },
+  },
+  emits: ['update:modelValue'],
+  template: `
+    <div data-testid="group-selector">
+      <button
+        type="button"
+        data-testid="set-create-group"
+        @click="$emit('update:modelValue', [7])"
+      >
+        group
+      </button>
+    </div>
+  `,
+})
+
 function mountModal() {
   return mount(CreateAccountModal, {
     props: { show: true, proxies: [], groups: [] },
@@ -97,9 +125,11 @@ function mountModal() {
         PlatformIcon: true,
         ProxySelector: true,
         ProxyAdBanner: true,
-        GroupSelector: true,
+        GroupSelector: GroupSelectorStub,
         ModelWhitelistSelector: true,
-        QuotaLimitCard: true,
+        QuotaLimitCard: {
+          template: '<div data-testid="quota-limit-card"></div>',
+        },
       },
     },
   })
@@ -146,6 +176,57 @@ async function fillJimengApiKeyAccount(wrapper: ReturnType<typeof mountModal>) {
   await wrapper.get('form#create-account-form input[type="password"]').setValue('jm-key')
 }
 
+async function fillProviderApiKeyAccount(
+  wrapper: ReturnType<typeof mountModal>,
+  platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek',
+  baseUrl?: string
+) {
+  await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
+  await flushPromises()
+  await wrapper.get('form#create-account-form input[data-tour="account-form-name"]').setValue(`${platform} account`)
+  const baseUrlInput = wrapper.get('form#create-account-form input[type="text"]:not([data-tour="account-form-name"])')
+  if (baseUrl) {
+    await baseUrlInput.setValue(baseUrl)
+  }
+  await wrapper.get('form#create-account-form input[type="password"]').setValue(`${platform}-key`)
+}
+
+async function fillVideoApiKeyAccount(
+  wrapper: ReturnType<typeof mountModal>,
+  platform: 'kling' | 'happyhourse' | 'seedance'
+) {
+  await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
+  await flushPromises()
+  await wrapper.get('form#create-account-form input[data-tour="account-form-name"]').setValue(`${platform} account`)
+  await wrapper
+    .get('form#create-account-form input[type="text"]:not([data-tour="account-form-name"])')
+    .setValue(`https://${platform}.example.com/v1`)
+  await wrapper.get('form#create-account-form input[type="password"]').setValue(`${platform}-key`)
+}
+
+function expectedVideoModelMapping(platform: 'kling' | 'happyhourse' | 'seedance') {
+  if (platform === 'kling') {
+    return {
+      'kling-v3': 'kling-v3'
+    }
+  }
+  if (platform === 'happyhourse') {
+    return {
+      'happyhorse-1.0-t2v': 'happyhorse-1.0-t2v',
+      'happyhorse-1.0-i2v': 'happyhorse-1.0-i2v'
+    }
+  }
+  return {
+    'by-seedance2.0-933': 'by-seedance2.0-933',
+    'seedance2.0-431': 'seedance2.0-431',
+    'seedance2.0-900': 'seedance2.0-900',
+    'seedance2.0-933': 'seedance2.0-933',
+    'seedance2.0-fast-431': 'seedance2.0-fast-431',
+    'seedance2.0-fast-933': 'seedance2.0-fast-933',
+    'seedance2.5': 'seedance2.5'
+  }
+}
+
 async function openCodexImportStep(toggleClicks = 0) {
   const wrapper = mountModal()
   await selectButtonByText(wrapper, 'OpenAI')
@@ -159,6 +240,7 @@ async function openCodexImportStep(toggleClicks = 0) {
 
 describe('CreateAccountModal OpenAI long-context billing', () => {
   beforeEach(() => {
+    authIsSimpleMode.value = true
     createAccountMock.mockReset().mockResolvedValue({ id: 42, platform: 'openai', type: 'apikey' })
     probeUpstreamBillingMock.mockReset().mockResolvedValue({})
     importCodexSessionMock.mockReset().mockResolvedValue({
@@ -177,6 +259,58 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
+  })
+
+  it('keeps all platform options in one horizontally scrollable row', () => {
+    const wrapper = mountModal()
+    const platformSelector = wrapper.get('[data-tour="account-form-platform"]')
+    const platformButtons = platformSelector.findAll('button')
+
+    expect(platformSelector.classes()).toContain('flex-nowrap')
+    expect(platformSelector.classes()).not.toContain('flex-wrap')
+    expect(platformSelector.classes()).toContain('overflow-x-auto')
+    expect(platformButtons).toHaveLength(13)
+    for (const button of platformButtons) {
+      expect(button.classes()).toContain('shrink-0')
+      expect(button.classes()).not.toContain('flex-1')
+    }
+  })
+
+  it('offers group routing for video account platforms in standard mode', async () => {
+    authIsSimpleMode.value = false
+    const wrapper = mountModal()
+
+    await selectButtonByText(wrapper, 'admin.accounts.platforms.kling')
+
+    expect(wrapper.find('[data-testid="group-selector"]').exists()).toBe(true)
+  })
+
+  it('clears group routing before creating a video account after a platform switch', async () => {
+    authIsSimpleMode.value = false
+    const wrapper = mountModal()
+
+    await selectButtonByText(wrapper, 'OpenAI')
+    await wrapper.get('[data-testid="set-create-group"]').trigger('click')
+    await fillVideoApiKeyAccount(wrapper, 'kling')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.group_ids).toEqual([])
+  })
+
+  it('shows model whitelist for video accounts without quota controls', async () => {
+    const wrapper = mountModal()
+
+    await selectButtonByText(wrapper, 'admin.accounts.platforms.kling')
+
+    expect(wrapper.findAll('button').some(button => (
+      button.text().includes('admin.accounts.modelWhitelist')
+    ))).toBe(true)
+    expect(wrapper.findAll('button').some(button => (
+      button.text().includes('admin.accounts.modelMapping')
+    ))).toBe(true)
+    expect(wrapper.find('[data-testid="quota-limit-card"]').exists()).toBe(false)
   })
 
   it('enables upstream billing probes by default for new OpenAI API key accounts', async () => {
@@ -254,7 +388,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.upstream_billing_probe_enabled).toBeUndefined()
   })
 
-  it('defaults Jimeng model mapping to Seedance 2.0', async () => {
+  it('defaults Jimeng model mapping to the current Seedance model', async () => {
     const wrapper = mountModal()
     await fillJimengApiKeyAccount(wrapper)
 
@@ -263,7 +397,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials?.model_mapping).toEqual({
-      'seedance 2.0': 'seedance 2.0',
+      'by-seedance2.0-933': 'by-seedance2.0-933',
     })
   })
 
@@ -282,9 +416,91 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
         base_url: 'https://jimeng-proxy.example.com/v1',
         api_key: 'jm-key',
         model_mapping: {
-          'seedance 2.0': 'seedance 2.0',
+          'by-seedance2.0-933': 'by-seedance2.0-933',
         },
       },
+    })
+  })
+
+  it.each([
+    ['doubao', 'https://ark.cn-beijing.volces.com/api/v3'],
+    ['qwen', 'https://dashscope.aliyuncs.com/compatible-mode/v1'],
+    ['kimi', 'https://api.moonshot.cn/v1'],
+    ['deepseek', 'https://api.deepseek.com'],
+  ] as const)('creates %s with its official default Base URL', async (platform, defaultBaseUrl) => {
+    const wrapper = mountModal()
+    await fillProviderApiKeyAccount(wrapper, platform)
+
+    const baseUrlInput = wrapper.get('form#create-account-form input[type="text"]:not([data-tour="account-form-name"])')
+    expect((baseUrlInput.element as HTMLInputElement).value).toBe(defaultBaseUrl)
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform,
+      type: 'apikey',
+      credentials: {
+        base_url: defaultBaseUrl,
+        api_key: `${platform}-key`,
+      },
+    })
+  })
+
+  it('keeps a custom proxy Base URL for provider platforms', async () => {
+    const wrapper = mountModal()
+    await fillProviderApiKeyAccount(wrapper, 'deepseek', 'https://proxy.example.com/v1')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform: 'deepseek',
+      credentials: {
+        base_url: 'https://proxy.example.com/v1',
+      },
+    })
+  })
+
+  it.each(['kling', 'happyhourse', 'seedance'] as const)(
+    'creates %s as a Bearer API key video account',
+    async (platform) => {
+      const wrapper = mountModal()
+      await fillVideoApiKeyAccount(wrapper, platform)
+
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(createAccountMock).toHaveBeenCalledTimes(1)
+      expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+        platform,
+        type: 'apikey',
+        credentials: {
+          base_url: `https://${platform}.example.com/v1`,
+          api_key: `${platform}-key`,
+          auth_mode: 'bearer',
+          model_mapping: expectedVideoModelMapping(platform),
+        },
+      })
+    }
+  )
+
+  it('uses the PP gateway default Base URL when creating a K-Ling video account', async () => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'admin.accounts.platforms.kling')
+    await flushPromises()
+    await wrapper.get('form#create-account-form input[data-tour="account-form-name"]').setValue('K-Ling account')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('kling-key')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
+      base_url: 'https://app.ppapi.ai/v1',
+      api_key: 'kling-key',
+      auth_mode: 'bearer'
     })
   })
 

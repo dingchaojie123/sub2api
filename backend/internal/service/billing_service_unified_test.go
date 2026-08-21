@@ -169,6 +169,43 @@ func TestCalculateCostUnified_ImageMode(t *testing.T) {
 	require.Equal(t, string(BillingModeImage), cost.BillingMode)
 }
 
+func TestCalculateCostUnified_VideoModeUsesSeconds(t *testing.T) {
+	cs := newTestChannelServiceWithCache(t, &channelCache{
+		pricingByGroupModel: map[channelModelKey]*ChannelModelPricing{
+			{groupID: 3, platform: PlatformJimeng, model: "jimeng-video"}: {
+				BillingMode:     BillingModeVideo,
+				PerRequestPrice: testPtrFloat64(0.50),
+			},
+		},
+		channelByGroupID:        map[int64]*Channel{3: {ID: 3, Status: StatusActive}},
+		groupPlatform:           map[int64]string{3: PlatformJimeng},
+		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
+		mappingByGroupModel:     map[channelModelKey]string{},
+		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
+		byID:                    map[int64]*Channel{},
+	})
+
+	bs := &BillingService{
+		cfg:            &config.Config{},
+		fallbackPrices: map[string]*ModelPricing{},
+	}
+	resolver := NewModelPricingResolver(cs, bs)
+	groupID := int64(3)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "jimeng-video",
+		GroupID:        &groupID,
+		RequestCount:   10,
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 5.0, cost.TotalCost, 1e-10)
+	require.InDelta(t, 5.0, cost.ActualCost, 1e-10)
+	require.Equal(t, string(BillingModeVideo), cost.BillingMode)
+}
+
 // TestCalculateCostUnified_RateMultiplierZeroProducesZero 锁定新行为：
 // 保存时强制 > 0；若 0 仍泄漏到计费层，按 0 计费（而非历史上的 1.0）。
 func TestCalculateCostUnified_RateMultiplierZeroProducesZero(t *testing.T) {

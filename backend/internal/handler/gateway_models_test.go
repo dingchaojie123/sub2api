@@ -93,6 +93,88 @@ func TestGatewayModels_GeminiGroupFallsBackToGeminiModels(t *testing.T) {
 	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
 }
 
+func TestGatewayModels_SeedanceGroupDoesNotExposeJimengModelOrClaudeFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(2001)
+	h := newGatewayModelsHandlerForTest(
+		&gatewayModelsAccountRepoStub{
+			byGroup: map[int64][]service.Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: service.PlatformSeedance,
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"by-seedance2.0-933":         "by-seedance2.0-933",
+								"seedance2.0-431":            "seedance2.0-431",
+								"doubao-seedance-2-0-260128": "doubao-seedance-2-0-260128",
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{ID: groupID, Platform: service.PlatformSeedance},
+	})
+
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, []string{"doubao-seedance-2-0-260128", "seedance2.0-431"}, modelIDsForTest(got.Data))
+	require.NotContains(t, modelIDsForTest(got.Data), "by-seedance2.0-933")
+	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
+}
+
+func TestGatewayModels_KlingGroupDoesNotExposeSeedanceAliasEvenWhenMapped(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(2002)
+	h := newGatewayModelsHandlerForTest(
+		&gatewayModelsAccountRepoStub{
+			byGroup: map[int64][]service.Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: service.PlatformKling,
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"seedance2.0-900":            "kling-v3",
+								"doubao-seedance-2-0-260128": "doubao-seedance-2-0-260128",
+								"kling-v3":                   "kling-v3",
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{ID: groupID, Platform: service.PlatformKling},
+	})
+
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, []string{"kling-v3"}, modelIDsForTest(got.Data))
+	require.NotContains(t, modelIDsForTest(got.Data), "seedance2.0-900")
+	require.NotContains(t, modelIDsForTest(got.Data), "doubao-seedance-2-0-260128")
+}
+
 func TestGatewayModels_Grok45AdvertisesReasoningEffortForGrokBuild(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

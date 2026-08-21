@@ -34,19 +34,7 @@
             v-model="editBaseUrl"
             type="text"
             class="input"
-            :placeholder="
-              account.platform === 'jimeng'
-                ? 'https://your-jimeng-proxy.example.com/v1'
-                : account.platform === 'openai'
-                ? 'https://api.openai.com'
-                : account.platform === 'gemini'
-                  ? 'https://generativelanguage.googleapis.com'
-                  : account.platform === 'antigravity'
-                    ? 'https://cloudcode-pa.googleapis.com'
-                    : account.platform === 'grok'
-                      ? 'https://api.x.ai/v1'
-                      : 'https://api.anthropic.com'
-            "
+            :placeholder="editBaseUrlPlaceholder"
           />
           <p v-if="baseUrlHint" class="input-hint">{{ baseUrlHint }}</p>
           <GrokBaseUrlPresets
@@ -65,19 +53,7 @@
             data-1p-ignore
             data-lpignore="true"
             data-bwignore="true"
-            :placeholder="
-              account.platform === 'jimeng'
-                ? 'sk-...'
-                : account.platform === 'openai'
-                ? 'sk-proj-...'
-                : account.platform === 'gemini'
-                  ? 'AIza...'
-                  : account.platform === 'antigravity'
-                    ? 'sk-...'
-                    : account.platform === 'grok'
-                      ? 'xai-...'
-                      : 'sk-ant-...'
-            "
+            :placeholder="editApiKeyPlaceholder"
           />
           <p class="input-hint">{{ t('admin.accounts.leaveEmptyToKeep') }}</p>
         </div>
@@ -255,7 +231,7 @@
             </button>
 
               <!-- Quick Add Buttons -->
-              <div class="flex flex-wrap gap-2">
+              <div v-if="presetMappings.length > 0" class="flex flex-wrap gap-2">
                 <button
                   v-for="preset in presetMappings"
                   :key="preset.label"
@@ -1762,7 +1738,7 @@
       </div>
       <!-- 配额控制 (非 Anthropic apikey/bedrock) -->
       <div
-        v-else-if="account?.type === 'apikey' || account?.type === 'bedrock'"
+        v-else-if="(account?.type === 'apikey' || account?.type === 'bedrock') && !isVideoAccountPlatform(account?.platform)"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -2529,10 +2505,10 @@
 
       <!-- Group Selection - 仅标准模式显示 -->
       <GroupSelector
-        v-if="!authStore.isSimpleMode"
+        v-if="!authStore.isSimpleMode && account"
         v-model="form.group_ids"
         :groups="groups"
-        :platform="account?.platform"
+        :platform="groupSelectorPlatform"
         :mixed-scheduling="mixedScheduling"
         data-tour="account-form-groups"
       />
@@ -2637,6 +2613,12 @@ import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } fro
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
+  getPlatformMetadata,
+  getVideoAccountPlatformMetadata,
+  isProviderPlatform,
+  isVideoAccountPlatform
+} from '@/constants/platforms'
+import {
   OPENAI_WS_MODE_CTX_POOL,
   OPENAI_WS_MODE_OFF,
   OPENAI_WS_MODE_PASSTHROUGH,
@@ -2675,15 +2657,55 @@ const authStore = useAuthStore()
 // Spark 影子账号(parent_account_id 非空):代理恒继承母账号,不可独立编辑(外审 B/P1),
 // 故隐藏代理选择器。
 const isSparkShadow = computed(() => props.account?.parent_account_id != null)
+const groupSelectorPlatform = computed(() => {
+  const platform = props.account?.platform
+  if (!platform) return undefined
+  return platform
+})
 
 // Platform-specific hint for Base URL
 const baseUrlHint = computed(() => {
   if (!props.account) return t('admin.accounts.baseUrlHint')
   if (props.account.platform === 'jimeng') return t('admin.accounts.jimeng.baseUrlHint')
+  if (isVideoAccountPlatform(props.account.platform)) return t('admin.accounts.videoPlatform.baseUrlHint')
+  if (isProviderPlatform(props.account.platform)) return t('admin.accounts.openaiCompatible.baseUrlHint')
   if (props.account.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (props.account.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (props.account.platform === 'grok') return ''
   return t('admin.accounts.baseUrlHint')
+})
+
+const platformDefaultBaseUrl = (platform: Account['platform']): string => {
+  if (isVideoAccountPlatform(platform)) return getVideoAccountPlatformMetadata(platform).defaultBaseUrl
+  if (isProviderPlatform(platform)) return getPlatformMetadata(platform).defaultBaseUrl
+  if (platform === 'jimeng') return ''
+  if (platform === 'openai') return 'https://api.openai.com'
+  if (platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  if (platform === 'antigravity') return 'https://cloudcode-pa.googleapis.com'
+  if (platform === 'grok') return 'https://api.x.ai/v1'
+  return 'https://api.anthropic.com'
+}
+
+const editBaseUrlPlaceholder = computed(() => {
+  if (!props.account) return 'https://api.anthropic.com'
+  if (isVideoAccountPlatform(props.account.platform)) {
+    return getVideoAccountPlatformMetadata(props.account.platform).baseUrlPlaceholder
+  }
+  return platformDefaultBaseUrl(props.account.platform)
+})
+
+const editApiKeyPlaceholder = computed(() => {
+  if (!props.account) return 'sk-ant-...'
+  if (isVideoAccountPlatform(props.account.platform)) {
+    return getVideoAccountPlatformMetadata(props.account.platform).apiKeyPlaceholder
+  }
+  if (isProviderPlatform(props.account.platform)) return getPlatformMetadata(props.account.platform).apiKeyPlaceholder
+  if (props.account.platform === 'jimeng') return 'sk-...'
+  if (props.account.platform === 'openai') return 'sk-proj-...'
+  if (props.account.platform === 'gemini') return 'AIza...'
+  if (props.account.platform === 'antigravity') return 'sk-...'
+  if (props.account.platform === 'grok') return 'xai-...'
+  return 'sk-ant-...'
 })
 
 const antigravityPresetMappings = computed(() => getPresetMappingsByPlatform('antigravity'))
@@ -3128,11 +3150,7 @@ const tempUnschedPresets = computed(() => [
 
 // Computed: default base URL based on platform
 const defaultBaseUrl = computed(() => {
-  if (props.account?.platform === 'jimeng') return ''
-  if (props.account?.platform === 'openai') return 'https://api.openai.com'
-  if (props.account?.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
-  if (props.account?.platform === 'grok') return 'https://api.x.ai/v1'
-  return 'https://api.anthropic.com'
+  return platformDefaultBaseUrl(props.account?.platform || 'anthropic')
 })
 
 const mixedChannelWarningMessageText = computed(() => {
@@ -3355,7 +3373,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   }
 
   // Load quota limit for apikey/bedrock accounts (bedrock quota is also loaded in its own branch above)
-  if (newAccount.type === 'apikey' || newAccount.type === 'bedrock') {
+  if (!isVideoAccountPlatform(newAccount.platform) && (newAccount.type === 'apikey' || newAccount.type === 'bedrock')) {
     const quotaVal = extra?.quota_limit as number | undefined
     editQuotaLimit.value = (quotaVal && quotaVal > 0) ? quotaVal : null
     const dailyVal = extra?.quota_daily_limit as number | undefined
@@ -3454,23 +3472,28 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Initialize API Key fields for apikey type
   if (newAccount.type === 'apikey' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
-    const platformDefaultUrl =
-      newAccount.platform === 'jimeng'
-        ? ''
-        : newAccount.platform === 'openai'
-        ? 'https://api.openai.com'
-        : newAccount.platform === 'gemini'
-          ? 'https://generativelanguage.googleapis.com'
-          : newAccount.platform === 'grok'
-            ? 'https://api.x.ai/v1'
-            : 'https://api.anthropic.com'
+    const platformDefaultUrl = platformDefaultBaseUrl(newAccount.platform)
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
 
     // Load model mappings and detect mode
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
     if (newAccount.platform === 'jimeng') {
-      allowedModels.value = [...getModelsByPlatform('jimeng')]
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform('jimeng')]
+      }
+      modelRestrictionMode.value = modelMappings.value.length > 0 && allowedModels.value.length === 0
+        ? 'mapping'
+        : 'whitelist'
+    } else if (isProviderPlatform(newAccount.platform)) {
+      allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
       modelRestrictionMode.value = 'whitelist'
+    } else if (isVideoAccountPlatform(newAccount.platform)) {
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform(newAccount.platform)]
+      }
+      modelRestrictionMode.value = modelMappings.value.length > 0 && allowedModels.value.length === 0
+        ? 'mapping'
+        : 'whitelist'
     }
 
     // Load pool mode
@@ -3531,16 +3554,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     // Load model mappings for service_account
     loadModelRestrictionFromMapping(credentials.model_mapping as Record<string, unknown> | undefined)
   } else {
-    const platformDefaultUrl =
-      newAccount.platform === 'jimeng'
-        ? ''
-        : newAccount.platform === 'openai'
-        ? 'https://api.openai.com'
-        : newAccount.platform === 'gemini'
-          ? 'https://generativelanguage.googleapis.com'
-          : newAccount.platform === 'grok'
-            ? 'https://api.x.ai/v1'
-            : 'https://api.anthropic.com'
+    const platformDefaultUrl = platformDefaultBaseUrl(newAccount.platform)
     editBaseUrl.value = platformDefaultUrl
 
     // Load model mappings for OpenAI/Grok OAuth accounts
@@ -3548,7 +3562,16 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       loadModelRestrictionFromMapping(oauthCredentials.model_mapping as Record<string, unknown> | undefined)
     } else if (newAccount.platform === 'jimeng') {
-      allowedModels.value = [...getModelsByPlatform('jimeng')]
+      const jimengCredentials = newAccount.credentials as Record<string, unknown> | undefined
+      loadModelRestrictionFromMapping(jimengCredentials?.model_mapping as Record<string, unknown> | undefined)
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform('jimeng')]
+      }
+      modelRestrictionMode.value = modelMappings.value.length > 0 && allowedModels.value.length === 0
+        ? 'mapping'
+        : 'whitelist'
+    } else if (isProviderPlatform(newAccount.platform)) {
+      allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
       modelMappings.value = []
       modelRestrictionMode.value = 'whitelist'
     } else {
@@ -4044,7 +4067,10 @@ const handleSubmit = async () => {
     return
   }
 
-  const updatePayload: Record<string, unknown> = { ...form }
+  const updatePayload: Record<string, unknown> = {
+    ...form,
+    group_ids: form.group_ids
+  }
   try {
     // 后端期望 proxy_id: 0 表示清除代理，而不是 null
     if (updatePayload.proxy_id === null) {
@@ -4064,7 +4090,7 @@ const handleSubmit = async () => {
     if (props.account.type === 'apikey') {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
-      if (props.account.platform === 'jimeng' && !newBaseUrl) {
+      if ((props.account.platform === 'jimeng' || isVideoAccountPlatform(props.account.platform)) && !newBaseUrl) {
         appStore.showError(t('admin.accounts.pleaseEnterBaseUrl'))
         return
       }
@@ -4074,6 +4100,9 @@ const handleSubmit = async () => {
       const newCredentials: Record<string, unknown> = {
         ...currentCredentials,
         base_url: newBaseUrl
+      }
+      if (isVideoAccountPlatform(props.account.platform)) {
+        newCredentials.auth_mode = getVideoAccountPlatformMetadata(props.account.platform).authScheme
       }
 
       // Handle API key
@@ -4618,8 +4647,19 @@ const handleSubmit = async () => {
       updatePayload.extra = newExtra
     }
 
+    // Video platforms do not support account quota controls. Clear any legacy quota fields.
+    if (isVideoAccountPlatform(props.account.platform)) {
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) ||
+        (props.account.extra as Record<string, unknown>) || {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      for (const key of Object.keys(newExtra)) {
+        if (key.startsWith('quota_')) {
+          delete newExtra[key]
+        }
+      }
+      updatePayload.extra = newExtra
     // For apikey/bedrock accounts, handle quota_limit in extra
-    if (props.account.type === 'apikey' || props.account.type === 'bedrock') {
+    } else if (props.account.type === 'apikey' || props.account.type === 'bedrock') {
       const currentExtra = (updatePayload.extra as Record<string, unknown>) ||
         (props.account.extra as Record<string, unknown>) || {}
       const newExtra: Record<string, unknown> = { ...currentExtra }

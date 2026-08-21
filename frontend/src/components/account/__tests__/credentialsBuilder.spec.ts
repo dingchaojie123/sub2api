@@ -119,6 +119,13 @@ describe('isHeaderOverrideCapable', () => {
     expect(isHeaderOverrideCapable('antigravity', 'apikey')).toBe(false)
     expect(isHeaderOverrideCapable('', 'apikey')).toBe(false)
   })
+
+  it('provider platforms support header overrides for API-key accounts', () => {
+    for (const platform of ['doubao', 'qwen', 'kimi', 'deepseek']) {
+      expect(isHeaderOverrideCapable(platform, 'apikey')).toBe(true)
+      expect(isHeaderOverrideCapable(platform, 'oauth')).toBe(false)
+    }
+  })
 })
 
 describe('parseHeaderOverridesJson', () => {

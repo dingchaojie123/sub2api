@@ -120,8 +120,9 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	if err != nil {
 		return nil, newUpstreamModelSyncUpstreamError("Upstream model list response was not valid JSON", err)
 	}
+	models = filterUpstreamModelsForPlatform(account.Platform, models)
 	if len(models) == 0 {
-		return nil, newUpstreamModelSyncUpstreamError("Upstream returned no supported models", nil)
+		return nil, newUpstreamModelSyncUpstreamError("Upstream returned no supported models for this platform", nil)
 	}
 
 	return models, nil
@@ -135,6 +136,8 @@ func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, acc
 		return s.buildGrokUpstreamModelsRequest(ctx, account)
 	case account.IsJimeng():
 		return s.buildJimengUpstreamModelsRequest(ctx, account)
+	case IsPPVideoPlatform(account.Platform):
+		return s.buildPPVideoUpstreamModelsRequest(ctx, account)
 	case account.IsOpenAI():
 		return s.buildOpenAIUpstreamModelsRequest(ctx, account)
 	case account.IsGemini():
@@ -201,6 +204,36 @@ func (s *AccountTestService) buildJimengUpstreamModelsRequest(ctx context.Contex
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(normalizedBaseURL), nil)
 	if err != nil {
 		return nil, newUpstreamModelSyncConfigError("Invalid Jimeng model list URL", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	account.ApplyHeaderOverrides(req.Header)
+	return req, nil
+}
+
+func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
+	if account.Type != AccountTypeAPIKey {
+		return nil, newUpstreamModelSyncUnsupportedError(
+			fmt.Sprintf("Unsupported PP video account type for upstream model sync: %s", account.Type), nil,
+		)
+	}
+	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+	if apiKey == "" {
+		return nil, newUpstreamModelSyncConfigError("No PP video API key is available", nil)
+	}
+
+	baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
+	if baseURL == "" {
+		return nil, newUpstreamModelSyncConfigError("PP video base URL is required for upstream model sync", nil)
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid PP video base URL", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(normalizedBaseURL), nil)
+	if err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid PP video model list URL", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
@@ -536,4 +569,31 @@ func dedupeAndSortModelIDs(models []string) []string {
 	}
 	sort.Strings(result)
 	return result
+}
+
+func filterUpstreamModelsForPlatform(platform string, models []string) []string {
+	if !IsPPVideoPlatform(platform) {
+		return models
+	}
+
+	filtered := make([]string, 0, len(models))
+	for _, model := range models {
+		normalized := strings.ToLower(strings.TrimSpace(model))
+		switch platform {
+		case PlatformKling:
+			if strings.HasPrefix(normalized, "kling-") {
+				filtered = append(filtered, model)
+			}
+		case PlatformHappyHourse:
+			if strings.HasPrefix(normalized, "happyhorse-") {
+				filtered = append(filtered, model)
+			}
+		case PlatformSeedance:
+			if strings.HasPrefix(normalized, "doubao-seedance-") ||
+				strings.HasPrefix(normalized, "seedance") {
+				filtered = append(filtered, model)
+			}
+		}
+	}
+	return filtered
 }

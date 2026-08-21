@@ -162,6 +162,9 @@ type CostBreakdown struct {
 	TotalCost                 float64
 	ActualCost                float64 // 应用倍率后的实际费用
 	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
+	BillingFormula            string  // 特殊媒体计费公式，例如 PP 视频模型公式
+	BillingUnits              float64 // 特殊媒体计费公式的计费单位数量
+	BillingUnitPrice          float64 // 特殊媒体计费公式的基础单价
 	LongContextBillingApplied bool
 }
 
@@ -918,7 +921,7 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 	var breakdown *CostBreakdown
 	var err error
 	switch resolved.Mode {
-	case BillingModePerRequest, BillingModeImage:
+	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
 		breakdown, err = s.calculatePerRequestCost(resolved, input)
 	default: // BillingModeToken
 		breakdown, err = s.calculateTokenCost(resolved, input)

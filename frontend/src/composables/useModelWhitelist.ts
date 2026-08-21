@@ -159,8 +159,13 @@ const xaiModels = [
   'grok-imagine-video-1.5'
 ]
 
-export const JIMENG_FIXED_MODEL = 'seedance 2.0'
+export const JIMENG_FIXED_MODEL = 'by-seedance2.0-933'
 const jimengModels = [JIMENG_FIXED_MODEL]
+
+// PP 视频平台模型必须从对应上游账号同步，不使用内置模型列表兜底。
+const klingModels: string[] = []
+const happyHourseModels: string[] = []
+const seedanceModels: string[] = []
 
 // Cohere
 const cohereModels = [
@@ -243,6 +248,9 @@ const allModelsList: string[] = [
   ...metaModels,
   ...xaiModels,
   ...jimengModels,
+  ...klingModels,
+  ...happyHourseModels,
+  ...seedanceModels,
   ...cohereModels,
   ...yiModels,
   ...moonshotModels,
@@ -416,13 +424,25 @@ export function getModelsByPlatform(platform: string): string[] {
       return openaiModels
     case 'jimeng':
       return jimengModels
+    case 'doubao':
+      return doubaoModels
+    case 'qwen':
+      return qwenModels
+    case 'kimi':
+      return moonshotModels
+    case 'deepseek':
+      return deepseekModels
+    case 'kling':
+      return klingModels
+    case 'happyhourse':
+      return happyHourseModels
+    case 'seedance':
+      return seedanceModels
     case 'anthropic':
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
     case 'antigravity': return antigravityModels
     case 'zhipu': return zhipuModels
-    case 'qwen': return qwenModels
-    case 'deepseek': return deepseekModels
     case 'mistral': return mistralModels
     case 'meta': return metaModels
     case 'xai':
@@ -430,7 +450,6 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'cohere': return cohereModels
     case 'yi': return yiModels
     case 'moonshot': return moonshotModels
-    case 'doubao': return doubaoModels
     case 'minimax': return minimaxModels
     case 'baidu': return baiduModels
     case 'spark': return sparkModels
@@ -455,6 +474,8 @@ export function getPresetMappingsByPlatform(platform: string) {
   }
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings
+  if (platform === 'kimi') return []
+  if (platform === 'kling' || platform === 'happyhourse' || platform === 'seedance') return []
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings
   return anthropicPresetMappings

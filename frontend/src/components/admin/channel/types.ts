@@ -27,6 +27,35 @@ export interface PricingFormEntry {
   intervals: IntervalFormEntry[]
 }
 
+const standardBillingModes: BillingMode[] = ['token', 'per_request', 'image', 'video']
+
+export function billingModesForPlatform(
+  platform: string | undefined,
+  currentMode?: BillingMode,
+): BillingMode[] {
+  const normalizedPlatform = platform?.trim().toLowerCase()
+  let modes: BillingMode[]
+
+  if (
+    normalizedPlatform === 'kling' ||
+    normalizedPlatform === 'happyhourse' ||
+    normalizedPlatform === 'seedance'
+  ) {
+    // These providers use the group-level video price card, not a channel
+    // model's video-per-second price.
+    modes = standardBillingModes.filter(mode => mode !== 'video')
+  } else {
+    modes = [...standardBillingModes]
+  }
+
+  // Keep legacy data editable. It is ignored by the PP video billing path but
+  // should not become impossible for an administrator to inspect or save.
+  if (currentMode && !modes.includes(currentMode)) {
+    modes.push(currentMode)
+  }
+  return modes
+}
+
 // 价格转换：后端存 per-token，前端显示 per-MTok ($/1M tokens)
 const MTOK = 1_000_000
 
@@ -122,7 +151,7 @@ export function findModelConflict(models: string[]): [string, string] | null {
  *
  * mode 决定区间语义：
  * - token：区间是上下文 token 数分段 (min, max]，不能重叠，无上限段必须放最后
- * - per_request / image：区间是按 tier_label 分层（1K/2K/4K 等），后端按 label
+ * - per_request / image / video：区间是按 tier_label 分层（1K/2K/4K、分辨率或音频模式等），后端按 label
  *   匹配，不依赖 min/max，因此跳过重叠 / last-unlimited 校验
  */
 export function validateIntervals(
@@ -140,7 +169,7 @@ export function validateIntervals(
     if (err) return err
   }
 
-  // per_request / image 模式按 tier_label 匹配，不做 token 区间重叠校验
+  // per_request / image / video 模式按 tier_label 匹配，不做 token 区间重叠校验
   if (mode !== 'token') return null
   return checkIntervalOverlap(sorted, t)
 }
@@ -241,6 +270,10 @@ export function getPlatformTagClass(platform: string): string {
     case 'antigravity': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
     case 'grok': return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
     case 'jimeng': return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+    case 'doubao': return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400'
+    case 'qwen': return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400'
+    case 'kimi': return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+    case 'deepseek': return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
     default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
   }
 }
@@ -254,6 +287,10 @@ export function getPlatformTextClass(platform: string): string {
     case 'antigravity': return 'text-purple-700 dark:text-purple-400'
     case 'grok': return 'text-slate-700 dark:text-slate-300'
     case 'jimeng': return 'text-rose-700 dark:text-rose-400'
+    case 'doubao': return 'text-cyan-700 dark:text-cyan-400'
+    case 'qwen': return 'text-sky-700 dark:text-sky-400'
+    case 'kimi': return 'text-indigo-700 dark:text-indigo-400'
+    case 'deepseek': return 'text-teal-700 dark:text-teal-400'
     default: return ''
   }
 }

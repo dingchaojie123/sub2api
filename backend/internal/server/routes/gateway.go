@@ -33,19 +33,14 @@ func RegisterGatewayRoutes(
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
-		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng:
-			return true
-		default:
-			return false
-		}
+		return isOpenAICompatibleGatewayPlatform(getGroupPlatform(c))
 	}
 	isOpenAIGatewayPlatform := func(c *gin.Context) bool {
 		return getGroupPlatform(c) == service.PlatformOpenAI
 	}
 	countTokensHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformJimeng:
+		case service.PlatformOpenAI, service.PlatformJimeng, service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
 			h.OpenAIGateway.CountTokens(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokCountTokens(c)
@@ -84,6 +79,9 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance:
+			h.OpenAIGateway.PPVideoGeneration(c)
+			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		c.JSON(http.StatusNotFound, gin.H{
@@ -100,6 +98,9 @@ func RegisterGatewayRoutes(
 			return
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
+			return
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance:
+			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -225,6 +226,10 @@ func RegisterGatewayRoutes(
 		gateway.POST("/video/generations", videoGenerationHandler)
 		gateway.GET("/video/generations/:request_id", videoStatusHandler)
 		gateway.POST("/videos/generations", videoGenerationHandler)
+		gateway.POST("/videos/text2video", h.OpenAIGateway.PPKlingTextToVideo)
+		gateway.GET("/videos/text2video/:request_id", h.OpenAIGateway.PPVideoStatus)
+		gateway.POST("/videos/image2video", h.OpenAIGateway.PPKlingImageToVideo)
+		gateway.GET("/videos/image2video/:request_id", h.OpenAIGateway.PPVideoStatus)
 		gateway.POST("/videos/edits", videoEditHandler)
 		gateway.POST("/videos/extensions", videoExtensionHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
@@ -302,6 +307,10 @@ func RegisterGatewayRoutes(
 	r.POST("/video/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
 	r.GET("/video/generations/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
+	r.POST("/videos/text2video", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPKlingTextToVideo)
+	r.GET("/videos/text2video/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoStatus)
+	r.POST("/videos/image2video", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPKlingImageToVideo)
+	r.GET("/videos/image2video/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoStatus)
 	r.POST("/videos/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoEditHandler)
 	r.POST("/videos/extensions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoExtensionHandler)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
@@ -340,6 +349,10 @@ func RegisterGatewayRoutes(
 		antigravityV1Beta.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
 	}
 
+}
+
+func isOpenAICompatibleGatewayPlatform(platform string) bool {
+	return service.IsOpenAICompatiblePlatform(platform)
 }
 
 // getGroupPlatform extracts the group platform from the API Key stored in context.

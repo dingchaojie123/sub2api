@@ -5,7 +5,20 @@
  * instead of defining their own color mappings.
  */
 
-export type Platform = 'anthropic' | 'openai' | 'antigravity' | 'gemini' | 'grok' | 'jimeng'
+export type Platform =
+  | 'anthropic'
+  | 'openai'
+  | 'antigravity'
+  | 'gemini'
+  | 'grok'
+  | 'jimeng'
+  | 'doubao'
+  | 'qwen'
+  | 'kimi'
+  | 'deepseek'
+  | 'kling'
+  | 'happyhourse'
+  | 'seedance'
 
 // ── Badge (bg + text + border, for inline badges with border) ───────
 const BADGE: Record<Platform, string> = {
@@ -15,6 +28,13 @@ const BADGE: Record<Platform, string> = {
   gemini: 'bg-blue-500/10 text-blue-600 border-blue-500/30 dark:text-blue-400',
   grok: 'bg-zinc-800/10 text-zinc-800 border-zinc-800/30 dark:bg-zinc-500/10 dark:text-zinc-200 dark:border-zinc-500/30',
   jimeng: 'bg-rose-500/10 text-rose-600 border-rose-500/30 dark:text-rose-400',
+  doubao: 'bg-cyan-500/10 text-cyan-700 border-cyan-500/30 dark:text-cyan-300',
+  qwen: 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300',
+  kimi: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300',
+  deepseek: 'bg-slate-700/10 text-slate-700 border-slate-700/30 dark:text-slate-200',
+  kling: 'bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300',
+  happyhourse: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
+  seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
 }
 const BADGE_DEFAULT = 'bg-slate-500/10 text-slate-600 border-slate-500/30 dark:text-slate-400'
 
@@ -26,6 +46,13 @@ const BADGE_LIGHT: Record<Platform, string> = {
   gemini: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300',
   grok: 'bg-zinc-800/10 text-zinc-800 dark:bg-zinc-500/10 dark:text-zinc-200',
   jimeng: 'bg-rose-500/10 text-rose-600 dark:bg-rose-500/10 dark:text-rose-300',
+  doubao: 'bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
+  qwen: 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+  kimi: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
+  deepseek: 'bg-slate-700/10 text-slate-700 dark:bg-slate-500/10 dark:text-slate-200',
+  kling: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
+  happyhourse: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
+  seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
 }
 
 // ── Border ──────────────────────────────────────────────────────────
@@ -36,6 +63,13 @@ const BORDER: Record<Platform, string> = {
   gemini: 'border-blue-500/20 dark:border-blue-500/20',
   grok: 'border-zinc-800/20 dark:border-zinc-500/20',
   jimeng: 'border-rose-500/20 dark:border-rose-500/20',
+  doubao: 'border-cyan-500/20 dark:border-cyan-500/20',
+  qwen: 'border-amber-500/20 dark:border-amber-500/20',
+  kimi: 'border-indigo-500/20 dark:border-indigo-500/20',
+  deepseek: 'border-slate-700/20 dark:border-slate-500/20',
+  kling: 'border-sky-500/20 dark:border-sky-500/20',
+  happyhourse: 'border-emerald-500/20 dark:border-emerald-500/20',
+  seedance: 'border-teal-500/20 dark:border-teal-500/20',
 }
 const BORDER_DEFAULT = 'border-gray-200 dark:border-dark-700'
 
@@ -47,6 +81,13 @@ const ACCENT_BAR: Record<Platform, string> = {
   gemini: 'bg-gradient-to-r from-blue-400 to-blue-500',
   grok: 'bg-gradient-to-r from-zinc-700 to-zinc-900',
   jimeng: 'bg-gradient-to-r from-rose-400 to-pink-500',
+  doubao: 'bg-gradient-to-r from-cyan-400 to-cyan-500',
+  qwen: 'bg-gradient-to-r from-amber-400 to-orange-500',
+  kimi: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
+  deepseek: 'bg-gradient-to-r from-slate-600 to-slate-800',
+  kling: 'bg-gradient-to-r from-sky-400 to-sky-600',
+  happyhourse: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
+  seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
 }
 const ACCENT_BAR_DEFAULT = 'bg-gradient-to-r from-primary-400 to-primary-500'
 
@@ -58,6 +99,13 @@ const TEXT: Record<Platform, string> = {
   gemini: 'text-blue-600 dark:text-blue-400',
   grok: 'text-zinc-800 dark:text-zinc-200',
   jimeng: 'text-rose-600 dark:text-rose-400',
+  doubao: 'text-cyan-700 dark:text-cyan-300',
+  qwen: 'text-amber-700 dark:text-amber-300',
+  kimi: 'text-indigo-700 dark:text-indigo-300',
+  deepseek: 'text-slate-700 dark:text-slate-200',
+  kling: 'text-sky-700 dark:text-sky-300',
+  happyhourse: 'text-emerald-700 dark:text-emerald-300',
+  seedance: 'text-teal-700 dark:text-teal-300',
 }
 const TEXT_DEFAULT = 'text-primary-600 dark:text-primary-400'
 
@@ -69,6 +117,13 @@ const ICON: Record<Platform, string> = {
   gemini: 'text-blue-500 dark:text-blue-400',
   grok: 'text-zinc-800 dark:text-zinc-200',
   jimeng: 'text-rose-500 dark:text-rose-400',
+  doubao: 'text-cyan-500 dark:text-cyan-300',
+  qwen: 'text-amber-500 dark:text-amber-300',
+  kimi: 'text-indigo-500 dark:text-indigo-300',
+  deepseek: 'text-slate-600 dark:text-slate-200',
+  kling: 'text-sky-500 dark:text-sky-300',
+  happyhourse: 'text-emerald-500 dark:text-emerald-300',
+  seedance: 'text-teal-500 dark:text-teal-300',
 }
 const ICON_DEFAULT = 'text-primary-500 dark:text-primary-400'
 
@@ -80,6 +135,13 @@ const BUTTON: Record<Platform, string> = {
   gemini: 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700 dark:bg-blue-500/80 dark:hover:bg-blue-500',
   grok: 'bg-zinc-800 text-white hover:bg-zinc-900 active:bg-black dark:bg-zinc-700 dark:hover:bg-zinc-600',
   jimeng: 'bg-rose-500 text-white hover:bg-rose-600 active:bg-rose-700 dark:bg-rose-500/80 dark:hover:bg-rose-500',
+  doubao: 'bg-cyan-600 text-white hover:bg-cyan-700 active:bg-cyan-800 dark:bg-cyan-600/80 dark:hover:bg-cyan-600',
+  qwen: 'bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500/80 dark:hover:bg-amber-500',
+  kimi: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600/80 dark:hover:bg-indigo-600',
+  deepseek: 'bg-slate-700 text-white hover:bg-slate-800 active:bg-slate-900 dark:bg-slate-600 dark:hover:bg-slate-500',
+  kling: 'bg-sky-600 text-white hover:bg-sky-700 active:bg-sky-800 dark:bg-sky-600/80 dark:hover:bg-sky-600',
+  happyhourse: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
+  seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
 }
 const BUTTON_DEFAULT = 'bg-primary-500 text-white hover:bg-primary-600 dark:bg-primary-600 dark:hover:bg-primary-500'
 
@@ -91,6 +153,13 @@ const DISCOUNT: Record<Platform, string> = {
   gemini: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
   grok: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200',
   jimeng: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  doubao: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+  qwen: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  kimi: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  deepseek: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  kling: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  happyhourse: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 }
 const DISCOUNT_DEFAULT = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
 
@@ -102,6 +171,13 @@ const GRADIENT: Record<Platform, string> = {
   gemini: 'from-blue-500 to-blue-600',
   grok: 'from-zinc-700 to-zinc-900',
   jimeng: 'from-rose-500 to-pink-600',
+  doubao: 'from-cyan-500 to-cyan-600',
+  qwen: 'from-amber-500 to-orange-600',
+  kimi: 'from-indigo-500 to-indigo-600',
+  deepseek: 'from-slate-700 to-slate-900',
+  kling: 'from-sky-500 to-sky-600',
+  happyhourse: 'from-emerald-500 to-emerald-600',
+  seedance: 'from-teal-500 to-teal-600',
 }
 const GRADIENT_DEFAULT = 'from-primary-500 to-primary-600'
 
@@ -113,6 +189,13 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   gemini: 'text-blue-100',
   grok: 'text-zinc-100',
   jimeng: 'text-rose-100',
+  doubao: 'text-cyan-100',
+  qwen: 'text-amber-100',
+  kimi: 'text-indigo-100',
+  deepseek: 'text-slate-100',
+  kling: 'text-sky-100',
+  happyhourse: 'text-emerald-100',
+  seedance: 'text-teal-100',
 }
 const GRADIENT_TEXT_DEFAULT = 'text-primary-100'
 
@@ -123,13 +206,20 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   gemini: 'text-blue-200',
   grok: 'text-zinc-300',
   jimeng: 'text-rose-200',
+  doubao: 'text-cyan-200',
+  qwen: 'text-amber-200',
+  kimi: 'text-indigo-200',
+  deepseek: 'text-slate-300',
+  kling: 'text-sky-200',
+  happyhourse: 'text-emerald-200',
+  seedance: 'text-teal-200',
 }
 const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng'
+  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'kling' || p === 'happyhourse' || p === 'seedance'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -184,6 +274,13 @@ export function platformLabel(p: string): string {
     case 'gemini': return 'Gemini'
     case 'grok': return 'Grok'
     case 'jimeng': return '即梦'
+    case 'doubao': return '豆包'
+    case 'qwen': return '千问'
+    case 'kimi': return 'Kimi'
+    case 'deepseek': return 'DeepSeek'
+    case 'kling': return 'K-Ling'
+    case 'happyhourse': return 'Happy-Hourse'
+    case 'seedance': return 'Seedance'
     default: return p || 'API'
   }
 }

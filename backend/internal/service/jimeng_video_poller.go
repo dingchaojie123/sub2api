@@ -68,7 +68,7 @@ type JimengVideoTaskPollRepository interface {
 }
 
 type JimengVideoPollerGateway interface {
-	ForwardJimengVideoBuffered(ctx context.Context, c *gin.Context, account *Account, endpoint JimengVideoEndpoint, taskID string, body []byte) (*OpenAIForwardResult, error)
+	ForwardJimengVideoBuffered(ctx context.Context, c *gin.Context, account *Account, endpoint JimengVideoEndpoint, taskID string, body []byte, publicModels ...string) (*OpenAIForwardResult, error)
 	SettleJimengVideoTask(ctx context.Context, in *JimengVideoSettlementInput) error
 	ReleaseJimengVideoBalanceHold(ctx context.Context, task *JimengVideoTask, payloadHash string) error
 }
@@ -96,16 +96,16 @@ type JimengVideoAccountSelector interface {
 }
 
 type JimengVideoPollerService struct {
-	Repo           JimengVideoTaskPollRepository
-	Gateway        JimengVideoPollerGateway
-	APIKeys        JimengVideoAPIKeyLoader
-	Accounts       JimengVideoAccountLoader
-	Subscriptions  JimengVideoSubscriptionResolver
-	BalanceCache   JimengVideoBalanceCacheInvalidator
+	Repo            JimengVideoTaskPollRepository
+	Gateway         JimengVideoPollerGateway
+	APIKeys         JimengVideoAPIKeyLoader
+	Accounts        JimengVideoAccountLoader
+	Subscriptions   JimengVideoSubscriptionResolver
+	BalanceCache    JimengVideoBalanceCacheInvalidator
 	AccountSelector JimengVideoAccountSelector
-	Options        JimengVideoPollerOptions
-	LeaseOwner     string
-	Now            func() time.Time
+	Options         JimengVideoPollerOptions
+	LeaseOwner      string
+	Now             func() time.Time
 }
 
 func NewJimengVideoPollerService(
@@ -154,6 +154,21 @@ func ProvideJimengVideoPollerRuntime(
 	)
 	poller.AccountSelector = gateway
 	runtime := NewJimengVideoPollerRuntime(poller, cfg)
+	var ppTaskRepo PPVideoTaskRepository
+	if typed, ok := repo.(PPVideoTaskRepository); ok {
+		ppTaskRepo = typed
+	}
+	ppPoller := NewPPVideoPollerService(
+		ppTaskRepo,
+		gateway,
+		apiKeyService,
+		accountRepo,
+		subscriptionService,
+		billingCache,
+		ppVideoPollerOptionsFromConfig(cfg),
+	)
+	ppPoller.AccountSelector = gateway
+	runtime.SetPPVideoPoller(ppPoller)
 	runtime.Start()
 	return runtime
 }
@@ -305,7 +320,7 @@ func (s *JimengVideoPollerService) ProcessTask(ctx context.Context, task *Jimeng
 		requestCtx, cancel = context.WithTimeout(ctx, opts.UpstreamTimeout)
 	}
 	defer cancel()
-	result, err := s.Gateway.ForwardJimengVideoBuffered(requestCtx, nil, account, JimengVideoEndpointStatus, task.TaskID, nil)
+	result, err := s.Gateway.ForwardJimengVideoBuffered(requestCtx, nil, account, JimengVideoEndpointStatus, task.TaskID, nil, task.Model)
 	if err != nil {
 		return JimengVideoPollerTaskResult{Outcome: JimengVideoPollerOutcomeRetry}, err
 	}

@@ -962,7 +962,11 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		if req.Extra != nil {
 			extra = req.Extra
 		}
-		if !h.validateJimengAPIKeyForMutation(c, existing.Platform, accountType, credentials, extra) {
+		validationCredentials := credentials
+		if len(req.Credentials) > 0 {
+			validationCredentials = service.MergePreservingSensitiveCreds(existing.Credentials, req.Credentials)
+		}
+		if !h.validateJimengAPIKeyForMutation(c, existing.Platform, accountType, validationCredentials, extra) {
 			return
 		}
 	}
@@ -2425,6 +2429,30 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 					DisplayName: requestedModel,
 				})
 			}
+		}
+		response.Success(c, models)
+		return
+	}
+
+	// PP video accounts expose only the models synced for their own platform.
+	// Do not fall through to Claude defaults when the mapping is empty.
+	if service.IsPPVideoPlatform(account.Platform) {
+		mapping := account.GetModelMapping()
+		requestedModels := make([]string, 0, len(mapping))
+		for requestedModel := range mapping {
+			requestedModels = append(requestedModels, requestedModel)
+		}
+		requestedModels = service.FilterPPVideoPublicModelsForPlatform(account.Platform, requestedModels)
+		sort.Strings(requestedModels)
+
+		models := make([]openai.Model, 0, len(requestedModels))
+		for _, requestedModel := range requestedModels {
+			models = append(models, openai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				Type:        "model",
+				DisplayName: requestedModel,
+			})
 		}
 		response.Success(c, models)
 		return

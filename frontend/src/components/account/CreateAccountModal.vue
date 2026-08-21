@@ -70,12 +70,15 @@
       <!-- Platform Selection - Segmented Control Style -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
-        <div class="mt-2 flex flex-wrap rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-tour="account-form-platform">
+        <div
+          class="mt-2 flex max-w-full flex-nowrap gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+          data-tour="account-form-platform"
+        >
           <button
             type="button"
             @click="form.platform = 'anthropic'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'anthropic'
                 ? 'bg-white text-orange-600 shadow-sm dark:bg-dark-600 dark:text-orange-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -88,7 +91,7 @@
             type="button"
             @click="form.platform = 'openai'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'openai'
                 ? 'bg-white text-green-600 shadow-sm dark:bg-dark-600 dark:text-green-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -113,7 +116,7 @@
             type="button"
             @click="form.platform = 'gemini'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'gemini'
                 ? 'bg-white text-blue-600 shadow-sm dark:bg-dark-600 dark:text-blue-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -138,7 +141,7 @@
             type="button"
             @click="form.platform = 'antigravity'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'antigravity'
                 ? 'bg-white text-purple-600 shadow-sm dark:bg-dark-600 dark:text-purple-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -151,7 +154,7 @@
             type="button"
             @click="form.platform = 'grok'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'grok'
                 ? 'bg-white text-zinc-900 shadow-sm dark:bg-dark-600 dark:text-zinc-100'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -164,7 +167,7 @@
             type="button"
             @click="form.platform = 'jimeng'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
               form.platform === 'jimeng'
                 ? 'bg-white text-rose-600 shadow-sm dark:bg-dark-600 dark:text-rose-400'
                 : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
@@ -172,6 +175,36 @@
           >
             <PlatformIcon platform="jimeng" size="sm" />
             即梦
+          </button>
+          <button
+            v-for="provider in providerPlatformOptions"
+            :key="provider.id"
+            type="button"
+            @click="form.platform = provider.id"
+            :class="[
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === provider.id
+                ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-600 dark:text-primary-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon :platform="provider.id" size="sm" />
+            {{ t(`admin.accounts.platforms.${provider.id}`) }}
+          </button>
+          <button
+            v-for="platform in videoAccountPlatformOptions"
+            :key="platform.id"
+            type="button"
+            @click="form.platform = platform.id"
+            :class="[
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === platform.id
+                ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-600 dark:text-primary-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon :platform="platform.id" size="sm" />
+            {{ t(`admin.accounts.platforms.${platform.id}`) }}
           </button>
         </div>
       </div>
@@ -451,6 +484,70 @@
             <div>
               <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
               <span class="text-xs text-gray-500 dark:text-gray-400">OpenAI-compatible</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (OpenAI-compatible provider platforms) -->
+      <div v-if="isProviderPlatform(form.platform)">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'apikey'
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                : 'border-gray-200 hover:border-primary-300 dark:border-dark-600 dark:hover:border-primary-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'apikey'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">OpenAI-compatible</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (video platforms) -->
+      <div v-if="isVideoAccountPlatform(form.platform)">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'apikey'
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                : 'border-gray-200 hover:border-primary-300 dark:border-dark-600 dark:hover:border-primary-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'apikey'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Bearer</span>
             </div>
           </button>
         </div>
@@ -1151,17 +1248,7 @@
             v-model="apiKeyBaseUrl"
             type="text"
             class="input"
-            :placeholder="
-              form.platform === 'jimeng'
-                ? 'https://your-jimeng-proxy.example.com/v1'
-                : form.platform === 'openai'
-                ? 'https://api.openai.com'
-                : form.platform === 'gemini'
-                  ? 'https://generativelanguage.googleapis.com'
-                  : form.platform === 'grok'
-                    ? 'https://api.x.ai/v1'
-                    : 'https://api.anthropic.com'
-            "
+            :placeholder="apiKeyBaseUrlPlaceholder"
           />
           <p v-if="baseUrlHint" class="input-hint">{{ baseUrlHint }}</p>
           <GrokBaseUrlPresets
@@ -1177,17 +1264,7 @@
             type="password"
             required
             class="input font-mono"
-            :placeholder="
-              form.platform === 'jimeng'
-                ? 'sk-...'
-                : form.platform === 'openai'
-                ? 'sk-proj-...'
-                : form.platform === 'gemini'
-                  ? 'AIza...'
-                  : form.platform === 'grok'
-                    ? 'xai-...'
-                    : 'sk-ant-...'
-            "
+            :placeholder="apiKeyValuePlaceholder"
           />
           <p v-if="apiKeyHint" class="input-hint">{{ apiKeyHint }}</p>
         </div>
@@ -1392,7 +1469,7 @@
             </button>
 
               <!-- Quick Add Buttons -->
-              <div class="flex flex-wrap gap-2">
+              <div v-if="presetMappings.length > 0" class="flex flex-wrap gap-2">
                 <button
                   v-for="preset in presetMappings"
                   :key="preset.label"
@@ -1927,7 +2004,7 @@
 
       <!-- 配额控制 (非 Anthropic apikey/bedrock) -->
       <div
-        v-else-if="form.type === 'apikey' || form.type === 'bedrock'"
+        v-else-if="(form.type === 'apikey' || form.type === 'bedrock') && !isVideoAccountPlatform(form.platform)"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -3189,7 +3266,7 @@
           v-if="!authStore.isSimpleMode"
           v-model="form.group_ids"
           :groups="groups"
-          :platform="form.platform"
+          :platform="groupSelectorPlatform"
           :mixed-scheduling="mixedScheduling"
           data-tour="account-form-groups"
         />
@@ -3608,6 +3685,14 @@ import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/forma
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
+  PROVIDER_PLATFORMS,
+  VIDEO_ACCOUNT_PLATFORMS,
+  getPlatformMetadata,
+  getVideoAccountPlatformMetadata,
+  isProviderPlatform,
+  isVideoAccountPlatform
+} from '@/constants/platforms'
+import {
   OPENAI_WS_MODE_CTX_POOL,
   OPENAI_WS_MODE_OFF,
   OPENAI_WS_MODE_PASSTHROUGH,
@@ -3636,6 +3721,13 @@ interface OAuthFlowExposed {
 
 const { t } = useI18n()
 const authStore = useAuthStore()
+const providerPlatformOptions = PROVIDER_PLATFORMS.map(platform => getPlatformMetadata(platform))
+const videoAccountPlatformOptions = VIDEO_ACCOUNT_PLATFORMS.map(platform =>
+  getVideoAccountPlatformMetadata(platform)
+)
+const groupSelectorPlatform = computed(() => {
+  return form.platform
+})
 
 const oauthStepTitle = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.oauth.openai.title')
@@ -3648,6 +3740,8 @@ const oauthStepTitle = computed(() => {
 // Platform-specific hints for API Key type
 const baseUrlHint = computed(() => {
   if (form.platform === 'jimeng') return t('admin.accounts.jimeng.baseUrlHint')
+  if (isVideoAccountPlatform(form.platform)) return t('admin.accounts.videoPlatform.baseUrlHint')
+  if (isProviderPlatform(form.platform)) return t('admin.accounts.openaiCompatible.baseUrlHint')
   if (form.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
   if (form.platform === 'grok') return ''
@@ -3656,10 +3750,46 @@ const baseUrlHint = computed(() => {
 
 const apiKeyHint = computed(() => {
   if (form.platform === 'jimeng') return t('admin.accounts.jimeng.apiKeyHint')
+  if (isVideoAccountPlatform(form.platform)) return t('admin.accounts.videoPlatform.apiKeyHint')
+  if (isProviderPlatform(form.platform)) return t('admin.accounts.openaiCompatible.apiKeyHint')
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
   if (form.platform === 'grok') return ''
   return t('admin.accounts.apiKeyHint')
+})
+
+const defaultApiKeyBaseUrl = (platform: AccountPlatform): string => {
+  if (isVideoAccountPlatform(platform)) return getVideoAccountPlatformMetadata(platform).defaultBaseUrl
+  if (isProviderPlatform(platform)) return getPlatformMetadata(platform).defaultBaseUrl
+  if (platform === 'jimeng') return ''
+  if (platform === 'openai') return 'https://api.openai.com'
+  if (platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  if (platform === 'grok') return 'https://api.x.ai/v1'
+  return 'https://api.anthropic.com'
+}
+
+const apiKeyBaseUrlPlaceholder = computed(() => {
+  if (isVideoAccountPlatform(form.platform)) {
+    return getVideoAccountPlatformMetadata(form.platform).baseUrlPlaceholder
+  }
+  if (isProviderPlatform(form.platform)) return getPlatformMetadata(form.platform).baseUrlPlaceholder
+  if (form.platform === 'jimeng') return 'https://your-jimeng-proxy.example.com/v1'
+  if (form.platform === 'openai') return 'https://api.openai.com'
+  if (form.platform === 'gemini') return 'https://generativelanguage.googleapis.com'
+  if (form.platform === 'grok') return 'https://api.x.ai/v1'
+  return 'https://api.anthropic.com'
+})
+
+const apiKeyValuePlaceholder = computed(() => {
+  if (isVideoAccountPlatform(form.platform)) {
+    return getVideoAccountPlatformMetadata(form.platform).apiKeyPlaceholder
+  }
+  if (isProviderPlatform(form.platform)) return getPlatformMetadata(form.platform).apiKeyPlaceholder
+  if (form.platform === 'jimeng') return 'sk-...'
+  if (form.platform === 'openai') return 'sk-proj-...'
+  if (form.platform === 'gemini') return 'AIza...'
+  if (form.platform === 'grok') return 'xai-...'
+  return 'sk-ant-...'
 })
 
 interface Props {
@@ -4228,16 +4358,7 @@ watch(
   () => form.platform,
   (newPlatform) => {
     // Reset base URL based on platform
-    apiKeyBaseUrl.value =
-      (newPlatform === 'jimeng')
-        ? ''
-        : (newPlatform === 'openai')
-        ? 'https://api.openai.com'
-        : newPlatform === 'gemini'
-          ? 'https://generativelanguage.googleapis.com'
-          : newPlatform === 'grok'
-            ? 'https://api.x.ai/v1'
-            : 'https://api.anthropic.com'
+    apiKeyBaseUrl.value = defaultApiKeyBaseUrl(newPlatform)
     // Clear model-related settings
     allowedModels.value = []
     modelMappings.value = []
@@ -4269,6 +4390,19 @@ watch(
       addMethod.value = 'oauth'
       modelRestrictionMode.value = 'whitelist'
       allowedModels.value = [...getModelsByPlatform('jimeng')]
+    }
+    if (isProviderPlatform(newPlatform)) {
+      accountCategory.value = 'apikey'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newPlatform).modelPlatform)]
+    }
+    if (isVideoAccountPlatform(newPlatform)) {
+      accountCategory.value = 'apikey'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(newPlatform)]
+      form.group_ids = []
     }
     if (newPlatform !== 'gemini' && newPlatform !== 'anthropic' && accountCategory.value === 'service_account') {
       accountCategory.value = 'oauth-based'
@@ -5111,28 +5245,22 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseEnterApiKey'))
     return
   }
-  if (form.platform === 'jimeng' && !apiKeyBaseUrl.value.trim()) {
+  if ((form.platform === 'jimeng' || isVideoAccountPlatform(form.platform)) && !apiKeyBaseUrl.value.trim()) {
     appStore.showError(t('admin.accounts.pleaseEnterBaseUrl'))
     return
   }
 
   // Determine default base URL based on platform
-  const defaultBaseUrl =
-    form.platform === 'jimeng'
-      ? ''
-      : form.platform === 'openai'
-      ? 'https://api.openai.com'
-      : form.platform === 'gemini'
-        ? 'https://generativelanguage.googleapis.com'
-        : form.platform === 'grok'
-          ? 'https://api.x.ai/v1'
-          : 'https://api.anthropic.com'
+  const defaultBaseUrl = defaultApiKeyBaseUrl(form.platform)
   const resolvedBaseUrl = apiKeyBaseUrl.value.trim() || defaultBaseUrl
 
   // Build credentials with optional model mapping
   const credentials: Record<string, unknown> = {
     base_url: resolvedBaseUrl,
     api_key: apiKeyValue.value.trim()
+  }
+  if (isVideoAccountPlatform(form.platform)) {
+    credentials.auth_mode = getVideoAccountPlatformMetadata(form.platform).authScheme
   }
   if (form.platform === 'gemini') {
     credentials.tier_id = geminiTierAIStudio.value
@@ -5172,7 +5300,7 @@ const handleSubmit = async () => {
     credentials.custom_error_codes = [...selectedErrorCodes.value]
   }
 
-  // Add header override if enabled (anthropic/openai/jimeng/grok apikey)
+  // Add header override if enabled for API Key accounts
   if (isHeaderOverrideCapable(form.platform, 'apikey')) {
     if (headerOverrideEnabled.value) {
       const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
@@ -5260,7 +5388,7 @@ const createAccountAndFinish = async (
   }
   // Inject quota limits for apikey/bedrock accounts
   let finalExtra = extra
-  if (type === 'apikey' || type === 'bedrock') {
+  if ((type === 'apikey' || type === 'bedrock') && !isVideoAccountPlatform(platform)) {
     const quotaExtra: Record<string, unknown> = { ...(extra || {}) }
     if (editQuotaLimit.value != null && editQuotaLimit.value > 0) {
       quotaExtra.quota_limit = editQuotaLimit.value

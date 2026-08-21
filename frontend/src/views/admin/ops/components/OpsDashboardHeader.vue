@@ -113,7 +113,11 @@ const platformOptions = computed(() => [
   { value: 'gemini', label: 'Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
   { value: 'grok', label: 'Grok' },
-  { value: 'jimeng', label: '即梦' }
+  { value: 'jimeng', label: '即梦' },
+  { value: 'doubao', label: '豆包' },
+  { value: 'qwen', label: '千问' },
+  { value: 'kimi', label: 'Kimi' },
+  { value: 'deepseek', label: 'DeepSeek' }
 ])
 
 const timeRangeOptions = computed(() => [

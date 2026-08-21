@@ -113,8 +113,12 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 		return
 	}
 
+	reqLogWithoutModel := reqLog
 	model := service.JimengVideoRoutingModel
-	reqLog = reqLog.With(zap.String("model", model))
+	if endpoint == service.JimengVideoEndpointGenerations {
+		model = service.JimengVideoRequestedModelFromBody(body)
+	}
+	reqLog = reqLogWithoutModel.With(zap.String("model", model))
 	setOpsRequestContext(c, model, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 
@@ -178,6 +182,11 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			legacyJimengVideoStatus = true
 		} else {
 			boundLookupAccountID = videoTask.AccountID
+			if taskModel := service.NormalizeJimengVideoRequestedModel(videoTask.Model); taskModel != "" {
+				model = taskModel
+				reqLog = reqLogWithoutModel.With(zap.String("model", model))
+				setOpsRequestContext(c, model, false)
+			}
 		}
 	}
 
@@ -221,8 +230,14 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 				return
 			}
 			if errors.Is(err, service.ErrNoAvailableAccounts) {
-				markOpsRoutingCapacityLimited(c)
-				h.errorResponse(c, http.StatusServiceUnavailable, "jimeng_no_eligible_account", "No eligible Jimeng video accounts")
+				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, model, model, service.PlatformJimeng)
+				if !cls.ModelNotFound {
+					markOpsRoutingCapacityLimited(c)
+					if cls.Message == "Service temporarily unavailable" {
+						cls.Message = "No eligible Jimeng video accounts"
+					}
+				}
+				h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
 				return
 			}
 			cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, model, model, service.PlatformJimeng)
@@ -292,7 +307,7 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 	service.SetOpsLatencyMs(c, service.OpsRoutingLatencyMsKey, time.Since(routingStart).Milliseconds())
 	forwardStart := time.Now()
 	writerSizeBeforeForward := c.Writer.Size()
-	result, err := h.gatewayService.ForwardJimengVideoBuffered(requestCtx, c, account, endpoint, requestID, body)
+	result, err := h.gatewayService.ForwardJimengVideoBuffered(requestCtx, c, account, endpoint, requestID, body, model)
 	if accountReleaseFunc != nil {
 		accountReleaseFunc()
 		accountReleaseFunc = nil
@@ -344,9 +359,9 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			status = service.JimengTaskStatusProcessing
 		}
 		submittedTask, markErr := h.gatewayService.MarkJimengVideoTaskSubmitted(requestCtx, service.MarkJimengVideoSubmittedParams{
-			LocalTaskID:        videoTask.LocalTaskID,
-			TaskID:             result.ResponseID,
-			Status:             status,
+			LocalTaskID:         videoTask.LocalTaskID,
+			TaskID:              result.ResponseID,
+			Status:              status,
 			ResponseStatus:      result.ResponseStatusCode,
 			ResponseContentType: result.ResponseContentType,
 			ResponseBody:        string(result.ResponseBody),
@@ -515,7 +530,7 @@ func (h *OpenAIGatewayHandler) createAndReserveJimengVideoTask(
 		APIKeyID:             apiKey.ID,
 		GroupID:              apiKey.GroupID,
 		AccountID:            account.ID,
-		Model:                service.JimengVideoBillingModel,
+		Model:                service.JimengVideoRequestedModelFromBody(body),
 		Status:               service.JimengVideoTaskStatusSubmitting,
 		BillingStatus:        billingStatus,
 		RequestHash:          strings.TrimSpace(requestPayloadHash),

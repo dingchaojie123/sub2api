@@ -24,6 +24,13 @@ const (
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
 	PlatformJimeng      = "jimeng"
+	PlatformDoubao      = "doubao"
+	PlatformQwen        = "qwen"
+	PlatformKimi        = "kimi"
+	PlatformDeepSeek    = "deepseek"
+	PlatformKling       = "kling"
+	PlatformHappyHourse = "happyhourse"
+	PlatformSeedance    = "seedance"
 )
 
 // Account type constants

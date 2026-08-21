@@ -30,6 +30,37 @@
     <path d="M12 2.75l1.68 5.22 5.15-1.82-2.94 4.64 4.66 2.88-5.47.38.44 5.46L12 15.32l-3.52 4.19.44-5.46-5.47-.38 4.66-2.88-2.94-4.64 5.15 1.82L12 2.75z" />
     <path d="M4.6 18.35c3.18 2.24 8.24 2.4 12.15.38 2.54-1.31 4.02-3.3 3.88-5.1.79 2.35-.83 5.15-4.02 6.8-4.25 2.2-9.76 1.94-12.76-.52-1.55-1.27-2.06-2.88-1.53-4.37.22 1.03.99 2.01 2.28 2.81z" opacity=".55" />
   </svg>
+  <!-- Doubao logo mark (paired speech forms) -->
+  <svg v-else-if="platform === 'doubao'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M7 4.5A4.5 4.5 0 0 0 7 13h3.5V9.5H7a1 1 0 1 1 0-2h4V4.5H7z" />
+    <path d="M17 11A4.5 4.5 0 0 0 17 20h-3.5v-3.5H17a1 1 0 1 0 0-2h-4V11h4z" />
+  </svg>
+  <!-- Qwen logo mark (layered chat bubble) -->
+  <svg v-else-if="platform === 'qwen'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 4h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-6.2l-3.8 3v-3H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm2 4v2h10V8H7zm0 4v2h6v-2H7z" />
+  </svg>
+  <!-- Kimi logo mark (crescent) -->
+  <svg v-else-if="platform === 'kimi'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M15.9 3.4a8.7 8.7 0 1 0 4.7 15.9A9.7 9.7 0 1 1 15.9 3.4z" />
+    <path d="M17.5 5.1l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7z" />
+  </svg>
+  <!-- DeepSeek logo mark (abstract compass) -->
+  <svg v-else-if="platform === 'deepseek'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.5l2.3 6.3L20.5 12l-6.2 3.2L12 21.5l-2.3-6.3L3.5 12l6.2-3.2L12 2.5zm0 5.6L11 11l-3 1 3 1 1 3 1-3 3-1-3-1-1-3z" />
+  </svg>
+  <!-- K-Ling logo mark (play button in a frame) -->
+  <svg v-else-if="platform === 'kling'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 4.5A2.5 2.5 0 0 0 2.5 7v10A2.5 2.5 0 0 0 5 19.5h14a2.5 2.5 0 0 0 2.5-2.5V7A2.5 2.5 0 0 0 19 4.5H5zm5.1 3.9 5.35 3.1a.58.58 0 0 1 0 1l-5.35 3.1A.58.58 0 0 1 9.25 15V9a.58.58 0 0 1 .85-.6z" />
+  </svg>
+  <!-- Happy-Hourse logo mark (film strip) -->
+  <svg v-else-if="platform === 'happyhourse'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 3.5h14A2.5 2.5 0 0 1 21.5 6v12a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 18V6A2.5 2.5 0 0 1 5 3.5zm1 3v2h2v-2H6zm10 0v2h2v-2h-2zM6 11v2h2v-2H6zm10 0v2h2v-2h-2zM6 15.5v2h2v-2H6zm10 0v2h2v-2h-2zM10 8.8v6.4l4.7-3.2L10 8.8z" />
+  </svg>
+  <!-- Seedance logo mark (radiating seed) -->
+  <svg v-else-if="platform === 'seedance'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2.5c1.3 2.42 2.05 4.45 2.05 6.05A2.05 2.05 0 1 1 9.95 8.55C9.95 6.95 10.7 4.92 12 2.5zm0 10.05a4.95 4.95 0 1 1 0 9.9 4.95 4.95 0 0 1 0-9.9zm0 2a2.95 2.95 0 1 0 0 5.9 2.95 2.95 0 0 0 0-5.9z" />
+    <path d="M3.1 9.2c2.7-.5 4.85-.35 6.05.3l-1 1.72c-.73-.4-2.28-.52-4.68-.08L3.1 9.2zm17.8 0-.37 1.94c-2.4-.44-3.95-.32-4.68.08l-1-1.72c1.2-.65 3.35-.8 6.05-.3z" />
+  </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">
     <path
@@ -40,10 +71,10 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { GroupPlatform } from '@/types'
+import type { AccountPlatform } from '@/types'
 
 interface Props {
-  platform?: GroupPlatform
+  platform?: AccountPlatform
   size?: 'xs' | 'sm' | 'md' | 'lg'
 }
 

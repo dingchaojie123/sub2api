@@ -190,6 +190,9 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if account.IsJimeng() {
 		return s.testJimengAccountConnection(c, account)
 	}
+	if IsPPVideoPlatform(account.Platform) {
+		return s.testPPVideoAccountConnection(c, account)
+	}
 	if account.IsOpenAI() {
 		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
@@ -740,6 +743,31 @@ func (s *AccountTestService) ValidateJimengAPIKey(ctx context.Context, account *
 	if !valid {
 		return fmt.Errorf("jimeng API key is invalid")
 	}
+	return nil
+}
+
+func (s *AccountTestService) testPPVideoAccountConnection(c *gin.Context, account *Account) error {
+	ctx := c.Request.Context()
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: account.Platform})
+
+	models, err := s.FetchUpstreamSupportedModels(ctx, account)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+
+	text := "PP video API key probe succeeded"
+	if len(models) > 0 {
+		text = fmt.Sprintf("PP video API key probe succeeded; %d upstream models available", len(models))
+	}
+	s.sendEvent(c, TestEvent{Type: "content", Text: text, Data: map[string]any{"models": models}})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
 }
 

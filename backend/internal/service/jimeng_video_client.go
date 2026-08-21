@@ -180,16 +180,40 @@ func parseJimengGenerationResult(body []byte) (*JimengVideoGenerationResult, err
 	if err := json.Unmarshal(body, &value); err != nil {
 		return nil, fmt.Errorf("parse jimeng response: %w", err)
 	}
+	status := NormalizeJimengTaskStatus(extractJimengString(value, jimengVideoStatusPaths()...))
+	if jimengVideoResponseHasFinalVideo(body) && status != JimengTaskStatusFailed {
+		status = JimengTaskStatusSucceeded
+	}
 	result := &JimengVideoGenerationResult{
-		TaskID: extractJimengString(value, "task_id", "request_id", "id", "data.task_id", "data.request_id", "data.id"),
-		Status: NormalizeJimengTaskStatus(extractJimengString(value,
-			"status", "state", "task_status", "data.status", "data.state", "data.task_status",
-		)),
-		Usage:    extractJimengUsage(value, "usage", "data.usage"),
-		HasUsage: hasJimengUsage(value, "usage", "data.usage"),
+		TaskID:   extractJimengString(value, jimengVideoTaskIDPaths()...),
+		Status:   status,
+		Usage:    extractJimengUsage(value, jimengVideoUsagePaths()...),
+		HasUsage: hasJimengUsage(value, jimengVideoUsagePaths()...),
 		Raw:      append(json.RawMessage(nil), body...),
 	}
 	return result, nil
+}
+
+func jimengVideoTaskIDPaths() []string {
+	return []string{
+		"task_id", "request_id", "id",
+		"data.task_id", "data.request_id", "data.id",
+		"data.data.task_id", "data.data.request_id", "data.data.id",
+		"data.data.data.task_id", "data.data.data.request_id", "data.data.data.id",
+	}
+}
+
+func jimengVideoStatusPaths() []string {
+	return []string{
+		"status", "state", "task_status",
+		"data.status", "data.state", "data.task_status",
+		"data.data.status", "data.data.state", "data.data.task_status",
+		"data.data.data.status", "data.data.data.state", "data.data.data.task_status",
+	}
+}
+
+func jimengVideoUsagePaths() []string {
+	return []string{"usage", "data.usage", "data.data.usage", "data.data.data.usage"}
 }
 
 func extractJimengUsage(value any, keys ...string) OpenAIUsage {
@@ -237,9 +261,9 @@ func extractJimengInt(value any, keys ...string) int {
 func NormalizeJimengTaskStatus(status string) string {
 	normalized := strings.ToLower(strings.TrimSpace(status))
 	switch normalized {
-	case "pending", "processing", "running", "queued", "created":
+	case "pending", "processing", "running", "queued", "created", "submitted", "in_progress", "waiting":
 		return JimengTaskStatusProcessing
-	case "success", "succeeded", "completed", "complete", "done":
+	case "success", "succeeded", "completed", "complete", "done", "finished", "successful":
 		return JimengTaskStatusSucceeded
 	case "fail", "failed", "failure", "error", "cancelled", "canceled", "rejected", "refunded", "timeout", "timed_out", "expired":
 		return JimengTaskStatusFailed
@@ -303,7 +327,11 @@ func normalizeJimengBaseURL(raw string) (string, error) {
 }
 
 func buildJimengVideoGenerationURL(base string) string {
-	return buildOpenAIEndpointURL(base, "/v1/video/generations")
+	return buildOpenAIEndpointURL(base, jimengVideoGenerationPath())
+}
+
+func buildLegacyJimengVideoGenerationURL(base string) string {
+	return buildOpenAIEndpointURL(base, legacyJimengVideoGenerationPath())
 }
 
 func buildJimengModelsURL(base string) string {
@@ -311,5 +339,17 @@ func buildJimengModelsURL(base string) string {
 }
 
 func buildJimengVideoGenerationQueryURL(base string, taskID string) string {
-	return strings.TrimRight(buildJimengVideoGenerationURL(base), "/") + "/" + url.PathEscape(taskID)
+	return strings.TrimRight(buildOpenAIEndpointURL(base, "/v1/videos"), "/") + "/" + url.PathEscape(taskID)
+}
+
+func buildLegacyJimengVideoGenerationQueryURL(base string, taskID string) string {
+	return strings.TrimRight(buildLegacyJimengVideoGenerationURL(base), "/") + "/" + url.PathEscape(taskID)
+}
+
+func jimengVideoGenerationPath() string {
+	return "/v1/videos/generations"
+}
+
+func legacyJimengVideoGenerationPath() string {
+	return "/v1/video/generations"
 }

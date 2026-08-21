@@ -166,6 +166,29 @@ function buildAccount() {
   } as any
 }
 
+function buildJimengAccount() {
+  return {
+    ...buildAccount(),
+    id: 6,
+    name: 'Jimeng Key',
+    platform: 'jimeng',
+    type: 'apikey',
+    credentials: {
+      api_key: 'jm-key',
+      base_url: 'https://jimeng-proxy.example.com/v1',
+      model_mapping: {
+        'by-seedance2.0-933': 'by-seedance2.0-933',
+        'seedance2.0-431': 'seedance2.0-431',
+        'seedance2.0-900': 'seedance2.0-900',
+        'seedance2.0-933': 'seedance2.0-933',
+        'seedance2.0-fast-431': 'seedance2.0-fast-431',
+        'seedance2.0-fast-933': 'seedance2.0-fast-933',
+        'seedance2.5': 'seedance2.5'
+      }
+    }
+  } as any
+}
+
 function buildOpenAISparkShadowAccount() {
   const account = buildAccount()
   return {
@@ -279,6 +302,22 @@ function buildGrokAPIKeyAccount() {
   } as any
 }
 
+function buildSeedanceAPIKeyAccount() {
+  return {
+    ...buildAccount(),
+    id: 7,
+    name: 'Seedance API Key',
+    platform: 'seedance',
+    credentials: {
+      base_url: 'https://seedance.example.com/v1',
+      model_mapping: {
+        seedance: 'seedance-v1'
+      }
+    },
+    credentials_status: { has_api_key: true }
+  } as any
+}
+
 function buildOpenAISetupTokenAccount() {
   return {
     ...buildAccount(),
@@ -305,7 +344,10 @@ function mountModal(account = buildAccount()) {
         Icon: true,
         ProxySelector: true,
         GroupSelector: GroupSelectorStub,
-        ModelWhitelistSelector: ModelWhitelistSelectorStub
+        ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        QuotaLimitCard: {
+          template: '<div data-testid="quota-limit-card"></div>'
+        }
       }
     }
   })
@@ -341,6 +383,31 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
       'gpt-5.2': 'gpt-5.2'
     })
+  })
+
+  it('preserves synced Jimeng model mappings when reopening the edit modal', async () => {
+    const account = buildJimengAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const expectedModels = Object.keys(account.credentials.model_mapping)
+
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe(expectedModels.join(','))
+
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe(expectedModels.join(','))
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual(
+      account.credentials.model_mapping
+    )
   })
 
   it('preserves model mappings when editing the whitelist', async () => {
@@ -539,6 +606,112 @@ describe('EditAccountModal', () => {
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.base_url).toBe('https://api.x.ai/v1')
+  })
+
+  it('edits Seedance accounts with the video Base URL placeholder and Bearer auth', async () => {
+    const account = buildSeedanceAPIKeyAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const baseUrlInput = wrapper.get<HTMLInputElement>(
+      'input[placeholder="https://app.ppapi.ai/v1"]'
+    )
+    expect(baseUrlInput.element.value).toBe('https://seedance.example.com/v1')
+
+    await baseUrlInput.setValue('https://seedance-proxy.example.com/v1')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      base_url: 'https://seedance-proxy.example.com/v1',
+      auth_mode: 'bearer',
+      model_mapping: {
+        seedance: 'seedance-v1'
+      }
+    })
+  })
+
+  it('preserves same-name manual mappings when saving a video account', async () => {
+    const account = {
+      ...buildSeedanceAPIKeyAccount(),
+      credentials: {
+        base_url: 'https://seedance.example.com/v1',
+        model_mapping: {
+          'seedance-v1': 'seedance-v1'
+        }
+      }
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'seedance-v1': 'seedance-v1'
+    })
+  })
+
+  it('uses the PP gateway default Base URL when editing a Seedance account', async () => {
+    const account = buildSeedanceAPIKeyAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+
+    const wrapper = mountModal(account)
+    await wrapper
+      .get<HTMLInputElement>('input[placeholder="https://app.ppapi.ai/v1"]')
+      .setValue('')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      base_url: 'https://app.ppapi.ai/v1',
+      auth_mode: 'bearer'
+    })
+  })
+
+  it('offers group routing for video account platforms in standard mode', async () => {
+    authIsSimpleMode.value = false
+    const wrapper = mountModal(buildSeedanceAPIKeyAccount())
+
+    expect(wrapper.find('[data-testid="group-selector"]').exists()).toBe(true)
+  })
+
+  it('shows model whitelist for video accounts and preserves group routing', async () => {
+    const account = {
+      ...buildSeedanceAPIKeyAccount(),
+      group_ids: [7],
+      extra: {
+        quota_limit: 100,
+        quota_daily_limit: 10,
+        quota_notify_daily_enabled: true
+      }
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    expect(wrapper.findAll('button').some(button => (
+      button.text().includes('admin.accounts.modelWhitelist')
+    ))).toBe(true)
+    expect(wrapper.find('[data-testid="quota-limit-card"]').exists()).toBe(false)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    const payload = updateAccountMock.mock.calls[0]?.[1]
+    expect(payload?.group_ids).toEqual([7])
+    expect(payload?.extra).toEqual({})
   })
 
   it('only submits model mapping credentials when saving an OpenAI spark shadow account', async () => {
