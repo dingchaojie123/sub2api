@@ -92,6 +92,22 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_DoubaoSeedream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"doubao-seedream-5-0-260128","prompt":"draw a cat","size":"1536x1024"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	parsed, err := (&OpenAIGatewayService{}).ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	require.Equal(t, "doubao-seedream-5-0-260128", parsed.Model)
+	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
+}
+
 func TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs(t *testing.T) {
 	parsed := &OpenAIImagesRequest{
 		Endpoint:       openAIImagesEditsEndpoint,
@@ -922,6 +938,84 @@ func TestOpenAIGatewayServiceForwardImages_OAuthUpstreamHTTPErrorSurfacesRealErr
 	require.Contains(t, gjson.Get(rec.Body.String(), "error.message").String(), "Invalid value for 'size'")
 }
 
+func TestOpenAIGatewayServiceForwardImages_HTTP413TriggersBodyLimitFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"gpt-image-2","prompt":"draw a cat","response_format":"b64_json"}`)
+
+	tests := []struct {
+		name    string
+		account Account
+	}{
+		{
+			name: "api key",
+			account: Account{
+				ID:       71,
+				Name:     "openai-image-api-key",
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Credentials: map[string]any{
+					"api_key":  "sk-test",
+					"base_url": "https://api.example.test",
+				},
+			},
+		},
+		{
+			name: "oauth",
+			account: Account{
+				ID:       72,
+				Name:     "openai-image-oauth",
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeOAuth,
+				Credentials: map[string]any{
+					"access_token": "token-123",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = req
+
+			svc := &OpenAIGatewayService{
+				httpUpstream: &httpUpstreamRecorder{
+					resp: &http.Response{
+						StatusCode: http.StatusRequestEntityTooLarge,
+						Header: http.Header{
+							"Content-Type": []string{"application/json"},
+							"X-Request-Id": []string{"req_img_body_limit"},
+						},
+						Body: io.NopCloser(strings.NewReader(
+							`{"error":{"message":"request body exceeds this account's 16MB proxy limit; secret=must-not-leak","type":"invalid_request_error"}}`,
+						)),
+					},
+				},
+			}
+			parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+			require.NoError(t, err)
+
+			result, err := svc.ForwardImages(context.Background(), c, &tt.account, body, parsed, "")
+			require.Nil(t, result)
+
+			var failoverErr *UpstreamFailoverError
+			require.ErrorAs(t, err, &failoverErr)
+			require.Equal(t, http.StatusRequestEntityTooLarge, failoverErr.StatusCode)
+			require.True(t, failoverErr.IsOpenAIRequestBodyTooLarge())
+			require.Equal(t, GatewayFailureScopeAccount, failoverErr.Scope)
+			require.Equal(t, NextAccountRetry, failoverErr.NextAccountAction)
+			require.Equal(t, http.StatusRequestEntityTooLarge, failoverErr.ClientStatusCode)
+			require.Equal(t, OpenAIRequestBodyTooLargeClientMessage, failoverErr.ClientMessage)
+			require.False(t, failoverErr.RetryableOnSameAccount)
+			require.Equal(t, "req_img_body_limit", failoverErr.ResponseHeaders.Get("X-Request-Id"))
+			require.False(t, c.Writer.Written())
+		})
+	}
+}
+
 func TestOpenAIGatewayServiceForwardImages_OAuthNonStreamModerationBlockedReturnsClientError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{"model":"gpt-image-2","prompt":"draw blocked image","response_format":"b64_json"}`)
@@ -1394,6 +1488,70 @@ func TestOpenAIGatewayServiceForwardImages_APIKeyEditUsesConfiguredV1BaseURL(t *
 	require.Contains(t, string(upstream.lastBody), "gpt-image-2")
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "ZWRpdGVk", gjson.Get(rec.Body.String(), "data.0.b64_json").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_DoubaoEditUsesGenerationsJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "doubao-seedream-5-0-260128"))
+	require.NoError(t, writer.WriteField("prompt", "replace background"))
+	imageHeader := make(textproto.MIMEHeader)
+	imageHeader.Set("Content-Disposition", `form-data; name="image"; filename="source.png"`)
+	imageHeader.Set("Content-Type", "image/png")
+	imagePart, err := writer.CreatePart(imageHeader)
+	require.NoError(t, err)
+	_, err = imagePart.Write([]byte("png-image-content"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+					"X-Request-Id": []string{"req_doubao_image_edit"},
+				},
+				Body: io.NopCloser(strings.NewReader(`{"created":1710000008,"data":[{"b64_json":"ZWRpdGVk"}]}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body.Bytes())
+	require.NoError(t, err)
+
+	account := &Account{
+		ID:       8,
+		Name:     "doubao-apikey",
+		Platform: PlatformDoubao,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "ark-key",
+			"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body.Bytes(), parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+
+	upstream := svc.httpUpstream.(*httpUpstreamRecorder)
+	require.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/images/generations", upstream.lastReq.URL.String())
+	require.Equal(t, "Bearer ark-key", upstream.lastReq.Header.Get("Authorization"))
+	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
+	require.Equal(t, "doubao-seedream-5-0-260128", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "replace background", gjson.GetBytes(upstream.lastBody, "prompt").String())
+	require.Equal(t, "data:image/png;base64,cG5nLWltYWdlLWNvbnRlbnQ=", gjson.GetBytes(upstream.lastBody, "image.0").String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "sequential_image_generation").Exists())
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *testing.T) {

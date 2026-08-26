@@ -1507,6 +1507,105 @@ func (r *accountRepository) syncSchedulerAccountSnapshotDetached(ctx context.Con
 	r.syncSchedulerAccountSnapshot(propagationCtx, accountID)
 }
 
+// syncSchedulerAccountGroupSnapshots refreshes the group candidate buckets after
+// account-group bindings change. Updating only the account metadata cannot add an
+// account to an already-published bucket member list.
+func (r *accountRepository) syncSchedulerAccountGroupSnapshots(ctx context.Context, accountID int64, groupIDs []int64) {
+	if r == nil || r.schedulerCache == nil || accountID <= 0 {
+		return
+	}
+
+	groupIDs = mergeGroupIDs(nil, groupIDs)
+	if len(groupIDs) == 0 {
+		return
+	}
+
+	account, err := r.GetByID(ctx, accountID)
+	if err != nil {
+		logger.LegacyPrintf("repository.account", "[Scheduler] sync group snapshots read account failed: id=%d err=%v", accountID, err)
+		return
+	}
+	if err := r.schedulerCache.SetAccount(ctx, account); err != nil {
+		logger.LegacyPrintf("repository.account", "[Scheduler] sync group snapshots write account failed: id=%d err=%v", accountID, err)
+	}
+
+	buckets := schedulerBucketsForAccountGroupBinding(account, groupIDs)
+	tokens := make(map[service.SchedulerBucket]service.SchedulerBucketWriteToken, len(buckets))
+	for _, bucket := range buckets {
+		token, err := r.schedulerCache.CaptureBucketWriteToken(ctx, bucket)
+		if err != nil {
+			logger.LegacyPrintf("repository.account", "[Scheduler] sync group snapshot capture token failed: account=%d bucket=%s err=%v", accountID, bucket.String(), err)
+			continue
+		}
+		tokens[bucket] = token
+	}
+
+	for _, bucket := range buckets {
+		token, ok := tokens[bucket]
+		if !ok {
+			continue
+		}
+		accounts, err := r.listSchedulableAccountsForSchedulerBucket(ctx, bucket)
+		if err != nil {
+			logger.LegacyPrintf("repository.account", "[Scheduler] sync group snapshot query failed: account=%d bucket=%s err=%v", accountID, bucket.String(), err)
+			continue
+		}
+		if err := r.schedulerCache.SetSnapshot(ctx, bucket, token, accounts); err != nil {
+			logger.LegacyPrintf("repository.account", "[Scheduler] sync group snapshot write failed: account=%d bucket=%s err=%v", accountID, bucket.String(), err)
+		}
+	}
+}
+
+func schedulerBucketsForAccountGroupBinding(account *service.Account, groupIDs []int64) []service.SchedulerBucket {
+	if account == nil || account.Platform == "" {
+		return nil
+	}
+
+	buckets := make([]service.SchedulerBucket, 0, len(groupIDs)*3)
+	appendPlatformBuckets := func(platform string) {
+		for _, groupID := range groupIDs {
+			buckets = append(buckets,
+				service.SchedulerBucket{GroupID: groupID, Platform: platform, Mode: service.SchedulerModeSingle},
+				service.SchedulerBucket{GroupID: groupID, Platform: platform, Mode: service.SchedulerModeForced},
+			)
+			if platform == service.PlatformAnthropic || platform == service.PlatformGemini {
+				buckets = append(buckets, service.SchedulerBucket{GroupID: groupID, Platform: platform, Mode: service.SchedulerModeMixed})
+			}
+		}
+	}
+
+	appendPlatformBuckets(account.Platform)
+	if account.IsMixedSchedulingEnabled() {
+		appendPlatformBuckets(service.PlatformAnthropic)
+		appendPlatformBuckets(service.PlatformGemini)
+	}
+
+	return buckets
+}
+
+func (r *accountRepository) listSchedulableAccountsForSchedulerBucket(ctx context.Context, bucket service.SchedulerBucket) ([]service.Account, error) {
+	if bucket.Mode != service.SchedulerModeMixed {
+		return r.ListSchedulableByGroupIDAndPlatform(ctx, bucket.GroupID, bucket.Platform)
+	}
+
+	accounts, err := r.ListSchedulableByGroupIDAndPlatforms(ctx, bucket.GroupID, []string{
+		bucket.Platform,
+		service.PlatformAntigravity,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]service.Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account.Platform == service.PlatformAntigravity && !account.IsMixedSchedulingEnabled() {
+			continue
+		}
+		filtered = append(filtered, account)
+	}
+	return filtered, nil
+}
+
 func (r *accountRepository) deleteSchedulerAccountSnapshot(ctx context.Context, accountID int64) {
 	if r == nil || r.schedulerCache == nil || accountID <= 0 {
 		return
@@ -1582,6 +1681,7 @@ func (r *accountRepository) AddToGroup(ctx context.Context, accountID, groupID i
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountGroupsChanged, &accountID, nil, payload); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue add to group failed: account=%d group=%d err=%v", accountID, groupID, err)
 	}
+	r.syncSchedulerAccountGroupSnapshots(ctx, accountID, []int64{groupID})
 	return nil
 }
 
@@ -1599,6 +1699,7 @@ func (r *accountRepository) RemoveFromGroup(ctx context.Context, accountID, grou
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountGroupsChanged, &accountID, nil, payload); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue remove from group failed: account=%d group=%d err=%v", accountID, groupID, err)
 	}
+	r.syncSchedulerAccountGroupSnapshots(ctx, accountID, []int64{groupID})
 	return nil
 }
 
@@ -1643,24 +1744,19 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 		return err
 	}
 
-	if len(groupIDs) == 0 {
-		if tx != nil {
-			return tx.Commit()
+	if len(groupIDs) > 0 {
+		builders := make([]*dbent.AccountGroupCreate, 0, len(groupIDs))
+		for i, groupID := range groupIDs {
+			builders = append(builders, txClient.AccountGroup.Create().
+				SetAccountID(accountID).
+				SetGroupID(groupID).
+				SetPriority(i+1),
+			)
 		}
-		return nil
-	}
 
-	builders := make([]*dbent.AccountGroupCreate, 0, len(groupIDs))
-	for i, groupID := range groupIDs {
-		builders = append(builders, txClient.AccountGroup.Create().
-			SetAccountID(accountID).
-			SetGroupID(groupID).
-			SetPriority(i+1),
-		)
-	}
-
-	if _, err := txClient.AccountGroup.CreateBulk(builders...).Save(ctx); err != nil {
-		return err
+		if _, err := txClient.AccountGroup.CreateBulk(builders...).Save(ctx); err != nil {
+			return err
+		}
 	}
 
 	if tx != nil {
@@ -1668,10 +1764,12 @@ func (r *accountRepository) BindGroups(ctx context.Context, accountID int64, gro
 			return err
 		}
 	}
-	payload := buildSchedulerGroupPayload(mergeGroupIDs(existingGroupIDs, groupIDs))
+	affectedGroupIDs := mergeGroupIDs(existingGroupIDs, groupIDs)
+	payload := buildSchedulerGroupPayload(affectedGroupIDs)
 	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventAccountGroupsChanged, &accountID, nil, payload); err != nil {
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] enqueue bind groups failed: account=%d err=%v", accountID, err)
 	}
+	r.syncSchedulerAccountGroupSnapshots(ctx, accountID, affectedGroupIDs)
 	return nil
 }
 

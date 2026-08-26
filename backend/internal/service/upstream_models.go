@@ -122,7 +122,10 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	}
 	models = filterUpstreamModelsForPlatform(account.Platform, models)
 	if len(models) == 0 {
-		return nil, newUpstreamModelSyncUpstreamError("Upstream returned no supported models for this platform", nil)
+		return nil, newUpstreamModelSyncUpstreamError(
+			"Upstream model list did not contain usable model IDs; verify that the configured Base URL supports GET /models",
+			nil,
+		)
 	}
 
 	return models, nil
@@ -138,7 +141,7 @@ func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, acc
 		return s.buildJimengUpstreamModelsRequest(ctx, account)
 	case IsPPVideoPlatform(account.Platform):
 		return s.buildPPVideoUpstreamModelsRequest(ctx, account)
-	case account.IsOpenAI():
+	case account.IsOpenAICompatible():
 		return s.buildOpenAIUpstreamModelsRequest(ctx, account)
 	case account.IsGemini():
 		return s.buildGeminiUpstreamModelsRequest(ctx, account)
@@ -353,26 +356,30 @@ func (s *AccountTestService) buildAntigravityAPIKeyModelsRequest(ctx context.Con
 func (s *AccountTestService) buildOpenAIUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
 	if account.Type != AccountTypeAPIKey {
 		return nil, newUpstreamModelSyncUnsupportedError(
-			fmt.Sprintf("Unsupported OpenAI account type for upstream model sync: %s", account.Type), nil,
+			fmt.Sprintf("Unsupported OpenAI-compatible account type for upstream model sync: %s", account.Type), nil,
 		)
 	}
-	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+	apiKey := strings.TrimSpace(account.GetCredential("api_key"))
 	if apiKey == "" {
-		return nil, newUpstreamModelSyncConfigError("No OpenAI API key is available", nil)
+		return nil, newUpstreamModelSyncConfigError("No OpenAI-compatible API key is available", nil)
 	}
 
-	baseURL := account.GetOpenAIBaseURL()
+	baseURL := account.GetBaseURL()
 	if strings.TrimSpace(baseURL) == "" {
-		baseURL = "https://api.openai.com"
+		if account.IsOpenAI() {
+			baseURL = "https://api.openai.com"
+		} else {
+			return nil, newUpstreamModelSyncConfigError("OpenAI-compatible base URL is required for upstream model sync", nil)
+		}
 	}
 	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
 	if err != nil {
-		return nil, newUpstreamModelSyncConfigError("Invalid OpenAI base URL", err)
+		return nil, newUpstreamModelSyncConfigError("Invalid OpenAI-compatible base URL", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(normalizedBaseURL), nil)
 	if err != nil {
-		return nil, newUpstreamModelSyncConfigError("Invalid OpenAI model list URL", err)
+		return nil, newUpstreamModelSyncConfigError("Invalid OpenAI-compatible model list URL", err)
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)

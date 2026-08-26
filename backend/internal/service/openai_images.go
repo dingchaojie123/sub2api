@@ -455,13 +455,20 @@ func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) {
 }
 
 func isOpenAIImageGenerationModel(model string) bool {
-	return IsGPTImageGenerationModel(model) || isGrokImageGenerationModel(model)
+	return IsGPTImageGenerationModel(model) ||
+		isGrokImageGenerationModel(model) ||
+		isDoubaoSeedreamImageGenerationModel(model)
 }
 
 // IsGPTImageGenerationModel identifies the GPT native image-generation model family.
 func IsGPTImageGenerationModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
 	return strings.HasPrefix(model, "gpt-image-")
+}
+
+func isDoubaoSeedreamImageGenerationModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(model, "doubao-seedream-")
 }
 
 func isGrokImageGenerationModel(model string) bool {
@@ -548,6 +555,19 @@ func normalizeOpenAIImageSizeTier(size string) string {
 	return NormalizeImageBillingTierOrDefault(size)
 }
 
+// openAIImagesUpstreamErrorDetail keeps a bounded, operator-only copy of an
+// upstream error response. It is never sent back to downstream clients.
+func (s *OpenAIGatewayService) openAIImagesUpstreamErrorDetail(body []byte) string {
+	if s == nil || s.cfg == nil || !s.cfg.Gateway.LogUpstreamErrorBody {
+		return ""
+	}
+	maxBytes := s.cfg.Gateway.LogUpstreamErrorBodyMaxBytes
+	if maxBytes <= 0 {
+		maxBytes = 2048
+	}
+	return truncateString(string(body), maxBytes)
+}
+
 func (s *OpenAIGatewayService) ForwardImages(
 	ctx context.Context,
 	c *gin.Context,
@@ -597,7 +617,16 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		parsed.Endpoint,
 		account.Type,
 	)
-	forwardBody, forwardContentType, err := rewriteOpenAIImagesModel(body, parsed.ContentType, upstreamModel)
+	forwardEndpoint := parsed.Endpoint
+	var forwardBody []byte
+	var forwardContentType string
+	var err error
+	if account.Platform == PlatformDoubao {
+		forwardBody, forwardContentType, err = buildDoubaoImagesRequestBody(parsed, upstreamModel)
+		forwardEndpoint = openAIImagesGenerationsEndpoint
+	} else {
+		forwardBody, forwardContentType, err = rewriteOpenAIImagesModel(body, parsed.ContentType, upstreamModel)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +637,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if err != nil {
 		return nil, err
 	}
-	upstreamReq, err := s.buildOpenAIImagesRequest(upstreamCtx, c, account, forwardBody, forwardContentType, token, parsed.Endpoint)
+	upstreamReq, err := s.buildOpenAIImagesRequest(upstreamCtx, c, account, forwardBody, forwardContentType, token, forwardEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -642,6 +671,7 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
 		if s.shouldFailoverOpenAIUpstreamResponse(resp.StatusCode, upstreamMsg, respBody) {
+			upstreamDetail := s.openAIImagesUpstreamErrorDetail(respBody)
 			appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
 				Platform:           account.Platform,
 				AccountID:          account.ID,
@@ -651,13 +681,16 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 				UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
 				Kind:               "failover",
 				Message:            upstreamMsg,
+				Detail:             upstreamDetail,
 			})
 			shouldDisable := s.handleFailoverSideEffects(upstreamCtx, resp, account, respBody, upstreamModel)
-			return nil, &UpstreamFailoverError{
-				StatusCode:             resp.StatusCode,
-				ResponseBody:           respBody,
-				RetryableOnSameAccount: !shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
-			}
+			return nil, newOpenAIUpstreamFailoverError(
+				resp.StatusCode,
+				resp.Header,
+				respBody,
+				upstreamMsg,
+				!shouldDisable && account.IsPoolMode() && account.IsPoolModeRetryableStatus(resp.StatusCode),
+			)
 		}
 		return s.handleOpenAIImagesErrorResponse(upstreamCtx, resp, c, account, upstreamModel)
 	}
@@ -806,6 +839,54 @@ func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]
 		return nil, "", fmt.Errorf("rewrite image request model: %w", err)
 	}
 	return rewritten, contentType, nil
+}
+
+func buildDoubaoImagesRequestBody(parsed *OpenAIImagesRequest, model string) ([]byte, string, error) {
+	if parsed == nil {
+		return nil, "", fmt.Errorf("parsed images request is required")
+	}
+
+	payload := map[string]any{
+		"model":  strings.TrimSpace(model),
+		"prompt": parsed.Prompt,
+	}
+	if parsed.Size != "" {
+		payload["size"] = parsed.Size
+	}
+	if parsed.ResponseFormat != "" {
+		payload["response_format"] = parsed.ResponseFormat
+	}
+	if parsed.Stream {
+		payload["stream"] = true
+	}
+
+	images := make([]string, 0, len(parsed.InputImageURLs)+len(parsed.Uploads))
+	for _, imageURL := range parsed.InputImageURLs {
+		if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
+			images = append(images, imageURL)
+		}
+	}
+	for _, upload := range parsed.Uploads {
+		if dataURL := upload.ModerationDataURL(); dataURL != "" {
+			images = append(images, dataURL)
+		}
+	}
+	if len(images) > 0 {
+		payload["image"] = images
+	}
+
+	if parsed.N > 1 {
+		payload["sequential_image_generation"] = "auto"
+		payload["sequential_image_generation_options"] = map[string]any{
+			"max_images": parsed.N,
+		}
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, "", fmt.Errorf("build doubao image request: %w", err)
+	}
+	return body, "application/json", nil
 }
 
 func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model string) ([]byte, string, error) {

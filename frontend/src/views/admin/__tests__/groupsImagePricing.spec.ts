@@ -20,6 +20,11 @@ describe("groups image pricing platform support", () => {
     expect(imagePricingPlatforms.has("grok")).toBe(true);
   });
 
+  it("includes Doubao image groups", () => {
+    expect(supportsImagePricingPlatform("doubao")).toBe(true);
+    expect(imagePricingPlatforms.has("doubao")).toBe(true);
+  });
+
   it("enables video pricing controls for Grok and PP video platforms", () => {
     expect(supportsVideoPricingPlatform("grok")).toBe(true);
     expect(supportsVideoPricingPlatform("kling")).toBe(true);

@@ -25,6 +25,22 @@ func TestJimengAPIKeyAccountIsOpenAICompatible(t *testing.T) {
 	require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityEmbeddings))
 }
 
+func TestDoubaoAPIKeyAccountSupportsOpenAIImages(t *testing.T) {
+	account := &Account{
+		Platform: PlatformDoubao,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+			"api_key":  "ark-secret",
+		},
+	}
+
+	require.True(t, account.IsOpenAICompatible())
+	require.Equal(t, "https://ark.cn-beijing.volces.com/api/v3", account.GetOpenAIBaseURL())
+	require.Equal(t, "ark-secret", account.GetOpenAIApiKey())
+	require.True(t, account.SupportsOpenAIImageCapability(OpenAIImagesCapabilityNative))
+}
+
 func TestBuildUpstreamModelsRequestSupportsJimengPreviewCredentials(t *testing.T) {
 	svc := &AccountTestService{cfg: upstreamModelSyncTestConfig()}
 

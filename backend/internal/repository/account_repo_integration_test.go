@@ -25,10 +25,16 @@ type AccountRepoSuite struct {
 }
 
 type schedulerCacheRecorder struct {
-	setAccounts []*service.Account
-	deleteIDs   []int64
-	accounts    map[int64]*service.Account
-	setCtxErr   error
+	setAccounts    []*service.Account
+	snapshotWrites []schedulerSnapshotWrite
+	deleteIDs      []int64
+	accounts       map[int64]*service.Account
+	setCtxErr      error
+}
+
+type schedulerSnapshotWrite struct {
+	bucket   service.SchedulerBucket
+	accounts []service.Account
 }
 
 func (s *schedulerCacheRecorder) GetSnapshot(ctx context.Context, bucket service.SchedulerBucket) ([]*service.Account, bool, error) {
@@ -40,6 +46,10 @@ func (s *schedulerCacheRecorder) CaptureBucketWriteToken(ctx context.Context, bu
 }
 
 func (s *schedulerCacheRecorder) SetSnapshot(ctx context.Context, bucket service.SchedulerBucket, token service.SchedulerBucketWriteToken, accounts []service.Account) error {
+	s.snapshotWrites = append(s.snapshotWrites, schedulerSnapshotWrite{
+		bucket:   bucket,
+		accounts: append([]service.Account(nil), accounts...),
+	})
 	return nil
 }
 
@@ -721,6 +731,39 @@ func (s *AccountRepoSuite) TestBindGroups_EmptyList() {
 	groups, err := s.repo.GetGroups(s.ctx, account.ID)
 	s.Require().NoError(err)
 	s.Require().Empty(groups, "expected 0 groups after binding empty list")
+}
+
+func (s *AccountRepoSuite) TestBindGroups_RebuildsSchedulerGroupSnapshots() {
+	group := mustCreateGroup(s.T(), s.client, &service.Group{Name: "g-snapshot"})
+	account := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:     "acc-snapshot",
+		Platform: service.PlatformOpenAI,
+	})
+	cacheRecorder := &schedulerCacheRecorder{}
+	s.repo.schedulerCache = cacheRecorder
+
+	s.Require().NoError(s.repo.BindGroups(s.ctx, account.ID, []int64{group.ID}))
+	s.Require().Len(cacheRecorder.setAccounts, 1)
+	s.Require().Equal(account.ID, cacheRecorder.setAccounts[0].ID)
+	s.Require().Equal([]int64{group.ID}, cacheRecorder.setAccounts[0].GroupIDs)
+	s.Require().Len(cacheRecorder.snapshotWrites, 2)
+	for _, write := range cacheRecorder.snapshotWrites {
+		s.Require().Equal(group.ID, write.bucket.GroupID)
+		s.Require().Equal(service.PlatformOpenAI, write.bucket.Platform)
+		s.Require().Contains([]string{service.SchedulerModeSingle, service.SchedulerModeForced}, write.bucket.Mode)
+		s.Require().Len(write.accounts, 1)
+		s.Require().Equal(account.ID, write.accounts[0].ID)
+	}
+
+	s.Require().NoError(s.repo.BindGroups(s.ctx, account.ID, []int64{}))
+	s.Require().Len(cacheRecorder.setAccounts, 2)
+	s.Require().Equal(account.ID, cacheRecorder.setAccounts[1].ID)
+	s.Require().Empty(cacheRecorder.setAccounts[1].GroupIDs)
+	s.Require().Len(cacheRecorder.snapshotWrites, 4)
+	for _, write := range cacheRecorder.snapshotWrites[2:] {
+		s.Require().Equal(group.ID, write.bucket.GroupID)
+		s.Require().Empty(write.accounts)
+	}
 }
 
 // --- Schedulable ---

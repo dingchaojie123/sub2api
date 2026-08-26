@@ -201,3 +201,34 @@ func TestClassifyNoAccountError_FromGin_NilContextStillSafe(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, cls.Status, "even with a nil gin context the classifier must still run and yield a coherent response")
 	require.True(t, cls.ModelNotFound)
 }
+
+func TestOpenAIImagesNoAccountMessage(t *testing.T) {
+	t.Run("includes safe scheduler details", func(t *testing.T) {
+		err := fmt.Errorf(
+			"no available OpenAI accounts for model gpt-image-2 (pool=1, filtered: channel_upstream_restricted=1): %w",
+			service.ErrNoAvailableAccounts,
+		)
+
+		message := openAIImagesNoAccountMessage(noAccountErrorClassification{}, err)
+
+		require.Equal(t, "No available compatible accounts: "+err.Error(), message)
+	})
+
+	t.Run("does not expose unexpected internal errors", func(t *testing.T) {
+		message := openAIImagesNoAccountMessage(
+			noAccountErrorClassification{},
+			fmt.Errorf("database connection refused: password=secret"),
+		)
+
+		require.Equal(t, "No available compatible accounts", message)
+	})
+
+	t.Run("keeps model-not-found response", func(t *testing.T) {
+		cls := noAccountErrorClassification{
+			Message:       `Model "gpt-image-2" is not supported`,
+			ModelNotFound: true,
+		}
+
+		require.Equal(t, cls.Message, openAIImagesNoAccountMessage(cls, service.ErrNoAvailableAccounts))
+	})
+}

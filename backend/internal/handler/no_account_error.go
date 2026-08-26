@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -135,4 +136,20 @@ func openAICompatibleSelectionErrorForLog(err error, platform string) error {
 		return err
 	}
 	return fmt.Errorf("%s", message)
+}
+
+func openAIImagesNoAccountMessage(cls noAccountErrorClassification, err error) string {
+	if cls.ModelNotFound {
+		return cls.Message
+	}
+
+	const generic = "No available compatible accounts"
+	if err == nil || !errors.Is(err, service.ErrNoAvailableAccounts) {
+		return generic
+	}
+	details := strings.TrimSpace(err.Error())
+	if details == "" {
+		return generic
+	}
+	return generic + ": " + details
 }

@@ -1309,7 +1309,7 @@ func (a *Account) GetOpenAIBaseURL() string {
 		}
 		return a.GetCredential("base_url")
 	}
-	if a.IsJimeng() {
+	if a.IsOpenAICompatible() && !a.IsGrok() && !a.IsOpenAI() {
 		if a.Type != AccountTypeAPIKey {
 			return ""
 		}
@@ -1412,7 +1412,7 @@ func (a *Account) GetOpenAIApiKey() string {
 	if a == nil || a.Type != AccountTypeAPIKey {
 		return ""
 	}
-	if !a.IsOpenAI() && !a.IsJimeng() && !IsPPVideoPlatform(a.Platform) {
+	if !a.IsOpenAI() && !a.IsOpenAICompatible() && !IsPPVideoPlatform(a.Platform) {
 		return ""
 	}
 	return a.GetCredential("api_key")
@@ -1635,7 +1635,7 @@ func (a *Account) SupportsOpenAIImageCapability(capability OpenAIImagesCapabilit
 	if capability == "" {
 		return true
 	}
-	if !a.IsOpenAI() {
+	if a == nil || !a.IsOpenAICompatible() || a.IsGrok() {
 		return false
 	}
 	switch capability {
