@@ -115,7 +115,7 @@ export default {
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
         invitationCode: '邀请码注册',
-        invitationCodeHint: '开启后，用户注册时需要填写有效的邀请码',
+        invitationCodeHint: '开启后，注册页显示可选邀请码；用户填写有效邀请人代码时会绑定邀请关系',
         passwordReset: '忘记密码',
         passwordResetHint: '允许用户通过邮箱重置密码',
         frontendUrl: '前端地址',

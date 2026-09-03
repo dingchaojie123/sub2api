@@ -688,14 +688,13 @@ func buildDingTalkAuthorizeURL(cfg config.DingTalkConnectConfig, state string) (
 // ─── Complete Registration ─────────────────────────────────────────────────
 
 type completeDingTalkOAuthRequest struct {
-	InvitationCode   string `json:"invitation_code" binding:"required"`
+	InvitationCode   string `json:"invitation_code,omitempty"`
 	AffCode          string `json:"aff_code,omitempty"`
 	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
 	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
 
-// CompleteDingTalkOAuthRegistration completes a pending OAuth registration by validating
-// the invitation code and creating the user account.
+// CompleteDingTalkOAuthRegistration completes a pending OAuth registration.
 // POST /api/v1/auth/oauth/dingtalk/complete-registration
 func (h *AuthHandler) CompleteDingTalkOAuthRegistration(c *gin.Context) {
 	var req completeDingTalkOAuthRequest

@@ -64,6 +64,7 @@ func TestSettleJimengVideoTaskSucceededCapturesHoldAndAccountsWithoutBalanceDedu
 	require.Equal(t, 1, logRepo.calls)
 	require.NotNil(t, logRepo.lastLog)
 	require.Equal(t, "task_success", logRepo.lastLog.RequestID)
+	require.InDelta(t, 2.5, logRepo.lastLog.OutputCost, 1e-12)
 	require.InDelta(t, 2.5, logRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, 5, logRepo.lastLog.ActualCost, 1e-12)
 	require.InDelta(t, 2, logRepo.lastLog.RateMultiplier, 1e-12)

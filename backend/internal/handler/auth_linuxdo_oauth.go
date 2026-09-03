@@ -499,14 +499,13 @@ func (h *AuthHandler) createLinuxDoOAuthChoicePendingSession(
 }
 
 type completeLinuxDoOAuthRequest struct {
-	InvitationCode   string `json:"invitation_code" binding:"required"`
+	InvitationCode   string `json:"invitation_code,omitempty"`
 	AffCode          string `json:"aff_code,omitempty"`
 	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
 	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
 
-// CompleteLinuxDoOAuthRegistration completes a pending OAuth registration by validating
-// the invitation code and creating the user account.
+// CompleteLinuxDoOAuthRegistration completes a pending OAuth registration.
 // POST /api/v1/auth/oauth/linuxdo/complete-registration
 func (h *AuthHandler) CompleteLinuxDoOAuthRegistration(c *gin.Context) {
 	var req completeLinuxDoOAuthRequest

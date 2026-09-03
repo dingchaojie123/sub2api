@@ -40,6 +40,7 @@ const (
 	openAIImageMaxDownloadBytes    = 20 << 20 // 20MB per image download
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
+	doubaoSeedreamMinPixels        = int64(3686400)
 )
 
 type OpenAIImagesCapability string
@@ -609,6 +610,14 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	if err := validateOpenAIImagesModel(upstreamModel); err != nil {
 		return nil, err
 	}
+	resultImageSize := parsed.Size
+	resultImageSizeTier := parsed.SizeTier
+	if account.Platform == PlatformDoubao {
+		if normalizedSize := normalizeDoubaoImagesSize(parsed.Size); normalizedSize != "" {
+			resultImageSize = normalizedSize
+			resultImageSizeTier = NormalizeImageBillingTierOrDefault(normalizedSize)
+		}
+	}
 	logger.LegacyPrintf(
 		"service.openai_gateway",
 		"[OpenAI] Images request routing request_model=%s upstream_model=%s endpoint=%s account_type=%s",
@@ -713,8 +722,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 					Duration:         time.Since(startTime),
 					FirstTokenMs:     ttft,
 					ImageCount:       streamCount,
-					ImageSize:        parsed.SizeTier,
-					ImageInputSize:   parsed.Size,
+					ImageSize:        resultImageSizeTier,
+					ImageInputSize:   resultImageSize,
 					ImageOutputSizes: streamSizes,
 				}, err
 			}
@@ -734,8 +743,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Duration:         time.Since(startTime),
 			FirstTokenMs:     firstTokenMs,
 			ImageCount:       imageCount,
-			ImageSize:        parsed.SizeTier,
-			ImageInputSize:   parsed.Size,
+			ImageSize:        resultImageSizeTier,
+			ImageInputSize:   resultImageSize,
 			ImageOutputSizes: imageOutputSizes,
 		}, nil
 	} else {
@@ -757,8 +766,8 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			Duration:         time.Since(startTime),
 			FirstTokenMs:     firstTokenMs,
 			ImageCount:       imageCount,
-			ImageSize:        parsed.SizeTier,
-			ImageInputSize:   parsed.Size,
+			ImageSize:        resultImageSizeTier,
+			ImageInputSize:   resultImageSize,
 			ImageOutputSizes: nonStreamSizes,
 		}, nil
 	}
@@ -850,8 +859,8 @@ func buildDoubaoImagesRequestBody(parsed *OpenAIImagesRequest, model string) ([]
 		"model":  strings.TrimSpace(model),
 		"prompt": parsed.Prompt,
 	}
-	if parsed.Size != "" {
-		payload["size"] = parsed.Size
+	if size := normalizeDoubaoImagesSize(parsed.Size); size != "" {
+		payload["size"] = size
 	}
 	if parsed.ResponseFormat != "" {
 		payload["response_format"] = parsed.ResponseFormat
@@ -887,6 +896,29 @@ func buildDoubaoImagesRequestBody(parsed *OpenAIImagesRequest, model string) ([]
 		return nil, "", fmt.Errorf("build doubao image request: %w", err)
 	}
 	return body, "application/json", nil
+}
+
+func normalizeDoubaoImagesSize(size string) string {
+	trimmed := strings.TrimSpace(size)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.EqualFold(trimmed, ImageBillingSize1K) {
+		return ImageBillingSize2K
+	}
+	width, height, ok := parseImageBillingDimensions(trimmed)
+	if !ok {
+		return trimmed
+	}
+	w := int64(width)
+	h := int64(height)
+	if w <= 0 || h <= 0 {
+		return trimmed
+	}
+	if w < (doubaoSeedreamMinPixels+h-1)/h {
+		return ImageBillingSize2K
+	}
+	return trimmed
 }
 
 func rewriteOpenAIImagesMultipartModel(body []byte, contentType string, model string) ([]byte, string, error) {

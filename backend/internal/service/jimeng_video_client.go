@@ -71,8 +71,12 @@ func (c *JimengVideoClient) CreateGeneration(ctx context.Context, input JimengVi
 	if strings.TrimSpace(input.Model) != "" {
 		payload["model"] = strings.TrimSpace(input.Model)
 	}
-	if strings.TrimSpace(input.Prompt) != "" {
-		payload["prompt"] = strings.TrimSpace(input.Prompt)
+	prompt := strings.TrimSpace(input.Prompt)
+	if err := validateVideoPromptFieldLength("Jimeng", "prompt", prompt, jimengVideoPromptMaxRunes); err != nil {
+		return nil, err
+	}
+	if prompt != "" {
+		payload["prompt"] = prompt
 	}
 	if strings.TrimSpace(input.Image) != "" {
 		payload["image"] = strings.TrimSpace(input.Image)

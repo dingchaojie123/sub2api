@@ -158,11 +158,8 @@ func (s *AuthService) createEmailOAuthUser(ctx context.Context, email, username,
 	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return nil, ErrRegDisabled
 	}
-	invitationRedeemCode, err := s.validateOAuthRegistrationInvitation(ctx, invitationCode)
+	invitationRedeemCode, invitationAffiliateCode, err := s.resolveOptionalSignupInvitation(ctx, invitationCode)
 	if err != nil {
-		if errors.Is(err, ErrInvitationCodeRequired) {
-			return nil, ErrOAuthInvitationRequired
-		}
 		return nil, err
 	}
 
@@ -204,7 +201,7 @@ func (s *AuthService) createEmailOAuthUser(ctx context.Context, email, username,
 	s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 	// snapshot user × platform quota（fail-open）
 	_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
-	s.bindOAuthAffiliate(ctx, user.ID, affiliateCode)
+	s.bindSignupAffiliate(ctx, user.ID, invitationAffiliateCode, affiliateCode)
 	if invitationRedeemCode != nil {
 		if err := s.useOAuthRegistrationInvitation(ctx, invitationRedeemCode.ID, user.ID); err != nil {
 			_ = s.RollbackOAuthEmailAccountCreation(ctx, user.ID, invitationCode)

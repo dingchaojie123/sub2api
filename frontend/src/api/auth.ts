@@ -558,12 +558,12 @@ export async function resetPassword(request: ResetPasswordRequest): Promise<Rese
 }
 
 /**
- * Complete LinuxDo OAuth registration by supplying an invitation code
- * @param invitationCode - Invitation code entered by the user
+ * Complete LinuxDo OAuth registration.
+ * @param invitationCode - Optional invitation code entered by the user
  * @returns Token pair on success
  */
 export async function completeLinuxDoOAuthRegistration(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<OAuthTokenResponse> {
@@ -571,12 +571,12 @@ export async function completeLinuxDoOAuthRegistration(
 }
 
 /**
- * Complete OIDC OAuth registration by supplying an invitation code
- * @param invitationCode - Invitation code entered by the user
+ * Complete OIDC OAuth registration.
+ * @param invitationCode - Optional invitation code entered by the user
  * @returns Token pair on success
  */
 export async function completeOIDCOAuthRegistration(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<OAuthTokenResponse> {
@@ -584,7 +584,7 @@ export async function completeOIDCOAuthRegistration(
 }
 
 export async function completeWeChatOAuthRegistration(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<OAuthTokenResponse> {
@@ -593,15 +593,16 @@ export async function completeWeChatOAuthRegistration(
 
 async function createPendingOAuthAccount(
   provider: 'linuxdo' | 'oidc' | 'wechat' | 'dingtalk',
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {
+  const normalizedInvitationCode = invitationCode?.trim()
   const normalizedAffiliateCode = affiliateCode?.trim()
   const { data } = await apiClient.post<PendingOAuthCreateAccountResponse>(
     `/auth/oauth/${provider}/complete-registration`,
     {
-      invitation_code: invitationCode,
+      ...(normalizedInvitationCode ? { invitation_code: normalizedInvitationCode } : {}),
       ...(normalizedAffiliateCode ? { aff_code: normalizedAffiliateCode } : {}),
       ...serializeOAuthAdoptionDecision(decision)
     }
@@ -610,7 +611,7 @@ async function createPendingOAuthAccount(
 }
 
 export async function createPendingLinuxDoOAuthAccount(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {
@@ -618,7 +619,7 @@ export async function createPendingLinuxDoOAuthAccount(
 }
 
 export async function createPendingOIDCOAuthAccount(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {
@@ -626,7 +627,7 @@ export async function createPendingOIDCOAuthAccount(
 }
 
 export async function createPendingWeChatOAuthAccount(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {
@@ -634,7 +635,7 @@ export async function createPendingWeChatOAuthAccount(
 }
 
 export async function createPendingDingTalkOAuthAccount(
-  invitationCode: string,
+  invitationCode?: string,
   decision?: OAuthAdoptionDecision,
   affiliateCode?: string
 ): Promise<PendingOAuthCreateAccountResponse> {

@@ -267,6 +267,25 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 }
 
 func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, rawCode string) error {
+	return s.bindInviterByCode(ctx, userID, rawCode, true)
+}
+
+func (s *AffiliateService) BindInviterByInvitationCode(ctx context.Context, userID int64, rawCode string) error {
+	return s.bindInviterByCode(ctx, userID, rawCode, false)
+}
+
+func (s *AffiliateService) ValidateSignupInvitationCode(ctx context.Context, rawCode string) error {
+	inviterSummary, err := s.resolveInviterByCode(ctx, rawCode, false)
+	if err != nil {
+		return err
+	}
+	if inviterSummary == nil {
+		return ErrAffiliateCodeInvalid
+	}
+	return nil
+}
+
+func (s *AffiliateService) bindInviterByCode(ctx context.Context, userID int64, rawCode string, respectFeatureFlag bool) error {
 	code := strings.ToUpper(strings.TrimSpace(rawCode))
 	if code == "" {
 		return nil
@@ -275,13 +294,12 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 		return infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
 	}
 	// 总开关关闭时，注册阶段静默忽略 aff 参数（不报错，避免阻断注册流程）
-	if !s.IsEnabled(ctx) {
+	if respectFeatureFlag && !s.IsEnabled(ctx) {
 		return nil
 	}
 	if !isValidAffiliateCodeFormat(code) {
 		return ErrAffiliateCodeInvalid
 	}
-
 	selfSummary, err := s.repo.EnsureUserAffiliate(ctx, userID)
 	if err != nil {
 		return err
@@ -290,14 +308,14 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 		return nil
 	}
 
-	inviterSummary, err := s.repo.GetAffiliateByCode(ctx, code)
+	inviterSummary, err := s.resolveInviterByCode(ctx, code, respectFeatureFlag)
 	if err != nil {
-		if errors.Is(err, ErrAffiliateProfileNotFound) {
-			return ErrAffiliateCodeInvalid
-		}
 		return err
 	}
-	if inviterSummary == nil || inviterSummary.UserID <= 0 || inviterSummary.UserID == userID {
+	if inviterSummary == nil {
+		return nil
+	}
+	if inviterSummary.UserID == userID {
 		return ErrAffiliateCodeInvalid
 	}
 
@@ -309,6 +327,35 @@ func (s *AffiliateService) BindInviterByCode(ctx context.Context, userID int64, 
 		return ErrAffiliateAlreadyBound
 	}
 	return nil
+}
+
+func (s *AffiliateService) resolveInviterByCode(ctx context.Context, rawCode string, respectFeatureFlag bool) (*AffiliateSummary, error) {
+	code := strings.ToUpper(strings.TrimSpace(rawCode))
+	if code == "" {
+		return nil, nil
+	}
+	if s == nil || s.repo == nil {
+		return nil, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	// aff_code URL 参数仍受邀请返利总开关控制；手填邀请码由邀请码注册开关控制。
+	if respectFeatureFlag && !s.IsEnabled(ctx) {
+		return nil, nil
+	}
+	if !isValidAffiliateCodeFormat(code) {
+		return nil, ErrAffiliateCodeInvalid
+	}
+
+	inviterSummary, err := s.repo.GetAffiliateByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, ErrAffiliateProfileNotFound) {
+			return nil, ErrAffiliateCodeInvalid
+		}
+		return nil, err
+	}
+	if inviterSummary == nil || inviterSummary.UserID <= 0 {
+		return nil, ErrAffiliateCodeInvalid
+	}
+	return inviterSummary, nil
 }
 
 func (s *AffiliateService) AccrueInviteRebate(ctx context.Context, inviteeUserID int64, baseRechargeAmount float64) (float64, error) {

@@ -78,7 +78,7 @@ const TextAreaStub = defineComponent({
   `
 })
 
-function buildAccount() {
+function buildAccount(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
     name: 'OpenAI OAuth',
@@ -90,7 +90,8 @@ function buildAccount() {
     concurrency: 1,
     priority: 1,
     proxy_id: null,
-    auto_pause_on_expired: false
+    auto_pause_on_expired: false,
+    ...overrides
   } as any
 }
 
@@ -188,5 +189,46 @@ describe('AccountTestModal', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('已通过 /v1/chat/completions 验证')
+  })
+
+  it('treats Doubao Seedream models as image tests', async () => {
+    getAvailableModelsMock.mockResolvedValueOnce([
+      { id: 'doubao-seedream-5-0-260128', display_name: 'Seedream' }
+    ])
+
+    const wrapper = mount(AccountTestModal, {
+      props: {
+        show: true,
+        account: buildAccount({
+          name: 'doubao-seedream-pp',
+          platform: 'doubao',
+          type: 'apikey'
+        })
+      },
+      global: {
+        stubs: {
+          BaseDialog: BaseDialogStub,
+          Select: SelectStub,
+          TextArea: TextAreaStub,
+          Icon: true
+        }
+      }
+    })
+
+    await flushPromises()
+    ;(wrapper.vm as any).selectedModelId = 'doubao-seedream-5-0-260128'
+    await flushPromises()
+    expect(wrapper.find('textarea').exists()).toBe(true)
+    ;(wrapper.vm as any).testPrompt = 'draw a cat'
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [, options] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(options.body)).toMatchObject({
+      model_id: 'doubao-seedream-5-0-260128',
+      prompt: 'draw a cat',
+      mode: 'default'
+    })
   })
 })

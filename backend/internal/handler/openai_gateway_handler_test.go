@@ -171,6 +171,16 @@ func TestOpenAIResponsesRequiredCapability(t *testing.T) {
 	}
 }
 
+func TestOpenAIResponsesSupportsImageGenerationPlatform(t *testing.T) {
+	require.True(t, openAIResponsesSupportsImageGenerationPlatform(service.PlatformOpenAI))
+	require.True(t, openAIResponsesSupportsImageGenerationPlatform(service.PlatformGrok))
+	require.False(t, openAIResponsesSupportsImageGenerationPlatform(service.PlatformDoubao))
+
+	msg := openAIResponsesUnsupportedImageGenerationPlatformMessage(service.PlatformDoubao)
+	require.Contains(t, msg, service.PlatformDoubao)
+	require.Contains(t, msg, "/v1/images/generations")
+}
+
 func TestResolveOpenAIMessagesMetadataSession_DoesNotDerivePromptCacheKey(t *testing.T) {
 	body := []byte(`{"model":"claude-sonnet-4-5","metadata":{"user_id":"claude-code-session"},"messages":[{"role":"user","content":"hello"}]}`)
 

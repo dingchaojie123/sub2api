@@ -101,6 +101,39 @@ func (r *openAIAccountTestRepo) SetError(_ context.Context, id int64, errorMsg s
 	return nil
 }
 
+func TestAccountTestService_DoubaoRoutesToOpenAIImageProbe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	account := &Account{
+		ID:          35,
+		Name:        "doubao-seedream-pp",
+		Platform:    PlatformDoubao,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "ark-key",
+			"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+	repo := &openAIAccountTestRepo{
+		mockAccountRepoForGemini: mockAccountRepoForGemini{
+			accountsByID: map[int64]*Account{35: account},
+		},
+	}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{
+		newJSONResponse(http.StatusOK, `{"data":[{"url":"https://example.test/cat.png"}]}`),
+	}}
+	svc := NewAccountTestService(repo, nil, nil, nil, nil, upstream, &config.Config{}, nil)
+
+	err := svc.TestAccountConnection(ctx, 35, "doubao-seedream-5-0-260128", "", "")
+
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/images/generations", upstream.requests[0].URL.String())
+	require.Contains(t, recorder.Body.String(), "\"success\":true")
+}
+
 func TestAccountTestService_OpenAISuccessPersistsSnapshotFromHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()

@@ -78,6 +78,114 @@ type userPlatformQuotaRepoStub struct {
 	bulkInsertErr   error
 }
 
+type authSignupAffiliateRepoStub struct {
+	summaries map[int64]*AffiliateSummary
+	codes     map[string]int64
+	bindCalls []struct {
+		userID    int64
+		inviterID int64
+	}
+}
+
+func (s *authSignupAffiliateRepoStub) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	if s.summaries == nil {
+		s.summaries = make(map[int64]*AffiliateSummary)
+	}
+	summary, ok := s.summaries[userID]
+	if !ok {
+		summary = &AffiliateSummary{UserID: userID, AffCode: "SELF"}
+		s.summaries[userID] = summary
+	}
+	cloned := *summary
+	return &cloned, nil
+}
+
+func (s *authSignupAffiliateRepoStub) GetAffiliateByCode(ctx context.Context, code string) (*AffiliateSummary, error) {
+	if s.codes == nil {
+		return nil, ErrAffiliateProfileNotFound
+	}
+	userID, ok := s.codes[code]
+	if !ok {
+		return nil, ErrAffiliateProfileNotFound
+	}
+	return s.EnsureUserAffiliate(ctx, userID)
+}
+
+func (s *authSignupAffiliateRepoStub) BindInviter(ctx context.Context, userID, inviterID int64) (bool, error) {
+	if _, err := s.EnsureUserAffiliate(ctx, userID); err != nil {
+		return false, err
+	}
+	if _, err := s.EnsureUserAffiliate(ctx, inviterID); err != nil {
+		return false, err
+	}
+	if s.summaries[userID].InviterID != nil {
+		return false, nil
+	}
+	inviterIDCopy := inviterID
+	s.summaries[userID].InviterID = &inviterIDCopy
+	s.bindCalls = append(s.bindCalls, struct {
+		userID    int64
+		inviterID int64
+	}{userID: userID, inviterID: inviterID})
+	return true, nil
+}
+
+func (s *authSignupAffiliateRepoStub) AccrueQuota(context.Context, int64, int64, float64, int, *int64) (bool, error) {
+	panic("unexpected AccrueQuota call")
+}
+
+func (s *authSignupAffiliateRepoStub) GetAccruedRebateFromInvitee(context.Context, int64, int64) (float64, error) {
+	panic("unexpected GetAccruedRebateFromInvitee call")
+}
+
+func (s *authSignupAffiliateRepoStub) ThawFrozenQuota(context.Context, int64) (float64, error) {
+	panic("unexpected ThawFrozenQuota call")
+}
+
+func (s *authSignupAffiliateRepoStub) TransferQuotaToBalance(context.Context, int64) (float64, float64, error) {
+	panic("unexpected TransferQuotaToBalance call")
+}
+
+func (s *authSignupAffiliateRepoStub) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
+	panic("unexpected ListInvitees call")
+}
+
+func (s *authSignupAffiliateRepoStub) UpdateUserAffCode(context.Context, int64, string) error {
+	panic("unexpected UpdateUserAffCode call")
+}
+
+func (s *authSignupAffiliateRepoStub) ResetUserAffCode(context.Context, int64) (string, error) {
+	panic("unexpected ResetUserAffCode call")
+}
+
+func (s *authSignupAffiliateRepoStub) SetUserRebateRate(context.Context, int64, *float64) error {
+	panic("unexpected SetUserRebateRate call")
+}
+
+func (s *authSignupAffiliateRepoStub) BatchSetUserRebateRate(context.Context, []int64, *float64) error {
+	panic("unexpected BatchSetUserRebateRate call")
+}
+
+func (s *authSignupAffiliateRepoStub) ListUsersWithCustomSettings(context.Context, AffiliateAdminFilter) ([]AffiliateAdminEntry, int64, error) {
+	panic("unexpected ListUsersWithCustomSettings call")
+}
+
+func (s *authSignupAffiliateRepoStub) ListAffiliateInviteRecords(context.Context, AffiliateRecordFilter) ([]AffiliateInviteRecord, int64, error) {
+	panic("unexpected ListAffiliateInviteRecords call")
+}
+
+func (s *authSignupAffiliateRepoStub) ListAffiliateRebateRecords(context.Context, AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error) {
+	panic("unexpected ListAffiliateRebateRecords call")
+}
+
+func (s *authSignupAffiliateRepoStub) ListAffiliateTransferRecords(context.Context, AffiliateRecordFilter) ([]AffiliateTransferRecord, int64, error) {
+	panic("unexpected ListAffiliateTransferRecords call")
+}
+
+func (s *authSignupAffiliateRepoStub) GetAffiliateUserOverview(context.Context, int64) (*AffiliateUserOverview, error) {
+	panic("unexpected GetAffiliateUserOverview call")
+}
+
 func (s *userPlatformQuotaRepoStub) BulkInsertInitial(_ context.Context, records []UserPlatformQuotaRecord) error {
 	cloned := make([]UserPlatformQuotaRecord, len(records))
 	copy(cloned, records)
@@ -215,6 +323,10 @@ func (s *emailCacheStub) IncrNotifyCodeUserRate(ctx context.Context, userID int6
 }
 
 func newAuthService(repo *userRepoStub, settings map[string]string, emailCache EmailCache, quotaRepo UserPlatformQuotaRepository) *AuthService {
+	return newAuthServiceWithAffiliate(repo, settings, emailCache, quotaRepo, nil)
+}
+
+func newAuthServiceWithAffiliate(repo *userRepoStub, settings map[string]string, emailCache EmailCache, quotaRepo UserPlatformQuotaRepository, affiliateService *AffiliateService) *AuthService {
 	cfg := &config.Config{
 		JWT: config.JWTConfig{
 			Secret:     "test-secret",
@@ -248,7 +360,7 @@ func newAuthService(repo *userRepoStub, settings map[string]string, emailCache E
 		nil,
 		nil, // promoService
 		nil, // defaultSubAssigner
-		nil, // affiliateService
+		affiliateService,
 		quotaRepo,
 	)
 }
@@ -338,6 +450,51 @@ func TestAuthService_Register_EmailVerifyRequired(t *testing.T) {
 
 	_, _, err := service.RegisterWithVerification(context.Background(), "user@test.com", "password", "", "", "", "")
 	require.ErrorIs(t, err, ErrEmailVerifyRequired)
+}
+
+func TestAuthService_Register_InvitationEnabledDoesNotRequireCode(t *testing.T) {
+	repo := &userRepoStub{nextID: 9}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled:   "true",
+		SettingKeyInvitationCodeEnabled: "true",
+	}, nil, nil)
+
+	_, user, err := service.RegisterWithVerification(context.Background(), "optional-invite@test.com", "password", "", "", "", "")
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	require.Equal(t, int64(9), user.ID)
+}
+
+func TestAuthService_Register_InvitationCodeBindsInviter(t *testing.T) {
+	repo := &userRepoStub{nextID: 42}
+	settings := map[string]string{
+		SettingKeyRegistrationEnabled:   "true",
+		SettingKeyInvitationCodeEnabled: "true",
+		SettingKeyAffiliateEnabled:      "false",
+	}
+	cfg := &config.Config{}
+	settingService := NewSettingService(&settingRepoStub{values: settings}, cfg)
+	affiliateRepo := &authSignupAffiliateRepoStub{
+		summaries: map[int64]*AffiliateSummary{
+			7: {UserID: 7, AffCode: "INVITE2026"},
+		},
+		codes: map[string]int64{
+			"INVITE2026": 7,
+		},
+	}
+	affiliateService := NewAffiliateService(affiliateRepo, settingService, nil, nil)
+	service := newAuthServiceWithAffiliate(repo, settings, nil, nil, affiliateService)
+
+	_, user, err := service.RegisterWithVerification(context.Background(), "invited@test.com", "password", "", "", " invite2026 ", "")
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	require.Equal(t, []struct {
+		userID    int64
+		inviterID int64
+	}{{userID: 42, inviterID: 7}}, affiliateRepo.bindCalls)
+	require.NotNil(t, affiliateRepo.summaries[42].InviterID)
+	require.Equal(t, int64(7), *affiliateRepo.summaries[42].InviterID)
 }
 
 func TestAuthService_Register_EmailVerifyInvalid(t *testing.T) {

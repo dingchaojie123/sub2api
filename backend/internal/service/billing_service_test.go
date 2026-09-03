@@ -948,6 +948,7 @@ func TestCalculateVideoCostUsesSeparateConfig(t *testing.T) {
 
 	require.InDelta(t, 0.4, imageCost.TotalCost, 1e-10)
 	require.InDelta(t, 0.8, videoCost.TotalCost, 1e-10)
+	require.InDelta(t, 0.8, videoCost.OutputCost, 1e-10)
 	require.InDelta(t, 0.4, videoCost.ActualCost, 1e-10)
 	require.Equal(t, string(BillingModeVideo), videoCost.BillingMode)
 }
@@ -962,6 +963,7 @@ func TestCalculateVideoCostBillsPerSecond(t *testing.T) {
 	clampedDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 999, nil, 1.0)
 
 	require.InDelta(t, 0.07, oneSecond.TotalCost, 1e-10)
+	require.InDelta(t, 0.07, oneSecond.OutputCost, 1e-10)
 	require.InDelta(t, 0.07*15, fifteenSeconds.TotalCost, 1e-10)
 	require.InDelta(t, 0.07*8, defaultDuration.TotalCost, 1e-10)
 	require.InDelta(t, 0.07*15, clampedDuration.TotalCost, 1e-10)
@@ -976,6 +978,7 @@ func TestCalculateJimengVideoCostBillsPerSecond(t *testing.T) {
 
 	require.InDelta(t, 2.5, fiveSeconds.TotalCost, 1e-10)
 	require.InDelta(t, 5.0, tenSeconds.TotalCost, 1e-10)
+	require.InDelta(t, 5.0, tenSeconds.OutputCost, 1e-10)
 	require.InDelta(t, 7.5, fifteenSeconds.TotalCost, 1e-10)
 	require.Equal(t, string(BillingModeVideo), tenSeconds.BillingMode)
 }

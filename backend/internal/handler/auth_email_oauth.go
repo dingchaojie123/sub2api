@@ -297,13 +297,8 @@ func (h *AuthHandler) createEmailOAuthRegistrationPendingSession(
 		}
 	}
 
-	invitationRequired := h != nil && h.settingSvc != nil && h.settingSvc.IsInvitationCodeEnabled(c.Request.Context())
 	pendingError := "registration_completion_required"
 	choiceReason := "registration_completion_required"
-	if invitationRequired {
-		pendingError = "invitation_required"
-		choiceReason = "invitation_required"
-	}
 	completionResponse := map[string]any{
 		"step":                      oauthPendingChoiceStep,
 		"error":                     pendingError,
@@ -312,7 +307,7 @@ func (h *AuthHandler) createEmailOAuthRegistrationPendingSession(
 		"create_account_allowed":    true,
 		"existing_account_bindable": false,
 		"force_email_on_signup":     true,
-		"invitation_required":       invitationRequired,
+		"invitation_required":       false,
 		"email":                     email,
 		"resolved_email":            email,
 		"provider":                  provider,

@@ -50,7 +50,7 @@ func (s *SettingService) IsPromoCodeEnabled(ctx context.Context) bool {
 	return value != "false"
 }
 
-// IsInvitationCodeEnabled 检查是否启用邀请码注册功能
+// IsInvitationCodeEnabled 检查是否启用注册页可选邀请码入口
 func (s *SettingService) IsInvitationCodeEnabled(ctx context.Context) bool {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyInvitationCodeEnabled)
 	if err != nil {

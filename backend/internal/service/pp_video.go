@@ -31,6 +31,8 @@ const (
 	ppVideoHappyHorseImageDefaultModel = "happyhorse-1.0-i2v"
 	ppVideoKlingDefaultModel           = "kling-v3"
 	ppVideoPublicResponseObject        = "video.generation.task"
+	ppVideoKlingPromptMaxRunes         = 2500
+	ppVideoSeedancePromptMaxRunes      = 2000
 )
 
 type PPVideoOperation string
@@ -138,6 +140,9 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 			return nil, PPVideoPublicRequest{}, err
 		}
 	case PlatformSeedance:
+		if err := validateVideoPromptFieldLength("Seedance", "prompt", public.Prompt, ppVideoSeedancePromptMaxRunes); err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 		if err := normalizePPVideoSeedanceMediaFields(payload, body); err != nil {
 			return nil, PPVideoPublicRequest{}, err
 		}
@@ -175,8 +180,8 @@ func normalizePPVideoKlingPayload(payload map[string]any, operation PPVideoOpera
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(public.Prompt) != "" && strings.TrimSpace(extractPPVideoText(body, "prompt")) == "" {
-		payload["prompt"] = public.Prompt
+	if err := normalizePPVideoKlingPromptFields(payload, body, public); err != nil {
+		return err
 	}
 
 	payload["model_name"] = public.UpstreamModel
@@ -212,6 +217,34 @@ func normalizePPVideoKlingPayload(payload map[string]any, operation PPVideoOpera
 
 	ppVideoKeepOnlyKlingSupportedFields(payload, operation)
 	return nil
+}
+
+func normalizePPVideoKlingPromptFields(payload map[string]any, body []byte, public *PPVideoPublicRequest) error {
+	prompt := strings.TrimSpace(public.Prompt)
+	if err := validatePPVideoKlingTextLength("prompt", prompt); err != nil {
+		return err
+	}
+	if prompt != "" {
+		payload["prompt"] = prompt
+		public.Prompt = prompt
+	} else if raw, ok := payload["prompt"].(string); ok {
+		payload["prompt"] = strings.TrimSpace(raw)
+	}
+
+	negativePrompt := extractPPVideoText(body, "negative_prompt", "data.negative_prompt", "parameters.negative_prompt", "input.negative_prompt")
+	if err := validatePPVideoKlingTextLength("negative_prompt", negativePrompt); err != nil {
+		return err
+	}
+	if negativePrompt != "" {
+		payload["negative_prompt"] = negativePrompt
+	} else if raw, ok := payload["negative_prompt"].(string); ok {
+		payload["negative_prompt"] = strings.TrimSpace(raw)
+	}
+	return nil
+}
+
+func validatePPVideoKlingTextLength(field, value string) error {
+	return validateVideoPromptFieldLength("Kling", field, value, ppVideoKlingPromptMaxRunes)
 }
 
 func PPVideoUpstreamPath(platform string, operation PPVideoOperation, taskID string) (string, error) {

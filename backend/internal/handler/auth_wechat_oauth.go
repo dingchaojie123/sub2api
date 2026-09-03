@@ -482,14 +482,14 @@ func (h *AuthHandler) wechatPaymentResumeService() *service.PaymentResumeService
 }
 
 type completeWeChatOAuthRequest struct {
-	InvitationCode   string `json:"invitation_code" binding:"required"`
+	InvitationCode   string `json:"invitation_code,omitempty"`
 	AffCode          string `json:"aff_code,omitempty"`
 	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
 	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
 
-// CompleteWeChatOAuthRegistration completes a pending WeChat OAuth registration by
-// validating the invitation code and consuming the current pending browser session.
+// CompleteWeChatOAuthRegistration completes a pending WeChat OAuth registration
+// and consumes the current pending browser session.
 // POST /api/v1/auth/oauth/wechat/complete-registration
 func (h *AuthHandler) CompleteWeChatOAuthRegistration(c *gin.Context) {
 	var req completeWeChatOAuthRequest

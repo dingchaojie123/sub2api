@@ -54,8 +54,11 @@
               @keyup.enter="handleSubmitRegistration"
             />
           </div>
-          <div v-if="invitationRequired">
-            <label class="input-label">{{ t('auth.invitationCodeLabel') }}</label>
+          <div v-if="invitationFieldVisible">
+            <label class="input-label">
+              {{ t('auth.invitationCodeLabel') }}
+              <span v-if="!invitationRequired" class="ml-1 text-xs font-normal text-gray-400 dark:text-dark-500">({{ t('common.optional') }})</span>
+            </label>
             <input
               v-model="invitationCode"
               type="text"
@@ -155,6 +158,7 @@ import { apiClient } from '@/api/client'
 import { buildApiUrl } from '@/api/url'
 import {
   exchangePendingOAuthCompletion,
+  getPublicSettings,
   persistOAuthTokenContext,
   type OAuthTokenResponse
 } from '@/api/auth'
@@ -174,6 +178,7 @@ const isProcessing = ref(false)
 const isSubmitting = ref(false)
 const needsRegistrationCompletion = ref(false)
 const invitationRequired = ref(false)
+const invitationCodeEnabled = ref(false)
 const registrationEmail = ref('')
 const password = ref('')
 const confirmPassword = ref('')
@@ -218,6 +223,7 @@ const canSubmitRegistration = computed(() => {
   if (invitationRequired.value && !invitationCode.value.trim()) return false
   return true
 })
+const invitationFieldVisible = computed(() => invitationRequired.value || invitationCodeEnabled.value)
 
 function parseFragmentParams(): URLSearchParams {
   const raw = typeof window !== 'undefined' ? window.location.hash : ''
@@ -304,6 +310,14 @@ async function resumePendingEmailOAuth() {
 
     if (completion.error === 'invitation_required' || completion.error === 'registration_completion_required') {
       invitationRequired.value = completion.error === 'invitation_required' || completion.invitation_required === true
+      if (!invitationRequired.value) {
+        try {
+          const settings = await getPublicSettings()
+          invitationCodeEnabled.value = settings.invitation_code_enabled === true
+        } catch {
+          invitationCodeEnabled.value = false
+        }
+      }
       registrationEmail.value = String(completion.resolved_email || completion.email || '').trim()
       needsRegistrationCompletion.value = true
       isProcessing.value = false
@@ -346,7 +360,7 @@ async function handleSubmitRegistration() {
       password: password.value,
       ...oauthAffiliatePayload(loadOAuthAffiliateCode())
     }
-    if (invitationRequired.value) {
+    if (invitationFieldVisible.value && code) {
       payload.invitation_code = code
     }
     const { data } = await apiClient.post<OAuthTokenResponse>(

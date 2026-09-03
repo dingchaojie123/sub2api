@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
@@ -85,6 +86,27 @@ func TestJimengVideoClientCreateGenerationUsesVideoEndpointAndBearerAuth(t *test
 	require.Equal(t, float64(7), gotBody["seed"])
 	require.Equal(t, "task_123", result.TaskID)
 	require.Equal(t, JimengTaskStatusProcessing, result.Status)
+}
+
+func TestValidateJimengVideoGenerationRequestBodyLimitsPrompt(t *testing.T) {
+	prompt := strings.Repeat("画", jimengVideoPromptMaxRunes)
+	err := ValidateJimengVideoGenerationRequestBody([]byte(`{"prompt":"` + prompt + `"}`))
+	require.NoError(t, err)
+
+	overlong := strings.Repeat("画", jimengVideoPromptMaxRunes+1)
+	err = ValidateJimengVideoGenerationRequestBody([]byte(`{"prompt":"` + overlong + `"}`))
+	require.ErrorContains(t, err, "Jimeng prompt must be at most 2000 characters")
+}
+
+func TestJimengVideoClientRejectsOverlongPrompt(t *testing.T) {
+	client, err := NewJimengVideoClient("https://jimeng.example/v1", "jimeng-key", nil)
+	require.NoError(t, err)
+
+	_, err = client.CreateGeneration(context.Background(), JimengVideoGenerationRequest{
+		Prompt: strings.Repeat("画", jimengVideoPromptMaxRunes+1),
+	})
+
+	require.ErrorContains(t, err, "Jimeng prompt must be at most 2000 characters")
 }
 
 func TestJimengVideoClientQueryGenerationExtractsNestedTaskIDAndNormalizesStatus(t *testing.T) {
@@ -167,6 +189,29 @@ func TestForwardJimengVideoGenerationUsesAccountCredentialAndReturnsUsage(t *tes
 	require.Equal(t, JimengVideoRoutingModel, result.Model)
 	require.Equal(t, JimengVideoBillingModel, result.BillingModel)
 	require.Equal(t, JimengVideoRoutingModel, result.UpstreamModel)
+}
+
+func TestForwardJimengVideoGenerationRejectsOverlongPromptBeforeUpstream(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_forward","status":"processing"}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"video-v1","prompt":"` + strings.Repeat("画", jimengVideoPromptMaxRunes+1) + `"}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", bytes.NewReader(body))
+
+	_, err := svc.ForwardJimengVideo(context.Background(), c, &Account{
+		ID:          7,
+		Platform:    PlatformJimeng,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "jimeng-upstream-key", "base_url": "https://jimeng.example/v1"},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.ErrorContains(t, err, "Jimeng prompt must be at most 2000 characters")
+	require.Empty(t, upstream.requests)
 }
 
 func TestForwardJimengVideoGenerationNormalizesLegacyModelForUpstream(t *testing.T) {

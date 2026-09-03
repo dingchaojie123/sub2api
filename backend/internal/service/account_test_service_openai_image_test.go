@@ -11,6 +11,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestAccountTestService_OpenAIImageOAuthHandlesOutputItemDoneFallback(t *testing.T) {
@@ -89,5 +90,49 @@ func TestAccountTestService_OpenAIImageAPIKeyUsesConfiguredV1BaseURL(t *testing.
 	require.Equal(t, "https://image-upstream.example/v1/images/generations", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer test-api-key", upstream.lastReq.Header.Get("Authorization"))
 	require.Contains(t, rec.Body.String(), "data:image/png;base64,aGVsbG8=")
+	require.Contains(t, rec.Body.String(), "\"success\":true")
+}
+
+func TestAccountTestService_DoubaoSeedreamAPIKeyUsesImagesGenerationsPayload(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/35/test", nil)
+
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"data":[{"url":"https://example.test/cat.png","revised_prompt":"draw a cat"}]}`)),
+		},
+	}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          &config.Config{},
+	}
+	account := &Account{
+		ID:       35,
+		Name:     "doubao-seedream-pp",
+		Platform: PlatformDoubao,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "ark-key",
+			"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+
+	err := svc.testOpenAIImageAPIKey(c, context.Background(), account, "doubao-seedream-5-0-260128", "draw a cat")
+	require.NoError(t, err)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://ark.cn-beijing.volces.com/api/v3/images/generations", upstream.lastReq.URL.String())
+	require.Equal(t, "application/json", upstream.lastReq.Header.Get("Content-Type"))
+	require.Equal(t, "doubao-seedream-5-0-260128", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "draw a cat", gjson.GetBytes(upstream.lastBody, "prompt").String())
+	require.Equal(t, ImageBillingSize2K, gjson.GetBytes(upstream.lastBody, "size").String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "n").Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "response_format").Exists())
+	require.Contains(t, rec.Body.String(), "https://example.test/cat.png")
 	require.Contains(t, rec.Body.String(), "\"success\":true")
 }

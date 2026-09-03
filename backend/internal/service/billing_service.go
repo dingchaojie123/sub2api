@@ -1466,6 +1466,7 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 
 	return &CostBreakdown{
 		TotalCost:   totalCost,
+		OutputCost:  totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeVideo),
 	}

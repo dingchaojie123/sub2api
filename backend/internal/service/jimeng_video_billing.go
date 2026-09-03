@@ -583,6 +583,7 @@ func (s *OpenAIGatewayService) recordJimengVideoBalanceUsage(ctx context.Context
 		VideoCount:             1,
 		VideoResolution:        &videoResolution,
 		VideoDurationSeconds:   &videoDurationSeconds,
+		OutputCost:             totalCost,
 		TotalCost:              totalCost,
 		ActualCost:             actualCost,
 		RateMultiplier:         rateMultiplier,

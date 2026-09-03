@@ -602,14 +602,13 @@ func (h *AuthHandler) createOIDCOAuthChoicePendingSession(
 }
 
 type completeOIDCOAuthRequest struct {
-	InvitationCode   string `json:"invitation_code" binding:"required"`
+	InvitationCode   string `json:"invitation_code,omitempty"`
 	AffCode          string `json:"aff_code,omitempty"`
 	AdoptDisplayName *bool  `json:"adopt_display_name,omitempty"`
 	AdoptAvatar      *bool  `json:"adopt_avatar,omitempty"`
 }
 
-// CompleteOIDCOAuthRegistration completes a pending OAuth registration by validating
-// the invitation code and creating the user account.
+// CompleteOIDCOAuthRegistration completes a pending OAuth registration.
 // POST /api/v1/auth/oauth/oidc/complete-registration
 func (h *AuthHandler) CompleteOIDCOAuthRegistration(c *gin.Context) {
 	var req completeOIDCOAuthRequest
@@ -1235,9 +1234,6 @@ func (h *AuthHandler) tryOIDCVerifiedEmailFastPath(
 	}
 	ctx := c.Request.Context()
 	if h.isForceEmailOnThirdPartySignup(ctx) {
-		return false
-	}
-	if h.settingSvc.IsInvitationCodeEnabled(ctx) {
 		return false
 	}
 	if err := h.ensureBackendModeAllowsNewUserLogin(ctx); err != nil {

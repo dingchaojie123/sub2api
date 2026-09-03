@@ -17,6 +17,18 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+func supportsOpenAIResponsesImageGeneration(account *Account) bool {
+	return account != nil && (account.Platform == PlatformOpenAI || account.Platform == PlatformGrok)
+}
+
+func unsupportedOpenAIResponsesImageGenerationMessage(account *Account) string {
+	platform := "this platform"
+	if account != nil && strings.TrimSpace(account.Platform) != "" {
+		platform = account.Platform
+	}
+	return fmt.Sprintf("/v1/responses image_generation is not supported for %s accounts; use /v1/images/generations for image-only models", platform)
+}
+
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
@@ -79,6 +91,14 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, originalModel, reqStream, startTime)
+	}
+
+	explicitResponsesImageIntent := resolveOpenAIImageIntentHint(c, reqModel, canonicalImageIntentBody, IsExplicitImageGenerationIntent)
+	if explicitResponsesImageIntent && !supportsOpenAIResponsesImageGeneration(account) {
+		msg := unsupportedOpenAIResponsesImageGenerationMessage(account)
+		setOpsUpstreamError(c, http.StatusBadRequest, msg, "")
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": msg, "param": "model"}})
+		return nil, errors.New(msg)
 	}
 
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
@@ -279,10 +299,17 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 
 	imageIntent = imageIntent || IsImageGenerationIntent(openAIResponsesEndpoint, reqModel, nil) || isOpenAIImageGenerationModel(upstreamModel)
+	explicitResponsesImageIntent = explicitResponsesImageIntent || isOpenAIImageGenerationModel(reqModel) || isOpenAIImageGenerationModel(upstreamModel) || openAIRequestBodyImageGenerationToolNeedsNormalization(body)
 	if imageIntent && !imageGenerationAllowed {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{"type": "permission_error", "message": ImageGenerationPermissionMessage()}})
 		return nil, errors.New("image generation disabled for group")
+	}
+	if explicitResponsesImageIntent && !supportsOpenAIResponsesImageGeneration(account) {
+		msg := unsupportedOpenAIResponsesImageGenerationMessage(account)
+		setOpsUpstreamError(c, http.StatusBadRequest, msg, "")
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": msg, "param": "model"}})
+		return nil, errors.New(msg)
 	}
 
 	// /responses/compact 是会话压缩请求：上游不接受 tool_choice（400 unknown_parameter），

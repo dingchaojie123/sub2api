@@ -347,7 +347,7 @@ func (r *usageBillingRepository) ClaimPPVideoTaskSettlement(ctx context.Context,
 				ELSE status
 			END,
 			billing_status = CASE
-				WHEN billing_status = 'none' THEN 'settling_none'
+				WHEN billing_status IN ('none', 'settling_none') THEN 'settling_none'
 				ELSE 'settling'
 			END,
 			finished_at = CASE
@@ -357,7 +357,10 @@ func (r *usageBillingRepository) ClaimPPVideoTaskSettlement(ctx context.Context,
 			updated_at = NOW()
 		WHERE task_id = $1
 			AND settled_at IS NULL
-			AND billing_status IN ('held', 'none')
+			AND (
+				billing_status IN ('held', 'none')
+				OR (billing_status IN ('settling', 'settling_none') AND status = $2)
+			)
 		RETURNING `+ppVideoTaskColumns(),
 		taskID,
 		finalStatus,

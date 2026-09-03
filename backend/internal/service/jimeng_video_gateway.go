@@ -25,6 +25,7 @@ const (
 	JimengVideoLegacyRoutingModel  string              = "seedance 2.0"
 	JimengVideoBillingModel        string              = "video-v1"
 	JimengVideoDefaultModel        string              = JimengVideoBillingModel
+	jimengVideoPromptMaxRunes      int                 = 2000
 )
 
 func (e JimengVideoEndpoint) httpMethod() string {
@@ -102,7 +103,10 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 		if publicModel == "" {
 			publicModel = JimengVideoRequestedModelFromBody(body)
 		}
-		upstreamBody = normalizeJimengVideoGenerationBody(body)
+		upstreamBody, err = normalizeJimengVideoGenerationBody(body)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if publicModel == "" {
 		publicModel = JimengVideoRoutingModel
@@ -199,23 +203,34 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 	return nil, fmt.Errorf("jimeng upstream returned no usable response")
 }
 
-func normalizeJimengVideoGenerationBody(body []byte) []byte {
+func ValidateJimengVideoGenerationRequestBody(body []byte) error {
 	if !gjson.ValidBytes(body) {
-		return body
+		return nil
+	}
+	prompt := extractPPVideoText(body, "prompt", "data.prompt", "parameters.prompt", "input.prompt")
+	return validateVideoPromptFieldLength("Jimeng", "prompt", prompt, jimengVideoPromptMaxRunes)
+}
+
+func normalizeJimengVideoGenerationBody(body []byte) ([]byte, error) {
+	if err := ValidateJimengVideoGenerationRequestBody(body); err != nil {
+		return nil, err
+	}
+	if !gjson.ValidBytes(body) {
+		return body, nil
 	}
 
 	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 	if model != "" &&
 		!strings.EqualFold(model, JimengVideoLegacyRoutingModel) &&
 		!strings.EqualFold(model, JimengVideoBillingModel) {
-		return body
+		return body, nil
 	}
 
 	normalized, err := sjson.SetBytes(body, "model", JimengVideoRoutingModel)
 	if err != nil {
-		return body
+		return body, nil
 	}
-	return normalized
+	return normalized, nil
 }
 
 func NormalizeJimengVideoRequestedModel(model string) string {

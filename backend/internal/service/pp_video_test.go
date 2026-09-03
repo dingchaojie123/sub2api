@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -513,6 +514,30 @@ func TestPreparePPVideoRequestBodyAppliesDefaultsForPublicVideoRequest(t *testin
 	}
 }
 
+func TestPreparePPVideoRequestBodyLimitsSeedancePrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := strings.Repeat("画", ppVideoSeedancePromptMaxRunes)
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformSeedance,
+		PPVideoOperationGeneric,
+		[]byte(fmt.Sprintf(`{"prompt":%q}`, prompt)),
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, prompt, public.Prompt)
+	require.Equal(t, ppVideoSeedancePromptMaxRunes, len([]rune(gjson.GetBytes(body, "prompt").String())))
+
+	overlong := strings.Repeat("画", ppVideoSeedancePromptMaxRunes+1)
+	_, _, err = PreparePPVideoRequestBody(
+		PlatformSeedance,
+		PPVideoOperationGeneric,
+		[]byte(fmt.Sprintf(`{"prompt":%q}`, overlong)),
+	)
+
+	require.ErrorContains(t, err, "Seedance prompt must be at most 2000 characters")
+}
+
 func TestPreparePPVideoRequestBodyNormalizesKlingUnifiedImageRequest(t *testing.T) {
 	t.Parallel()
 
@@ -586,6 +611,59 @@ func TestPreparePPVideoRequestBodyNormalizesKlingUnifiedTextRequest(t *testing.T
 	require.False(t, gjson.GetBytes(body, "image").Exists())
 	require.False(t, gjson.GetBytes(body, "image_tail").Exists())
 	requireNoKlingPublicFieldsLeaked(t, body)
+}
+
+func TestPreparePPVideoRequestBodyAllowsKlingPromptAtLimit(t *testing.T) {
+	t.Parallel()
+
+	prompt := strings.Repeat("画", ppVideoKlingPromptMaxRunes)
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformKling,
+		PPVideoOperationKlingTextToVideo,
+		[]byte(fmt.Sprintf(`{"prompt":%q}`, prompt)),
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, prompt, public.Prompt)
+	require.Equal(t, ppVideoKlingPromptMaxRunes, len([]rune(gjson.GetBytes(body, "prompt").String())))
+}
+
+func TestPreparePPVideoRequestBodyRejectsOverlongKlingPromptFields(t *testing.T) {
+	t.Parallel()
+
+	overlong := strings.Repeat("画", ppVideoKlingPromptMaxRunes+1)
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "top level prompt",
+			body: fmt.Sprintf(`{"prompt":%q}`, overlong),
+			want: "Kling prompt must be at most 2500 characters",
+		},
+		{
+			name: "nested prompt",
+			body: fmt.Sprintf(`{"data":{"prompt":%q}}`, overlong),
+			want: "Kling prompt must be at most 2500 characters",
+		},
+		{
+			name: "negative prompt",
+			body: fmt.Sprintf(`{"prompt":"waves","negative_prompt":%q}`, overlong),
+			want: "Kling negative_prompt must be at most 2500 characters",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, _, err := PreparePPVideoRequestBody(PlatformKling, PPVideoOperationKlingTextToVideo, []byte(tt.body))
+
+			require.ErrorContains(t, err, tt.want)
+		})
+	}
 }
 
 func TestPreparePPVideoRequestBodyRejectsUnsupportedKlingDuration(t *testing.T) {

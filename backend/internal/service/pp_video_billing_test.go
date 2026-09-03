@@ -106,6 +106,7 @@ func TestCalculatePPVideoCostUsesGroupVideoPriceForSeedance(t *testing.T) {
 			require.InDelta(t, float64(tt.durationMs)/1000*float64(tt.videoCount), cost.BillingUnits, 1e-12)
 			require.InDelta(t, tt.wantRate, cost.BillingUnitPrice, 1e-12)
 			require.InDelta(t, float64(tt.durationMs)/1000*float64(tt.videoCount)*tt.wantRate, cost.TotalCost, 1e-12)
+			require.InDelta(t, cost.TotalCost, cost.OutputCost, 1e-12)
 		})
 	}
 }
@@ -157,6 +158,7 @@ func TestCalculatePPVideoCostUsesGroupVideoPriceForKling(t *testing.T) {
 			require.InDelta(t, 10, cost.BillingUnits, 1e-12)
 			require.InDelta(t, tt.wantRate, cost.BillingUnitPrice, 1e-12)
 			require.InDelta(t, 10*tt.wantRate, cost.TotalCost, 1e-12)
+			require.InDelta(t, cost.TotalCost, cost.OutputCost, 1e-12)
 		})
 	}
 }
@@ -325,9 +327,9 @@ func TestSettlePPVideoTaskUsesActualMillisecondsAndRecordsUsage(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, repo.captures, 1)
-	require.InDelta(t, 5.041, repo.captures[0].ActualAmount, 1e-12)
+	require.InDelta(t, 5, repo.captures[0].ActualAmount, 1e-12)
 	require.Len(t, repo.applyCommands, 1)
-	require.Zero(t, repo.applyCommands[0].BalanceCost)
+	require.InDelta(t, 0.041, repo.applyCommands[0].BalanceCost, 1e-12)
 	require.InDelta(t, 5.041, repo.applyCommands[0].APIKeyQuotaCost, 1e-12)
 	require.InDelta(t, 5.041, repo.applyCommands[0].APIKeyRateLimitCost, 1e-12)
 	require.Len(t, repo.settled, 1)
@@ -335,7 +337,8 @@ func TestSettlePPVideoTaskUsesActualMillisecondsAndRecordsUsage(t *testing.T) {
 	require.InDelta(t, 5.041, repo.settled[0].ActualCost, 1e-12)
 	require.Equal(t, 1, logRepo.calls)
 	require.NotNil(t, logRepo.lastLog)
-	require.InDelta(t, 5, logRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 5.041, logRepo.lastLog.OutputCost, 1e-12)
+	require.InDelta(t, 5.041, logRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, 5.041, logRepo.lastLog.ActualCost, 1e-12)
 	require.Equal(t, 6, *logRepo.lastLog.VideoDurationSeconds)
 }

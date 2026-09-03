@@ -108,6 +108,45 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_DoubaoSeedream(t *testing.
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
+func TestBuildDoubaoImagesRequestBody_UpgradesSmallSizes(t *testing.T) {
+	tests := []struct {
+		name     string
+		size     string
+		wantSize string
+		wantSet  bool
+	}{
+		{name: "empty omitted", size: "", wantSet: false},
+		{name: "1k tier", size: "1K", wantSize: "2K", wantSet: true},
+		{name: "lowercase 1k tier", size: "1k", wantSize: "2K", wantSet: true},
+		{name: "1024 square", size: "1024x1024", wantSize: "2K", wantSet: true},
+		{name: "1536 landscape", size: "1536x1024", wantSize: "2K", wantSet: true},
+		{name: "1536 portrait", size: "1024x1536", wantSize: "2K", wantSet: true},
+		{name: "legacy 2k below seedream floor", size: "2048x1152", wantSize: "2K", wantSet: true},
+		{name: "seedream floor square", size: "1920x1920", wantSize: "1920x1920", wantSet: true},
+		{name: "seedream floor landscape", size: "2560x1440", wantSize: "2560x1440", wantSet: true},
+		{name: "2k tier", size: "2K", wantSize: "2K", wantSet: true},
+		{name: "auto passthrough", size: "auto", wantSize: "auto", wantSet: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body, contentType, err := buildDoubaoImagesRequestBody(&OpenAIImagesRequest{
+				Model:  "doubao-seedream-5-0-260128",
+				Prompt: "draw a cat",
+				Size:   tt.size,
+			}, "doubao-seedream-5-0-260128")
+
+			require.NoError(t, err)
+			require.Equal(t, "application/json", contentType)
+			got := gjson.GetBytes(body, "size")
+			require.Equal(t, tt.wantSet, got.Exists())
+			if tt.wantSet {
+				require.Equal(t, tt.wantSize, got.String())
+			}
+		})
+	}
+}
+
 func TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs(t *testing.T) {
 	parsed := &OpenAIImagesRequest{
 		Endpoint:       openAIImagesEditsEndpoint,
@@ -1552,6 +1591,56 @@ func TestOpenAIGatewayServiceForwardImages_DoubaoEditUsesGenerationsJSON(t *test
 	require.Equal(t, "replace background", gjson.GetBytes(upstream.lastBody, "prompt").String())
 	require.Equal(t, "data:image/png;base64,cG5nLWltYWdlLWNvbnRlbnQ=", gjson.GetBytes(upstream.lastBody, "image.0").String())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "sequential_image_generation").Exists())
+}
+
+func TestOpenAIGatewayServiceForwardImages_DoubaoSmallSizeUpgradesForUpstreamAndBilling(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"doubao-seedream-5-0-260128","prompt":"draw a cat","size":"1024x1024"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{},
+		httpUpstream: &httpUpstreamRecorder{
+			resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header: http.Header{
+					"Content-Type": []string{"application/json"},
+					"X-Request-Id": []string{"req_doubao_image_size"},
+				},
+				Body: io.NopCloser(strings.NewReader(`{"created":1710000008,"data":[{"url":"https://example.test/cat.png"}]}`)),
+			},
+		},
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	require.Equal(t, "1K", parsed.SizeTier)
+
+	account := &Account{
+		ID:       9,
+		Name:     "doubao-apikey",
+		Platform: PlatformDoubao,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "ark-key",
+			"base_url": "https://ark.cn-beijing.volces.com/api/v3",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, "2K", result.ImageSize)
+	require.Equal(t, "2K", result.ImageInputSize)
+
+	upstream := svc.httpUpstream.(*httpUpstreamRecorder)
+	require.Equal(t, "2K", gjson.GetBytes(upstream.lastBody, "size").String())
+	require.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestOpenAIGatewayServiceForwardImages_OAuthStreamingTransformsEvents(t *testing.T) {

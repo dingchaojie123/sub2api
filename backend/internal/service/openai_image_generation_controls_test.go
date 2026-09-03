@@ -55,6 +55,42 @@ func TestOpenAIGatewayServiceForward_RejectsDisabledImageGenerationIntents(t *te
 	}
 }
 
+func TestOpenAIGatewayServiceForward_RejectsResponsesImageGenerationForDoubao(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name string
+		body []byte
+	}{
+		{
+			name: "image-only model",
+			body: []byte(`{"model":"doubao-seedream-5-0-260128","input":"draw","stream":false}`),
+		},
+		{
+			name: "native image tool",
+			body: []byte(`{"model":"gpt-5.4-mini","input":"draw","stream":false,"tools":[{"type":"image_generation","model":"doubao-seedream-5-0-260128"}]}`),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{}
+			svc := newOpenAIImageGenerationControlTestService(upstream)
+			c, recorder := newOpenAIImageGenerationControlTestContext(true, "unit-test-agent/1.0")
+			account := newOpenAIImageGenerationControlTestAccount()
+			account.Platform = PlatformDoubao
+
+			result, err := svc.Forward(context.Background(), c, account, tt.body)
+
+			require.Error(t, err)
+			require.Nil(t, result)
+			require.Equal(t, http.StatusBadRequest, recorder.Code)
+			require.Contains(t, recorder.Body.String(), "/v1/images/generations")
+			require.Nil(t, upstream.lastReq, "unsupported Responses image request must not reach Doubao upstream")
+		})
+	}
+}
+
 func TestOpenAIGatewayServiceForward_DisabledGroupAllowsTextOnlyResponses(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -134,6 +170,31 @@ func TestOpenAIGatewayServiceForward_CodexImageInjectionRespectsGroupCapability(
 			}
 		})
 	}
+}
+
+func TestOpenAIGatewayServiceForward_CodexBridgeDoesNotInjectForDoubaoAccounts(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"id":"resp_doubao_text","model":"doubao-pro","usage":{"input_tokens":1,"output_tokens":1}}`)),
+		},
+	}
+	svc := newOpenAIImageGenerationControlTestService(upstream)
+	svc.cfg.Gateway.CodexImageGenerationBridgeEnabled = true
+	c, _ := newOpenAIImageGenerationControlTestContext(true, "codex_cli_rs/0.98.0")
+	account := newOpenAIImageGenerationControlTestAccount()
+	account.Platform = PlatformDoubao
+
+	result, err := svc.Forward(context.Background(), c, account, []byte(`{"model":"doubao-pro","input":"write code","stream":false}`))
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	require.False(t, gjson.GetBytes(upstream.lastBody, `tools.#(type=="image_generation")`).Exists())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "tool_choice").Exists())
 }
 
 func TestOpenAIBuildUpstreamRequestOpenAIPassthroughForwardsResponsesLiteHeader(t *testing.T) {

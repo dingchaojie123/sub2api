@@ -254,6 +254,41 @@ func TestAccountHandlerGetAvailableModels_JimengUsesExplicitModelMapping(t *test
 	require.Equal(t, "jimeng-proxy-model", resp.Data[0].ID)
 }
 
+func TestAccountHandlerGetAvailableModels_DoubaoUsesExplicitModelMapping(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       48,
+			Name:     "doubao-seedream",
+			Platform: service.PlatformDoubao,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"api_key": "ark-key",
+				"model_mapping": map[string]any{
+					"doubao-seedream-5-0-260128": "doubao-seedream-5-0-260128",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/48/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Len(t, resp.Data, 1)
+	require.Equal(t, "doubao-seedream-5-0-260128", resp.Data[0].ID)
+}
+
 func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefaults(t *testing.T) {
 	svc := &availableModelsAdminService{
 		stubAdminService: newStubAdminService(),

@@ -58,9 +58,10 @@ const (
 	defaultOpenAIImageTestPrompt = "Generate a cute orange cat astronaut sticker on a clean pastel background."
 )
 
-// isOpenAIImageModel checks if the model is an OpenAI image generation model (e.g. gpt-image-2).
+// isOpenAIImageModel checks if the model is handled by the OpenAI-compatible
+// images endpoint, including provider-specific image model families.
 func isOpenAIImageModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(model), "gpt-image-")
+	return isOpenAIImageGenerationModel(model)
 }
 
 // AccountTestService handles account testing operations
@@ -193,10 +194,6 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if IsPPVideoPlatform(account.Platform) {
 		return s.testPPVideoAccountConnection(c, account)
 	}
-	if account.IsOpenAI() {
-		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
-	}
-
 	if account.IsGemini() {
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
@@ -207,6 +204,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	if account.Platform == PlatformAntigravity {
 		return s.routeAntigravityTest(c, account, modelID, prompt)
+	}
+
+	if account.IsOpenAI() || (account.IsOpenAICompatible() && account.Type == AccountTypeAPIKey) {
+		return s.testOpenAIAccountConnection(c, account, modelID, prompt, normalizeAccountTestMode(mode))
 	}
 
 	return s.testClaudeAccountConnection(c, account, modelID)
@@ -1787,13 +1788,26 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 		"response_format": "b64_json",
 	}
 	payloadBytes, _ := json.Marshal(payload)
+	contentType := "application/json"
+	if account.Platform == PlatformDoubao {
+		payloadBytes, contentType, err = buildDoubaoImagesRequestBody(&OpenAIImagesRequest{
+			Endpoint: openAIImagesGenerationsEndpoint,
+			Model:    modelID,
+			Prompt:   prompt,
+			N:        1,
+			Size:     ImageBillingSize2K,
+		}, modelID)
+		if err != nil {
+			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build image request: %s", err.Error()))
+		}
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to create request")
 	}
 	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Authorization", "Bearer "+authToken)
 
 	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
@@ -1823,6 +1837,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	var result struct {
 		Data []struct {
 			B64JSON       string `json:"b64_json"`
+			URL           string `json:"url"`
 			RevisedPrompt string `json:"revised_prompt"`
 		} `json:"data"`
 	}
@@ -1843,6 +1858,12 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 				Type:     "image",
 				ImageURL: "data:image/png;base64," + item.B64JSON,
 				MimeType: "image/png",
+			})
+		} else if item.URL != "" {
+			s.sendEvent(c, TestEvent{
+				Type:     "image",
+				ImageURL: item.URL,
+				MimeType: "image/*",
 			})
 		}
 	}

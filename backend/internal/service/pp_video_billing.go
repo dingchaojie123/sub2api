@@ -126,6 +126,7 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	accountMultiplier := account.BillingRateMultiplier()
 	return &CostBreakdown{
 		TotalCost:        quote.Cost,
+		OutputCost:       quote.Cost,
 		ActualCost:       quote.Cost * videoMultiplier * accountMultiplier,
 		BillingMode:      string(BillingModeVideo),
 		BillingFormula:   quote.Formula,
@@ -270,8 +271,9 @@ func (s *OpenAIGatewayService) captureAndRecordPPVideoTask(ctx context.Context, 
 	}
 	actualCost := ppVideoActualSettlementCost(task)
 	isSubscription := isPPVideoSubscriptionTask(task)
-	if !isSubscription && (task.BillingStatus == PPVideoBillingStatusHeld || task.BillingStatus == PPVideoBillingStatusSettling) {
-		if err := s.CapturePPVideoBalanceHold(ctx, task, actualCost, in.RequestPayloadHash); err != nil {
+	if !isSubscription && task.HoldAmount > 0 &&
+		(task.BillingStatus == PPVideoBillingStatusHeld || task.BillingStatus == PPVideoBillingStatusSettling) {
+		if err := s.CapturePPVideoBalanceHold(ctx, task, ppVideoBalanceCaptureAmount(task, actualCost), in.RequestPayloadHash); err != nil {
 			return err
 		}
 	}
@@ -311,6 +313,18 @@ func (s *OpenAIGatewayService) releaseAndMarkPPVideoTask(ctx context.Context, in
 }
 
 func ppVideoActualSettlementCost(task *PPVideoTask) float64 {
+	rawCost := ppVideoRawSettlementCost(task)
+	if rawCost <= 0 {
+		return 0
+	}
+	multiplier := 1.0
+	if task != nil && task.EstimatedTotalCost > 0 && task.HoldAmount > 0 {
+		multiplier = task.HoldAmount / task.EstimatedTotalCost
+	}
+	return rawCost * multiplier
+}
+
+func ppVideoRawSettlementCost(task *PPVideoTask) float64 {
 	if task == nil {
 		return 0
 	}
@@ -324,15 +338,11 @@ func ppVideoActualSettlementCost(task *PPVideoTask) float64 {
 		if rawCost <= 0 {
 			return 0
 		}
-		multiplier := 1.0
-		if task.EstimatedTotalCost > 0 && task.HoldAmount > 0 {
-			multiplier = task.HoldAmount / task.EstimatedTotalCost
-		}
-		return rawCost * multiplier
+		return rawCost
 	}
-	base := task.HoldAmount
+	base := task.EstimatedTotalCost
 	if base <= 0 {
-		base = task.EstimatedTotalCost
+		base = task.HoldAmount
 	}
 	if base <= 0 {
 		return 0
@@ -349,6 +359,19 @@ func ppVideoActualSettlementCost(task *PPVideoTask) float64 {
 		return 0
 	}
 	return actual
+}
+
+func ppVideoBalanceCaptureAmount(task *PPVideoTask, actualCost float64) float64 {
+	if task == nil || actualCost <= 0 {
+		return 0
+	}
+	if task.HoldAmount <= 0 {
+		return 0
+	}
+	if task.HoldAmount > 0 && actualCost > task.HoldAmount {
+		return task.HoldAmount
+	}
+	return actualCost
 }
 
 func ppVideoTaskBillingUnits(task *PPVideoTask, outputDurationMilliseconds int64) float64 {
@@ -378,9 +401,13 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 	if totalCost <= 0 {
 		totalCost = actualCost
 	}
+	outputCost := ppVideoRawSettlementCost(task)
+	if outputCost <= 0 {
+		outputCost = totalCost
+	}
 	rateMultiplier := 1.0
-	if totalCost > 0 {
-		rateMultiplier = actualCost / totalCost
+	if outputCost > 0 {
+		rateMultiplier = actualCost / outputCost
 	}
 	videoCount := task.VideoCount
 	if videoCount <= 0 {
@@ -420,7 +447,8 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 		VideoCount:            videoCount,
 		VideoResolution:       &resolution,
 		VideoDurationSeconds:  &durationSeconds,
-		TotalCost:             totalCost,
+		OutputCost:            outputCost,
+		TotalCost:             outputCost,
 		ActualCost:            actualCost,
 		RateMultiplier:        rateMultiplier,
 		AccountRateMultiplier: &accountRateMultiplier,
@@ -429,10 +457,13 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 		BillingMode:           &billingMode,
 		CreatedAt:             time.Now().UTC(),
 	}
+	if outputCost <= 0 {
+		usageLog.TotalCost = totalCost
+	}
 	if isSubscription && in.Subscription != nil {
 		usageLog.SubscriptionID = &in.Subscription.ID
 	}
-	if err := s.applyPPVideoUsageAccounting(ctx, in, usageLog, totalCost, actualCost, accountRateMultiplier, isSubscription); err != nil {
+	if err := s.applyPPVideoUsageAccounting(ctx, in, usageLog, usageLog.TotalCost, actualCost, accountRateMultiplier, isSubscription); err != nil {
 		return err
 	}
 	if s.usageLogRepo != nil {
@@ -478,6 +509,12 @@ func (s *OpenAIGatewayService) applyPPVideoUsageAccounting(
 	if isSubscription && in.Subscription != nil {
 		cmd.SubscriptionID = &in.Subscription.ID
 		cmd.SubscriptionCost = actualCost
+	}
+	if !isSubscription && actualCost > 0 {
+		capturedAmount := ppVideoBalanceCaptureAmount(in.Task, actualCost)
+		if extraBalanceCost := actualCost - capturedAmount; extraBalanceCost > 0 {
+			cmd.BalanceCost = extraBalanceCost
+		}
 	}
 	if actualCost > 0 && in.APIKey.Quota > 0 && in.APIKeyService != nil {
 		cmd.APIKeyQuotaCost = actualCost

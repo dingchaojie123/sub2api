@@ -131,6 +131,18 @@ func openAIResponsesRequiredCapability(imageIntent bool, platform string) servic
 	return service.OpenAIEndpointCapabilityChatCompletions
 }
 
+func openAIResponsesSupportsImageGenerationPlatform(platform string) bool {
+	return platform == service.PlatformOpenAI || platform == service.PlatformGrok
+}
+
+func openAIResponsesUnsupportedImageGenerationPlatformMessage(platform string) string {
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		platform = "this"
+	}
+	return fmt.Sprintf("/v1/responses image_generation is not supported for %s platform accounts; use /v1/images/generations for image-only models", platform)
+}
+
 func allowOpenAICompatibleMessagesDispatch(apiKey *service.APIKey) bool {
 	if apiKey == nil || apiKey.Group == nil {
 		return true
@@ -335,6 +347,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// Get subscription info (may be nil)
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestPlatform := openAICompatibleRequestPlatform(apiKey)
+	if imageIntent && !openAIResponsesSupportsImageGenerationPlatform(requestPlatform) {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", openAIResponsesUnsupportedImageGenerationPlatformMessage(requestPlatform))
+		return
+	}
 
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 	routingStart := time.Now()

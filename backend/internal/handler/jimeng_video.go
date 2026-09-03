@@ -75,6 +75,10 @@ func (h *OpenAIGatewayHandler) handleJimengVideo(c *gin.Context, endpoint servic
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
 			return
 		}
+		if err := service.ValidateJimengVideoGenerationRequestBody(body); err != nil {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
+			return
+		}
 		rawIdempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
 		if len(rawIdempotencyKey) > service.JimengVideoIdempotencyKeyMaxLength {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Idempotency-Key must be at most 255 characters")

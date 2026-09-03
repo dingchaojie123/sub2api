@@ -240,7 +240,7 @@ func TestClaimPPVideoTaskSettlementUsesCompareAndSet(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE task_id = \$1.*settled_at IS NULL.*billing_status IN \('held', 'none'\).*RETURNING`).
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE task_id = \$1.*settled_at IS NULL.*billing_status IN \('held', 'none'\).*OR \(billing_status IN \('settling', 'settling_none'\) AND status = \$2\).*RETURNING`).
 		WithArgs("task_1", service.PPVideoTaskStatusSucceeded).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "ppvidtask_1", "task_1", int64(10), int64(20), nil, int64(30),
@@ -263,7 +263,7 @@ func TestClaimPPVideoTaskSettlementUsesCompareAndSet(t *testing.T) {
 	require.True(t, claimed)
 	require.Equal(t, service.PPVideoBillingStatusSettling, task.BillingStatus)
 
-	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE task_id = \$1.*settled_at IS NULL.*billing_status IN \('held', 'none'\).*RETURNING`).
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE task_id = \$1.*settled_at IS NULL.*billing_status IN \('held', 'none'\).*OR \(billing_status IN \('settling', 'settling_none'\) AND status = \$2\).*RETURNING`).
 		WithArgs("task_1", service.PPVideoTaskStatusSucceeded).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	_, claimed, err = repo.ClaimPPVideoTaskSettlement(ctx, service.ClaimPPVideoTaskSettlementParams{
