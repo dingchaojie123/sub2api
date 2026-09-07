@@ -24,9 +24,17 @@ const (
 	SiteVideoDefaultDurationSeconds      = 5
 	SiteVideoDefaultDurationMilliseconds = int64(SiteVideoDefaultDurationSeconds * 1000)
 	SiteVideoDefaultResolution           = VideoBillingResolution720P
+	ModelVerseVideoDefaultBaseURL        = "https://api.modelverse.cn/v1"
+	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
+	ByteDanceVideoDefaultModel           = "doubao-seedance-2-0-260128"
+	Wan30VideoDefaultModel               = "wan3.0-video"
+	Wan30VideoPrimeModel                 = "wan3.0-video-prime"
+	MiniMaxH3VideoDefaultModel           = "MiniMax-H3"
+	MiniMaxHailuo23VideoModel            = "MiniMax-Hailuo-2.3"
+	PixverseV6VideoDefaultModel          = "pixverse-v6"
 
 	ppVideoLegacySiteModel             = "video-v1"
-	ppVideoSeedanceDefaultModel        = "doubao-seedance-2-0-260128"
+	ppVideoSeedanceDefaultModel        = ByteDanceVideoDefaultModel
 	ppVideoHappyHorseTextDefaultModel  = "happyhorse-1.0-t2v"
 	ppVideoHappyHorseImageDefaultModel = "happyhorse-1.0-i2v"
 	ppVideoKlingDefaultModel           = "kling-v3"
@@ -41,6 +49,7 @@ const (
 	PPVideoOperationGeneric           PPVideoOperation = "generic"
 	PPVideoOperationKlingTextToVideo  PPVideoOperation = "kling_text_to_video"
 	PPVideoOperationKlingImageToVideo PPVideoOperation = "kling_image_to_video"
+	PPVideoOperationCancel            PPVideoOperation = "cancel"
 )
 
 type PPVideoResponse struct {
@@ -53,6 +62,7 @@ type PPVideoResponse struct {
 	OutputHeight                   int
 	FrameRate                      float64
 	InputVideoDurationMilliseconds int64
+	ErrorMessage                   string
 	RawBody                        []byte
 }
 
@@ -85,7 +95,7 @@ type PPVideoPublicRequest struct {
 
 func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6:
 		return true
 	default:
 		return false
@@ -134,6 +144,7 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 	}
 	public.UpstreamModel = ppVideoUpstreamModelForAccount(platform, public, account)
 
+	var err error
 	switch platform {
 	case PlatformKling:
 		if err := normalizePPVideoKlingPayload(payload, operation, body, &public); err != nil {
@@ -159,6 +170,70 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		if public.VideoCount > 1 || !gjson.GetBytes(body, "n").Exists() {
 			payload["n"] = public.VideoCount
 		}
+	case PlatformByteDance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoByteDanceModelAllowed(public.Model) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		payload, err = normalizePPVideoByteDancePayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformWan3:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoWan30ModelAllowed(public.Model) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		payload, err = normalizePPVideoWan30Payload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformMiniMaxH3:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoMiniMaxH3ModelAllowedForAccount(public.Model, account) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		if ppVideoIsMiniMaxHailuo23Model(public.UpstreamModel) {
+			payload, err = normalizePPVideoMiniMaxHailuo23Payload(payload, body, &public)
+		} else {
+			payload, err = normalizePPVideoMiniMaxH3Payload(payload, body, &public)
+		}
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformPixverseV6:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoPixverseV6ModelAllowed(public.Model) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		payload, err = normalizePPVideoPixverseV6Payload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 	}
 
 	prepared, err := json.Marshal(payload)
@@ -166,6 +241,1183 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		return nil, PPVideoPublicRequest{}, fmt.Errorf("marshal PP video request body: %w", err)
 	}
 	return prepared, public, nil
+}
+
+func normalizePPVideoByteDancePayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("ByteDance request body is required")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to 15")
+	}
+	durationSeconds := public.DurationMilliseconds / 1000
+	if durationSeconds < 4 || durationSeconds > 15 {
+		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to 15")
+	}
+
+	content, err := normalizePPVideoByteDanceContent(body, public)
+	if err != nil {
+		return nil, err
+	}
+
+	parameters := make(map[string]any)
+	for _, key := range []string{
+		"execution_expires_after",
+		"generate_audio",
+		"resolution",
+		"duration",
+		"seed",
+		"camera_fixed",
+		"watermark",
+		"callback_url",
+		"seedance_tools",
+	} {
+		if value, ok := ppVideoJSONValue(body, "parameters."+key, key); ok {
+			parameters[key] = value
+		}
+	}
+	if value, ok := ppVideoJSONValue(body, "parameters.ratio", "ratio", "parameters.aspect_ratio", "aspect_ratio"); ok {
+		parameters["ratio"] = value
+	}
+	parameters["duration"] = int(durationSeconds)
+	if resolution := byteDanceResolution(public.Resolution); resolution != "" {
+		parameters["resolution"] = resolution
+	} else {
+		return nil, fmt.Errorf("ByteDance resolution must be one of 480p, 720p, 1080p, or 4K")
+	}
+	if _, ok := parameters["ratio"]; !ok {
+		parameters["ratio"] = "adaptive"
+	}
+	if _, ok := parameters["generate_audio"]; !ok {
+		parameters["generate_audio"] = false
+	}
+
+	result := map[string]any{
+		"model": ByteDanceVideoDefaultModel,
+		"input": map[string]any{"content": content},
+		"parameters": parameters,
+	}
+	return result, nil
+}
+
+func normalizePPVideoByteDanceContent(body []byte, public *PPVideoPublicRequest) ([]any, error) {
+	rawContent := gjson.GetBytes(body, "input.content")
+	if rawContent.Exists() {
+		if !rawContent.IsArray() || len(rawContent.Array()) == 0 {
+			return nil, fmt.Errorf("ByteDance input.content must contain at least one item")
+		}
+		content := make([]any, 0, len(rawContent.Array()))
+		for _, item := range rawContent.Array() {
+			var source map[string]any
+			if err := json.Unmarshal([]byte(item.Raw), &source); err != nil || source == nil {
+				return nil, fmt.Errorf("ByteDance input.content items must be JSON objects")
+			}
+			normalized, err := normalizePPVideoByteDanceContentItem(source)
+			if err != nil {
+				return nil, err
+			}
+			if normalized["type"] == "text" && public.Prompt == "" {
+				if text, ok := normalized["text"].(string); ok {
+					public.Prompt = strings.TrimSpace(text)
+				}
+			}
+			if normalized["type"] == "image_url" {
+				public.HasImage = true
+			}
+			content = append(content, normalized)
+		}
+		return content, nil
+	}
+
+	content := make([]any, 0, 4)
+	if prompt := strings.TrimSpace(public.Prompt); prompt != "" {
+		content = append(content, map[string]any{"type": "text", "text": prompt})
+	}
+	if startFrame := ppVideoJSONText(body, "start_frame_url", "input.start_frame_url", "data.start_frame_url"); startFrame != "" {
+		content = append(content, map[string]any{
+			"type": "image_url",
+			"image_url": map[string]any{"url": startFrame},
+			"role":      "first_frame",
+		})
+		public.HasImage = true
+	}
+	if endFrame := ppVideoJSONText(body, "end_frame_url", "input.end_frame_url", "data.end_frame_url"); endFrame != "" {
+		content = append(content, map[string]any{
+			"type": "image_url",
+			"image_url": map[string]any{"url": endFrame},
+			"role":      "last_frame",
+		})
+		public.HasImage = true
+	}
+	if image := ppVideoJSONText(body, "image", "image_url", "input.image", "input.image_url", "images.0", "data.images.0"); image != "" {
+		content = append(content, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]any{"url": image},
+			"role":      "first_frame",
+		})
+		public.HasImage = true
+	}
+	if video := ppVideoJSONText(body, "video", "video_url", "videos.0", "input.video", "input.video_url"); video != "" {
+		content = append(content, map[string]any{
+			"type":      "video_url",
+			"video_url": map[string]any{"url": video},
+			"role":      "reference_video",
+		})
+	}
+	if audio := ppVideoJSONText(body, "audio_url", "audio", "audios.0", "input.audio_url", "input.audio"); audio != "" {
+		content = append(content, map[string]any{
+			"type":      "audio_url",
+			"audio_url": map[string]any{"url": audio},
+			"role":      "reference_audio",
+		})
+	}
+	if len(content) == 0 {
+		return nil, fmt.Errorf("ByteDance request requires prompt, input.content, or supported media input")
+	}
+	return content, nil
+}
+
+func normalizePPVideoByteDanceContentItem(source map[string]any) (map[string]any, error) {
+	contentType, _ := source["type"].(string)
+	contentType = strings.TrimSpace(contentType)
+	if contentType != "text" && contentType != "image_url" && contentType != "video_url" && contentType != "audio_url" {
+		return nil, fmt.Errorf("ByteDance content type %q is not supported", contentType)
+	}
+	result := map[string]any{"type": contentType}
+	switch contentType {
+	case "text":
+		text, _ := source["text"].(string)
+		if strings.TrimSpace(text) == "" {
+			return nil, fmt.Errorf("ByteDance text content must not be empty")
+		}
+		result["text"] = text
+	case "image_url":
+		value, ok := source["image_url"]
+		if !ok {
+			return nil, fmt.Errorf("ByteDance image_url content requires image_url")
+		}
+		normalized, err := normalizePPVideoByteDanceURLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("ByteDance image_url content: %w", err)
+		}
+		result["image_url"] = normalized
+		role, _ := source["role"].(string)
+		role = strings.TrimSpace(role)
+		if role == "" {
+			role = "first_frame"
+		}
+		if role != "first_frame" && role != "last_frame" && role != "reference_image" {
+			return nil, fmt.Errorf("ByteDance image role %q is not supported", role)
+		}
+		result["role"] = role
+	case "video_url":
+		value, ok := source["video_url"]
+		if !ok {
+			return nil, fmt.Errorf("ByteDance video_url content requires video_url")
+		}
+		normalized, err := normalizePPVideoByteDanceURLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("ByteDance video_url content: %w", err)
+		}
+		result["video_url"] = normalized
+		result["role"] = "reference_video"
+	case "audio_url":
+		value, ok := source["audio_url"]
+		if !ok {
+			return nil, fmt.Errorf("ByteDance audio_url content requires audio_url")
+		}
+		normalized, err := normalizePPVideoByteDanceURLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("ByteDance audio_url content: %w", err)
+		}
+		result["audio_url"] = normalized
+		result["role"] = "reference_audio"
+	}
+	return result, nil
+}
+
+func normalizePPVideoByteDanceURLObject(value any) (map[string]any, error) {
+	if rawURL, ok := value.(string); ok {
+		rawURL = strings.TrimSpace(rawURL)
+		if rawURL == "" {
+			return nil, fmt.Errorf("url must not be empty")
+		}
+		return map[string]any{"url": rawURL}, nil
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("url object is invalid")
+	}
+	rawURL, _ := object["url"].(string)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, fmt.Errorf("url must not be empty")
+	}
+	return map[string]any{"url": rawURL}, nil
+}
+
+func normalizePPVideoWan30Payload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("Wan3.0 request body is required")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("Wan3.0 duration must be an integer number of seconds from 2 to 30")
+	}
+	durationSeconds := public.DurationMilliseconds / 1000
+	if durationSeconds < 2 || durationSeconds > 30 {
+		return nil, fmt.Errorf("Wan3.0 duration must be an integer number of seconds from 2 to 30")
+	}
+
+	prompt := ppVideoJSONText(body, "input.prompt", "prompt", "data.prompt", "parameters.prompt")
+	if prompt == "" {
+		return nil, fmt.Errorf("Wan3.0 input.prompt is required")
+	}
+	public.Prompt = prompt
+
+	resolutionSource := ppVideoJSONText(
+		body,
+		"parameters.resolution",
+		"resolution",
+		"data.resolution",
+		"metadata.resolution",
+	)
+	resolution := "1080P"
+	if resolutionSource != "" {
+		resolution = wan30Resolution(resolutionSource)
+		if resolution == "" {
+			return nil, fmt.Errorf("Wan3.0 resolution must be 480P, 720P, or 1080P")
+		}
+	}
+
+	ratio, err := wan30RatioFromRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	if ratio == "" {
+		ratio = "adaptive"
+	}
+	if !wan30RatioAllowed(ratio) {
+		return nil, fmt.Errorf("Wan3.0 ratio is not supported")
+	}
+
+	audio, err := wan30BooleanParameter(body, "audio", false)
+	if err != nil {
+		return nil, err
+	}
+	promptExtend, err := wan30BooleanParameter(body, "prompt_extend", true)
+	if err != nil {
+		return nil, err
+	}
+	watermark, err := wan30BooleanParameter(body, "watermark", false)
+	if err != nil {
+		return nil, err
+	}
+	seed, hasSeed, err := wan30SeedFromRequest(body)
+	if err != nil {
+		return nil, err
+	}
+
+	media, err := normalizePPVideoWan30Media(body)
+	if err != nil {
+		return nil, err
+	}
+
+	upstreamModel := wan30UpstreamModel(public.Model)
+	public.UpstreamModel = upstreamModel
+	public.Resolution = normalizePPVideoResolution(resolution)
+	public.VideoCount = 1
+
+	input := map[string]any{"prompt": prompt}
+	if len(media) > 0 {
+		input["media"] = media
+	}
+	parameters := map[string]any{
+		"resolution":    resolution,
+		"duration":      int(durationSeconds),
+		"ratio":         ratio,
+		"audio":         audio,
+		"prompt_extend": promptExtend,
+		"watermark":     watermark,
+	}
+	if hasSeed {
+		parameters["seed"] = seed
+	}
+
+	return map[string]any{
+		"model":      upstreamModel,
+		"input":      input,
+		"parameters": parameters,
+	}, nil
+}
+
+func normalizePPVideoWan30Media(body []byte) ([]any, error) {
+	rawMedia := gjson.GetBytes(body, "input.media")
+	if !rawMedia.Exists() {
+		rawMedia = gjson.GetBytes(body, "media")
+	}
+
+	media := make([]any, 0, 4)
+	if rawMedia.Exists() {
+		if !rawMedia.IsArray() {
+			return nil, fmt.Errorf("Wan3.0 input.media must be an array")
+		}
+		for _, item := range rawMedia.Array() {
+			var source map[string]any
+			if err := json.Unmarshal([]byte(item.Raw), &source); err != nil || source == nil {
+				return nil, fmt.Errorf("Wan3.0 input.media items must be JSON objects")
+			}
+			media = append(media, source)
+		}
+	} else {
+		appendMedia := func(mediaType, rawURL string) {
+			if rawURL == "" {
+				return
+			}
+			media = append(media, map[string]any{"type": mediaType, "url": rawURL})
+		}
+		appendMedia("first_frame", ppVideoJSONText(body, "start_frame_url", "input.start_frame_url", "data.start_frame_url"))
+		appendMedia("last_frame", ppVideoJSONText(body, "end_frame_url", "input.end_frame_url", "data.end_frame_url"))
+		appendMedia("first_frame", ppVideoJSONText(body, "image", "image_url", "input.image", "input.image_url"))
+		for _, item := range gjson.GetBytes(body, "images").Array() {
+			appendMedia("reference_image", strings.TrimSpace(item.String()))
+		}
+		appendMedia("reference_video", ppVideoJSONText(body, "video", "video_url", "input.video", "input.video_url"))
+		appendMedia("reference_audio", ppVideoJSONText(body, "audio_url", "audio", "input.audio_url", "input.audio"))
+		appendMedia("file", ppVideoJSONText(body, "file_url", "input.file_url"))
+		appendMedia("link", ppVideoJSONText(body, "link", "link_url", "input.link", "input.link_url"))
+	}
+
+	firstFrameCount := 0
+	lastFrameCount := 0
+	referenceImageCount := 0
+	referenceVideoCount := 0
+	referenceAudioCount := 0
+	fileCount := 0
+	linkCount := 0
+	hasFrameMedia := false
+	hasReferenceFileOrLink := false
+	normalizedMedia := make([]any, 0, len(media))
+	for _, item := range media {
+		source, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("Wan3.0 input.media items must be JSON objects")
+		}
+		normalized, err := normalizePPVideoWan30MediaItem(source)
+		if err != nil {
+			return nil, err
+		}
+		switch normalized["type"] {
+		case "first_frame":
+			firstFrameCount++
+			hasFrameMedia = true
+		case "last_frame":
+			lastFrameCount++
+			hasFrameMedia = true
+		case "reference_image":
+			referenceImageCount++
+			hasReferenceFileOrLink = true
+		case "reference_video":
+			referenceVideoCount++
+			hasReferenceFileOrLink = true
+		case "reference_audio":
+			referenceAudioCount++
+			hasReferenceFileOrLink = true
+		case "file":
+			fileCount++
+			hasReferenceFileOrLink = true
+		case "link":
+			linkCount++
+			hasReferenceFileOrLink = true
+		}
+		normalizedMedia = append(normalizedMedia, normalized)
+	}
+
+	if firstFrameCount > 1 || lastFrameCount > 1 {
+		return nil, fmt.Errorf("Wan3.0 supports at most one first_frame and one last_frame")
+	}
+	if referenceImageCount > 10 || referenceVideoCount > 5 || referenceAudioCount > 5 {
+		return nil, fmt.Errorf("Wan3.0 input.media exceeds the supported reference-media limit")
+	}
+	if fileCount > 1 || linkCount > 1 || (fileCount > 0 && linkCount > 0) {
+		return nil, fmt.Errorf("Wan3.0 supports at most one file or one link, but not both")
+	}
+	if hasFrameMedia && hasReferenceFileOrLink {
+		return nil, fmt.Errorf("Wan3.0 cannot combine first/last frames with reference media, files, or links")
+	}
+	return normalizedMedia, nil
+}
+
+func normalizePPVideoWan30MediaItem(source map[string]any) (map[string]any, error) {
+	mediaType, _ := source["type"].(string)
+	mediaType = strings.TrimSpace(mediaType)
+	switch mediaType {
+	case "first_frame", "last_frame", "reference_image", "reference_video", "reference_audio", "file", "link":
+	default:
+		return nil, fmt.Errorf("Wan3.0 media type %q is not supported", mediaType)
+	}
+	rawURL, _ := source["url"].(string)
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return nil, fmt.Errorf("Wan3.0 %s media requires url", mediaType)
+	}
+	if !wan30MediaURLAllowed(mediaType, rawURL) {
+		return nil, fmt.Errorf("Wan3.0 %s media URL is not supported", mediaType)
+	}
+	return map[string]any{"type": mediaType, "url": rawURL}, nil
+}
+
+func wan30MediaURLAllowed(mediaType, rawURL string) bool {
+	lowerURL := strings.ToLower(strings.TrimSpace(rawURL))
+	if strings.HasPrefix(lowerURL, "data:image/") {
+		return (mediaType == "first_frame" || mediaType == "last_frame" || mediaType == "reference_image") &&
+			strings.Contains(lowerURL, ";base64,")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || strings.TrimSpace(parsed.Host) == "" {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	switch mediaType {
+	case "first_frame", "last_frame", "reference_image":
+		return scheme == "http" || scheme == "https" || scheme == "oss"
+	case "reference_video", "reference_audio", "file":
+		return scheme == "http" || scheme == "https" || scheme == "oss"
+	case "link":
+		return scheme == "http" || scheme == "https"
+	default:
+		return false
+	}
+}
+
+func wan30Resolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "480", "480p", "sd":
+		return "480P"
+	case "720", "720p", "hd":
+		return "720P"
+	case "1080", "1080p", "full_hd", "full-hd", "fhd":
+		return "1080P"
+	default:
+		return ""
+	}
+}
+
+func wan30RatioFromRequest(body []byte) (string, error) {
+	value, ok := ppVideoJSONValue(body, "parameters.ratio", "ratio", "parameters.aspect_ratio", "aspect_ratio")
+	if !ok {
+		return "", nil
+	}
+	ratio, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("Wan3.0 ratio must be a string")
+	}
+	return strings.TrimSpace(ratio), nil
+}
+
+func wan30RatioAllowed(ratio string) bool {
+	switch strings.TrimSpace(ratio) {
+	case "adaptive", "16:9", "9:16", "1:1", "4:3", "3:4":
+		return true
+	default:
+		return false
+	}
+}
+
+func wan30BooleanParameter(body []byte, field string, defaultValue bool) (bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters."+field, field)
+	if !ok {
+		return defaultValue, nil
+	}
+	parsed, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("Wan3.0 %s must be boolean", field)
+	}
+	return parsed, nil
+}
+
+func wan30SeedFromRequest(body []byte) (int64, bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters.seed", "seed")
+	if !ok {
+		return 0, false, nil
+	}
+	seed, ok := value.(float64)
+	if !ok || seed != float64(int64(seed)) || seed < 0 || seed > 2147483647 {
+		return 0, false, fmt.Errorf("Wan3.0 seed must be an integer from 0 to 2147483647")
+	}
+	return int64(seed), true, nil
+}
+
+func normalizePPVideoPixverseV6Payload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("Pixverse v6 request body is required")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("Pixverse v6 duration must be an integer number of seconds from 1 to 15")
+	}
+	durationSeconds := public.DurationMilliseconds / 1000
+	if durationSeconds < 1 || durationSeconds > 15 {
+		return nil, fmt.Errorf("Pixverse v6 duration must be an integer number of seconds from 1 to 15")
+	}
+
+	prompt := ppVideoJSONText(body, "input.prompt", "prompt", "data.prompt", "parameters.prompt")
+	if prompt == "" {
+		return nil, fmt.Errorf("Pixverse v6 input.prompt is required")
+	}
+	public.Prompt = prompt
+	public.UpstreamModel = PixverseV6VideoDefaultModel
+	public.VideoCount = 1
+
+	resolutionSource := ppVideoJSONText(body, "parameters.resolution", "resolution", "data.resolution", "metadata.resolution")
+	resolution := "720p"
+	if resolutionSource != "" {
+		resolution = pixverseV6Resolution(resolutionSource)
+		if resolution == "" {
+			return nil, fmt.Errorf("Pixverse v6 resolution must be 360p, 540p, 720p, or 1080p")
+		}
+	}
+	public.Resolution = pixverseV6BillingResolution(resolution)
+
+	firstFrame := ppVideoJSONText(body, "input.first_frame_url", "first_frame_url", "input.start_frame_url", "start_frame_url", "data.first_frame_url", "data.start_frame_url")
+	lastFrame := ppVideoJSONText(body, "input.last_frame_url", "last_frame_url", "input.end_frame_url", "end_frame_url", "data.last_frame_url", "data.end_frame_url")
+	if (firstFrame == "") != (lastFrame == "") {
+		return nil, fmt.Errorf("Pixverse v6 first_frame_url and last_frame_url must be provided together")
+	}
+	if firstFrame != "" && (!pixverseV6ImageURLAllowed(firstFrame) || !pixverseV6ImageURLAllowed(lastFrame)) {
+		return nil, fmt.Errorf("Pixverse v6 first_frame_url and last_frame_url must be image URLs or Base64 values")
+	}
+
+	image := ppVideoJSONText(body, "input.img_url", "img_url", "input.image_url", "image_url", "input.image", "image", "images.0", "data.img_url", "data.image_url")
+	if image != "" && !pixverseV6ImageURLAllowed(image) {
+		return nil, fmt.Errorf("Pixverse v6 img_url must be an image URL or Base64 value")
+	}
+	video := ppVideoJSONText(body, "input.video_url", "video_url", "input.video", "video", "videos.0", "data.video_url")
+	if video != "" && !pixverseV6VideoURLAllowed(video) {
+		return nil, fmt.Errorf("Pixverse v6 video_url must be an HTTP(S) URL")
+	}
+
+	hasReferenceMedia := firstFrame != "" || image != "" || video != ""
+	public.HasImage = firstFrame != "" || image != ""
+
+	parameters := map[string]any{
+		"resolution": resolution,
+		"duration":   int(durationSeconds),
+	}
+	aspectRatio, hasAspectRatio, err := pixverseV6AspectRatioFromRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	if hasAspectRatio && !hasReferenceMedia {
+		parameters["aspect_ratio"] = aspectRatio
+	}
+	if generateAudio, hasGenerateAudio, err := pixverseV6IntegerParameter(body, "generate_audio"); err != nil {
+		return nil, err
+	} else if hasGenerateAudio {
+		parameters["generate_audio"] = generateAudio
+	}
+	if seed, hasSeed, err := pixverseV6IntegerParameter(body, "seed"); err != nil {
+		return nil, err
+	} else if hasSeed {
+		if seed < 0 || seed > 2147483647 {
+			return nil, fmt.Errorf("Pixverse v6 seed must be an integer from 0 to 2147483647")
+		}
+		parameters["seed"] = seed
+	}
+
+	input := map[string]any{"prompt": prompt}
+	if firstFrame != "" {
+		input["first_frame_url"] = firstFrame
+		input["last_frame_url"] = lastFrame
+	}
+	if image != "" {
+		input["img_url"] = image
+	}
+	if video != "" {
+		input["video_url"] = video
+	}
+	return map[string]any{
+		"model":      PixverseV6VideoDefaultModel,
+		"input":      input,
+		"parameters": parameters,
+	}, nil
+}
+
+func pixverseV6Resolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "360", "360p":
+		return "360p"
+	case "540", "540p":
+		return "540p"
+	case "720", "720p":
+		return "720p"
+	case "1080", "1080p":
+		return "1080p"
+	default:
+		return ""
+	}
+}
+
+func pixverseV6BillingResolution(resolution string) string {
+	switch pixverseV6Resolution(resolution) {
+	case "360p":
+		return VideoBillingResolution480P
+	case "540p":
+		return VideoBillingResolution720P
+	case "720p":
+		return VideoBillingResolution720P
+	case "1080p":
+		return VideoBillingResolution1080P
+	default:
+		return ""
+	}
+}
+
+func pixverseV6AspectRatioFromRequest(body []byte) (string, bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters.aspect_ratio", "aspect_ratio")
+	if !ok {
+		return "", false, nil
+	}
+	aspectRatio, ok := value.(string)
+	if !ok {
+		return "", false, fmt.Errorf("Pixverse v6 aspect_ratio must be a string")
+	}
+	aspectRatio = strings.TrimSpace(aspectRatio)
+	switch aspectRatio {
+	case "16:9", "4:3", "1:1", "3:4", "9:16", "2:3", "3:2", "21:9":
+		return aspectRatio, true, nil
+	default:
+		return "", false, fmt.Errorf("Pixverse v6 aspect_ratio is not supported")
+	}
+}
+
+func pixverseV6IntegerParameter(body []byte, field string) (int64, bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters."+field, field)
+	if !ok {
+		return 0, false, nil
+	}
+	number, ok := value.(float64)
+	if !ok || number != float64(int64(number)) {
+		return 0, false, fmt.Errorf("Pixverse v6 %s must be an integer", field)
+	}
+	return int64(number), true, nil
+}
+
+func pixverseV6ImageURLAllowed(rawURL string) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	lowerURL := strings.ToLower(rawURL)
+	if strings.HasPrefix(lowerURL, "data:image/") {
+		return strings.Contains(lowerURL, ";base64,")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || strings.TrimSpace(parsed.Host) == "" {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	return scheme == "http" || scheme == "https"
+}
+
+func pixverseV6VideoURLAllowed(rawURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed == nil || strings.TrimSpace(parsed.Host) == "" {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	return scheme == "http" || scheme == "https"
+}
+
+func normalizePPVideoMiniMaxH3Payload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("MiniMax-H3 request body is required")
+	}
+	if len(body) > 64*1024*1024 {
+		return nil, fmt.Errorf("MiniMax-H3 request body must not exceed 64 MB")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("MiniMax-H3 duration must be an integer number of seconds from 4 to 15")
+	}
+	durationSeconds := public.DurationMilliseconds / 1000
+	if durationSeconds < 4 || durationSeconds > 15 {
+		return nil, fmt.Errorf("MiniMax-H3 duration must be an integer number of seconds from 4 to 15")
+	}
+
+	content, hasFrameImage, hasReferenceImage, hasReferenceVideo, hasReferenceAudio, err := normalizePPVideoMiniMaxH3Content(body, public)
+	if err != nil {
+		return nil, err
+	}
+	if hasFrameImage && (hasReferenceImage || hasReferenceVideo || hasReferenceAudio) {
+		return nil, fmt.Errorf("MiniMax-H3 cannot combine first/last-frame images with reference media")
+	}
+	if hasReferenceAudio && !hasReferenceImage && !hasReferenceVideo {
+		return nil, fmt.Errorf("MiniMax-H3 reference audio requires a reference image or reference video")
+	}
+
+	resolution := miniMaxH3Resolution(public.Resolution)
+	if resolution == "" {
+		return nil, fmt.Errorf("MiniMax-H3 resolution must be 768P or 2K")
+	}
+	public.Resolution = miniMaxH3BillingResolution(resolution)
+	public.VideoCount = 1
+	public.UpstreamModel = MiniMaxH3VideoDefaultModel
+
+	ratio, err := miniMaxH3RatioFromRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	hasReferenceMedia := hasReferenceImage || hasReferenceVideo || hasReferenceAudio
+	if hasFrameImage {
+		ratio = "adaptive"
+	} else if ratio == "" {
+		if hasReferenceMedia {
+			ratio = "adaptive"
+		} else {
+			ratio = "16:9"
+		}
+	}
+	if !miniMaxH3RatioAllowed(ratio) {
+		return nil, fmt.Errorf("MiniMax-H3 ratio is not supported")
+	}
+	if !hasFrameImage && !hasReferenceMedia && ratio == "adaptive" {
+		return nil, fmt.Errorf("MiniMax-H3 text-to-video requests require a non-adaptive ratio")
+	}
+
+	watermark := false
+	if value, ok := ppVideoJSONValue(body, "parameters.aigc_watermark", "aigc_watermark"); ok {
+		parsed, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("MiniMax-H3 aigc_watermark must be boolean")
+		}
+		watermark = parsed
+	}
+
+	return map[string]any{
+		"model": MiniMaxH3VideoDefaultModel,
+		"input": map[string]any{
+			"content": content,
+		},
+		"parameters": map[string]any{
+			"resolution":     resolution,
+			"duration":       int(durationSeconds),
+			"ratio":          ratio,
+			"aigc_watermark": watermark,
+		},
+	}, nil
+}
+
+func normalizePPVideoMiniMaxHailuo23Payload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 request body is required")
+	}
+	if len(body) > 64*1024*1024 {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 request body must not exceed 64 MB")
+	}
+	if gjson.GetBytes(body, "input.content").Exists() {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 does not support input.content; use input.prompt and input.first_frame_image")
+	}
+
+	prompt := strings.TrimSpace(extractPPVideoText(body,
+		"input.prompt",
+		"prompt",
+		"data.prompt",
+		"parameters.prompt",
+	))
+	if err := validateVideoPromptFieldLength("MiniMax-Hailuo-2.3", "prompt", prompt, 2000); err != nil {
+		return nil, err
+	}
+	if prompt == "" {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 input.prompt is required")
+	}
+
+	durationSeconds := int64(6)
+	if duration, found := extractPPVideoDurationMillisecondsWithPresence(body,
+		"parameters.duration",
+		"duration",
+		"data.duration",
+		"parameters.duration_seconds",
+		"duration_seconds",
+	); found {
+		if duration <= 0 || duration%1000 != 0 {
+			return nil, fmt.Errorf("MiniMax-Hailuo-2.3 duration must be 6 or 10 seconds")
+		}
+		durationSeconds = duration / 1000
+	}
+	if durationSeconds != 6 && durationSeconds != 10 {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 duration must be 6 or 10 seconds")
+	}
+
+	resolution := miniMaxHailuo23Resolution(extractPPVideoText(body,
+		"parameters.resolution",
+		"resolution",
+		"data.resolution",
+	))
+	if resolution == "" {
+		resolution = "768P"
+	}
+	if durationSeconds == 10 && resolution == "1080P" {
+		return nil, fmt.Errorf("MiniMax-Hailuo-2.3 10-second videos only support 768P")
+	}
+
+	firstFrameImage := ""
+	if value, found := ppVideoJSONValue(body, "input.first_frame_image", "first_frame_image", "data.first_frame_image"); found {
+		var ok bool
+		firstFrameImage, ok = value.(string)
+		if !ok {
+			return nil, fmt.Errorf("MiniMax-Hailuo-2.3 first_frame_image must be a string")
+		}
+		firstFrameImage = strings.TrimSpace(firstFrameImage)
+		if firstFrameImage == "" {
+			return nil, fmt.Errorf("MiniMax-Hailuo-2.3 first_frame_image must not be empty")
+		}
+		if !miniMaxHailuo23ImageURLAllowed(firstFrameImage) {
+			return nil, fmt.Errorf("MiniMax-Hailuo-2.3 first_frame_image must be a public HTTP/HTTPS URL or an image Base64 data URL")
+		}
+	}
+
+	promptOptimizer, err := miniMaxHailuo23BooleanParameter(body, "prompt_optimizer", true)
+	if err != nil {
+		return nil, err
+	}
+	fastPretreatment, err := miniMaxHailuo23BooleanParameter(body, "fast_pretreatment", false)
+	if err != nil {
+		return nil, err
+	}
+	watermark, err := miniMaxHailuo23BooleanParameter(body, "aigc_watermark", false)
+	if err != nil {
+		return nil, err
+	}
+
+	public.Prompt = prompt
+	public.DurationMilliseconds = durationSeconds * 1000
+	public.Resolution = normalizePPVideoResolution(resolution)
+	public.VideoCount = 1
+	public.HasImage = firstFrameImage != ""
+	public.UpstreamModel = MiniMaxHailuo23VideoModel
+
+	input := map[string]any{"prompt": prompt}
+	if firstFrameImage != "" {
+		input["first_frame_image"] = firstFrameImage
+	}
+	return map[string]any{
+		"model": MiniMaxHailuo23VideoModel,
+		"input": input,
+		"parameters": map[string]any{
+			"duration":          int(durationSeconds),
+			"resolution":        resolution,
+			"prompt_optimizer":  promptOptimizer,
+			"fast_pretreatment": fastPretreatment,
+			"aigc_watermark":    watermark,
+		},
+	}, nil
+}
+
+func miniMaxHailuo23BooleanParameter(body []byte, field string, defaultValue bool) (bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters."+field, field)
+	if !ok {
+		return defaultValue, nil
+	}
+	parsed, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("MiniMax-Hailuo-2.3 %s must be boolean", field)
+	}
+	return parsed, nil
+}
+
+func miniMaxHailuo23Resolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "", "768", "768p":
+		return "768P"
+	case "1080", "1080p", "full_hd", "full-hd", "fhd":
+		return "1080P"
+	default:
+		return ""
+	}
+}
+
+func miniMaxHailuo23ImageURLAllowed(rawURL string) bool {
+	rawURL = strings.TrimSpace(rawURL)
+	lowerURL := strings.ToLower(rawURL)
+	if strings.HasPrefix(lowerURL, "data:image/") {
+		return strings.Contains(lowerURL, ";base64,")
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || strings.TrimSpace(parsed.Host) == "" {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	return scheme == "http" || scheme == "https"
+}
+
+func normalizePPVideoMiniMaxH3Content(body []byte, public *PPVideoPublicRequest) ([]any, bool, bool, bool, bool, error) {
+	rawContent := gjson.GetBytes(body, "input.content")
+	content := make([]any, 0, 4)
+	if rawContent.Exists() {
+		if !rawContent.IsArray() || len(rawContent.Array()) == 0 || len(rawContent.Array()) > 16 {
+			return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content must contain 1 to 16 items")
+		}
+		for _, item := range rawContent.Array() {
+			var source map[string]any
+			if err := json.Unmarshal([]byte(item.Raw), &source); err != nil || source == nil {
+				return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content items must be JSON objects")
+			}
+			normalized, err := normalizePPVideoMiniMaxH3ContentItem(source)
+			if err != nil {
+				return nil, false, false, false, false, err
+			}
+			content = append(content, normalized)
+		}
+	} else {
+		if prompt := strings.TrimSpace(public.Prompt); prompt != "" {
+			content = append(content, map[string]any{"type": "text", "text": prompt})
+		}
+		if startFrame := ppVideoJSONText(body, "start_frame_url", "input.start_frame_url", "data.start_frame_url"); startFrame != "" {
+			content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": startFrame}, "role": "first_frame"})
+		}
+		if endFrame := ppVideoJSONText(body, "end_frame_url", "input.end_frame_url", "data.end_frame_url"); endFrame != "" {
+			content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": endFrame}, "role": "last_frame"})
+		}
+		if image := ppVideoJSONText(body, "image", "image_url", "input.image", "input.image_url"); image != "" {
+			content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": image}, "role": "first_frame"})
+		}
+		for _, item := range gjson.GetBytes(body, "images").Array() {
+			if image := strings.TrimSpace(item.String()); image != "" {
+				content = append(content, map[string]any{"type": "image_url", "image_url": map[string]any{"url": image}, "role": "reference_image"})
+			}
+		}
+		if video := ppVideoJSONText(body, "video", "video_url", "videos.0", "input.video", "input.video_url"); video != "" {
+			content = append(content, map[string]any{"type": "video_url", "video_url": map[string]any{"url": video}, "role": "reference_video"})
+		}
+		if audio := ppVideoJSONText(body, "audio", "audio_url", "audios.0", "input.audio", "input.audio_url"); audio != "" {
+			content = append(content, map[string]any{"type": "audio_url", "audio_url": map[string]any{"url": audio}, "role": "reference_audio"})
+		}
+	}
+
+	if len(content) == 0 || len(content) > 16 {
+		return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content must contain 1 to 16 items")
+	}
+
+	canonicalContent := make([]any, 0, len(content))
+	for _, item := range content {
+		source, ok := item.(map[string]any)
+		if !ok {
+			return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content items must be JSON objects")
+		}
+		normalized, err := normalizePPVideoMiniMaxH3ContentItem(source)
+		if err != nil {
+			return nil, false, false, false, false, err
+		}
+		canonicalContent = append(canonicalContent, normalized)
+	}
+	content = canonicalContent
+
+	textCount := 0
+	firstFrameCount := 0
+	lastFrameCount := 0
+	referenceImageCount := 0
+	referenceVideoCount := 0
+	referenceAudioCount := 0
+	for _, item := range content {
+		normalized, ok := item.(map[string]any)
+		if !ok {
+			return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content items must be JSON objects")
+		}
+		switch normalized["type"] {
+		case "text":
+			textCount++
+			if text, ok := normalized["text"].(string); ok {
+				public.Prompt = strings.TrimSpace(text)
+			}
+		case "image_url":
+			public.HasImage = true
+			switch normalized["role"] {
+			case "first_frame":
+				firstFrameCount++
+			case "last_frame":
+				lastFrameCount++
+			case "reference_image":
+				referenceImageCount++
+			}
+		case "video_url":
+			referenceVideoCount++
+		case "audio_url":
+			referenceAudioCount++
+		}
+	}
+	if textCount != 1 {
+		return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content must contain exactly one non-empty text item")
+	}
+	if firstFrameCount > 1 || lastFrameCount > 1 || referenceImageCount > 9 || referenceVideoCount > 3 || referenceAudioCount > 3 {
+		return nil, false, false, false, false, fmt.Errorf("MiniMax-H3 input.content exceeds the supported media-item limit")
+	}
+	return content, firstFrameCount > 0 || lastFrameCount > 0, referenceImageCount > 0, referenceVideoCount > 0, referenceAudioCount > 0, nil
+}
+
+func normalizePPVideoMiniMaxH3ContentItem(source map[string]any) (map[string]any, error) {
+	contentType, _ := source["type"].(string)
+	contentType = strings.TrimSpace(contentType)
+	result := map[string]any{"type": contentType}
+	switch contentType {
+	case "text":
+		text, _ := source["text"].(string)
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return nil, fmt.Errorf("MiniMax-H3 text content must not be empty")
+		}
+		result["text"] = text
+	case "image_url":
+		value, ok := source["image_url"]
+		if !ok {
+			return nil, fmt.Errorf("MiniMax-H3 image_url content requires image_url")
+		}
+		normalized, err := normalizePPVideoMiniMaxH3URLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("MiniMax-H3 image_url content: %w", err)
+		}
+		role, _ := source["role"].(string)
+		role = strings.TrimSpace(role)
+		if role == "" {
+			role = "first_frame"
+		}
+		if role != "first_frame" && role != "last_frame" && role != "reference_image" {
+			return nil, fmt.Errorf("MiniMax-H3 image role %q is not supported", role)
+		}
+		result["image_url"] = normalized
+		result["role"] = role
+	case "video_url":
+		value, ok := source["video_url"]
+		if !ok {
+			return nil, fmt.Errorf("MiniMax-H3 video_url content requires video_url")
+		}
+		normalized, err := normalizePPVideoMiniMaxH3URLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("MiniMax-H3 video_url content: %w", err)
+		}
+		role, _ := source["role"].(string)
+		role = strings.TrimSpace(role)
+		if role == "" {
+			role = "reference_video"
+		}
+		if role != "reference_video" {
+			return nil, fmt.Errorf("MiniMax-H3 video role %q is not supported", role)
+		}
+		result["video_url"] = normalized
+		result["role"] = role
+	case "audio_url":
+		value, ok := source["audio_url"]
+		if !ok {
+			return nil, fmt.Errorf("MiniMax-H3 audio_url content requires audio_url")
+		}
+		normalized, err := normalizePPVideoMiniMaxH3URLObject(value)
+		if err != nil {
+			return nil, fmt.Errorf("MiniMax-H3 audio_url content: %w", err)
+		}
+		role, _ := source["role"].(string)
+		role = strings.TrimSpace(role)
+		if role == "" {
+			role = "reference_audio"
+		}
+		if role != "reference_audio" {
+			return nil, fmt.Errorf("MiniMax-H3 audio role %q is not supported", role)
+		}
+		result["audio_url"] = normalized
+		result["role"] = role
+	default:
+		return nil, fmt.Errorf("MiniMax-H3 content type %q is not supported", contentType)
+	}
+	return result, nil
+}
+
+func normalizePPVideoMiniMaxH3URLObject(value any) (map[string]any, error) {
+	normalized, err := normalizePPVideoByteDanceURLObject(value)
+	if err != nil {
+		return nil, err
+	}
+	rawURL, _ := normalized["url"].(string)
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return nil, fmt.Errorf("url must be a public http or https URL")
+	}
+	return normalized, nil
+}
+
+func miniMaxH3Resolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "", "480", "480p", "720", "720p", "hd", "768", "768p":
+		return "768P"
+	case "1080", "1080p", "full_hd", "full-hd", "fhd", "2k":
+		return "2K"
+	default:
+		return ""
+	}
+}
+
+func miniMaxH3BillingResolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "768p":
+		return VideoBillingResolution720P
+	case "2k":
+		return VideoBillingResolution1080P
+	default:
+		return ""
+	}
+}
+
+func miniMaxH3RatioFromRequest(body []byte) (string, error) {
+	value, ok := ppVideoJSONValue(body, "parameters.ratio", "ratio", "parameters.aspect_ratio", "aspect_ratio")
+	if !ok {
+		return "", nil
+	}
+	ratio, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("MiniMax-H3 ratio must be a string")
+	}
+	return strings.TrimSpace(ratio), nil
+}
+
+func miniMaxH3RatioAllowed(ratio string) bool {
+	switch strings.TrimSpace(ratio) {
+	case "adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16":
+		return true
+	default:
+		return false
+	}
+}
+
+func ppVideoJSONValue(body []byte, paths ...string) (any, bool) {
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() || value.Type == gjson.Null {
+			continue
+		}
+		var result any
+		if err := json.Unmarshal([]byte(value.Raw), &result); err != nil {
+			continue
+		}
+		return result, true
+	}
+	return nil, false
+}
+
+func ppVideoJSONText(body []byte, paths ...string) string {
+	for _, path := range paths {
+		value := gjson.GetBytes(body, path)
+		if value.Exists() && strings.TrimSpace(value.String()) != "" {
+			return strings.TrimSpace(value.String())
+		}
+	}
+	return ""
+}
+
+func byteDanceResolution(resolution string) string {
+	switch strings.ToLower(strings.TrimSpace(resolution)) {
+	case "480p":
+		return "480p"
+	case "720p":
+		return "720p"
+	case "1080p":
+		return "1080p"
+	case "4k":
+		return "4K"
+	default:
+		return ""
+	}
 }
 
 func normalizePPVideoKlingPayload(payload map[string]any, operation PPVideoOperation, body []byte, public *PPVideoPublicRequest) error {
@@ -266,6 +1518,21 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
+	case PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6:
+		switch operation {
+		case PPVideoOperationGeneric:
+			path = "/v1/tasks/submit"
+		case PPVideoOperationCancel:
+			if platform != PlatformByteDance {
+				return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+			}
+			if taskID == "" {
+				return "", fmt.Errorf("PP video task id is required for cancel requests")
+			}
+			return "/v1/tasks/cancel?task_id=" + url.QueryEscape(taskID), nil
+		default:
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
 	case PlatformSeedance, PlatformHappyHourse:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
@@ -284,6 +1551,9 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	if taskID == "" {
 		return path, nil
+	}
+	if platform == PlatformByteDance || platform == PlatformWan3 || platform == PlatformMiniMaxH3 || platform == PlatformPixverseV6 {
+		return "/v1/tasks/status?task_id=" + url.QueryEscape(taskID), nil
 	}
 	return path + "/" + url.PathEscape(taskID), nil
 }
@@ -325,6 +1595,8 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 
 	result := PPVideoResponse{
 		TaskID: extractPPVideoText(body,
+			"output.task_id",
+			"output.id",
 			"id",
 			"task_id",
 			"request_id",
@@ -347,6 +1619,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 			"data.data.data.generationId",
 		),
 		Status: NormalizePPVideoTaskStatus(extractPPVideoText(body,
+			"output.task_status",
+			"output.status",
+			"output.state",
 			"status",
 			"state",
 			"task_status",
@@ -367,6 +1642,11 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 			"data.data.task_result.duration",
 			"data.data.data.task_result.videos.0.duration",
 			"data.data.data.task_result.duration",
+			"output.usage.output_video_duration",
+			"data.data.usage.output_video_duration",
+			"data.usage.output_video_duration",
+			"usage.output_video_duration",
+			"output.usage.duration",
 			"data.data.usage.duration",
 			"data.usage.duration",
 			"usage.duration",
@@ -434,6 +1714,16 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 			"data.data.frame_rate",
 			"data.frame_rate",
 			"frame_rate",
+		),
+		ErrorMessage: extractPPVideoText(body,
+			"output.error_message",
+			"output.error",
+			"error_message",
+			"error.message",
+			"data.error_message",
+			"data.error.message",
+			"data.data.error_message",
+			"data.data.error.message",
 		),
 		InputVideoDurationMilliseconds: extractPPVideoDurationMilliseconds(body,
 			"data.data.usage.input_video_duration",
@@ -794,6 +2084,9 @@ func ppVideoRequestHasImage(body []byte) bool {
 		"data.image_url",
 		"parameters.image",
 		"parameters.image_url",
+		"input.first_frame_image",
+		"first_frame_image",
+		"data.first_frame_image",
 	)) != "" {
 		return true
 	}
@@ -850,6 +2143,17 @@ func normalizePPVideoSeedanceMediaFields(payload map[string]any, body []byte) er
 func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 	model := strings.TrimSpace(public.Model)
 	switch platform {
+	case PlatformByteDance:
+		return ByteDanceVideoDefaultModel
+	case PlatformWan3:
+		return wan30UpstreamModel(model)
+	case PlatformMiniMaxH3:
+		if ppVideoIsMiniMaxModel(model) {
+			return model
+		}
+		return MiniMaxH3VideoDefaultModel
+	case PlatformPixverseV6:
+		return PixverseV6VideoDefaultModel
 	case PlatformKling:
 		if ppVideoIsPublicDefaultAlias(model) {
 			return ppVideoKlingDefaultModel
@@ -877,6 +2181,30 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 }
 
 func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest, account *Account) string {
+	if platform == PlatformByteDance {
+		return ByteDanceVideoDefaultModel
+	}
+	if platform == PlatformWan3 {
+		return wan30UpstreamModel(public.Model)
+	}
+	if platform == PlatformMiniMaxH3 {
+		if account != nil {
+			if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
+				if mappedModel = strings.TrimSpace(mappedModel); ppVideoIsMiniMaxModel(mappedModel) {
+					return mappedModel
+				}
+			}
+			if strings.TrimSpace(public.Model) == "" {
+				if mappedModel := ppVideoFirstMappedModelForAccount(platform, account); mappedModel != "" {
+					return mappedModel
+				}
+			}
+		}
+		return ppVideoUpstreamModel(platform, public)
+	}
+	if platform == PlatformPixverseV6 {
+		return PixverseV6VideoDefaultModel
+	}
 	if account != nil {
 		if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
 			if mappedModel = strings.TrimSpace(mappedModel); mappedModel != "" {
@@ -941,6 +2269,14 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsHappyHorseModel(model)
 	case PlatformSeedance:
 		return ppVideoIsSeedanceModel(model)
+	case PlatformByteDance:
+		return ppVideoIsByteDanceModel(model)
+	case PlatformWan3:
+		return ppVideoIsWan30Model(model)
+	case PlatformMiniMaxH3:
+		return ppVideoIsMiniMaxModel(model)
+	case PlatformPixverseV6:
+		return ppVideoIsPixverseV6Model(model)
 	default:
 		return false
 	}
@@ -957,7 +2293,7 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if ppVideoModelBelongsToPlatform(platform, model) {
 		return false
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance} {
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6} {
 		if candidate == platform {
 			continue
 		}
@@ -975,7 +2311,12 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 
 	filtered := make([]string, 0, len(models))
 	for _, model := range models {
-		if ppVideoIsPublicDefaultAlias(model) || ppVideoModelBelongsToPlatform(platform, model) {
+		if (platform == PlatformByteDance && ppVideoByteDanceModelAllowed(model)) ||
+			(platform == PlatformWan3 && ppVideoWan30ModelAllowed(model)) ||
+			(platform == PlatformMiniMaxH3 && ppVideoMiniMaxH3ModelAllowed(model)) ||
+			(platform == PlatformPixverseV6 && ppVideoPixverseV6ModelAllowed(model)) ||
+			(platform != PlatformByteDance && platform != PlatformWan3 && platform != PlatformMiniMaxH3 && platform != PlatformPixverseV6 &&
+				(ppVideoIsPublicDefaultAlias(model) || ppVideoModelBelongsToPlatform(platform, model))) {
 			filtered = append(filtered, model)
 		}
 	}
@@ -993,6 +2334,73 @@ func ppVideoIsSeedanceModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
 	return strings.HasPrefix(model, "seedance") ||
 		strings.HasPrefix(model, "doubao-seedance-")
+}
+
+func ppVideoIsByteDanceModel(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), ByteDanceVideoDefaultModel)
+}
+
+func ppVideoByteDanceModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsByteDanceModel(model)
+}
+
+func ppVideoIsWan30Model(model string) bool {
+	model = strings.TrimSpace(model)
+	return strings.EqualFold(model, Wan30VideoDefaultModel) ||
+		strings.EqualFold(model, Wan30VideoPrimeModel)
+}
+
+func ppVideoWan30ModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsWan30Model(model)
+}
+
+func wan30UpstreamModel(model string) string {
+	if strings.EqualFold(strings.TrimSpace(model), Wan30VideoPrimeModel) {
+		return Wan30VideoPrimeModel
+	}
+	return Wan30VideoDefaultModel
+}
+
+func ppVideoIsMiniMaxH3Model(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), MiniMaxH3VideoDefaultModel)
+}
+
+func ppVideoIsMiniMaxHailuo23Model(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), MiniMaxHailuo23VideoModel)
+}
+
+func ppVideoIsMiniMaxModel(model string) bool {
+	return ppVideoIsMiniMaxH3Model(model) || ppVideoIsMiniMaxHailuo23Model(model)
+}
+
+func ppVideoMiniMaxH3ModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsMiniMaxModel(model)
+}
+
+func ppVideoMiniMaxH3ModelAllowedForAccount(model string, account *Account) bool {
+	model = strings.TrimSpace(model)
+	if ppVideoMiniMaxH3ModelAllowed(model) {
+		return true
+	}
+	if account == nil {
+		return false
+	}
+	if mappedModel, matched := account.ResolveMappedModel(model); matched {
+		return ppVideoIsMiniMaxModel(mappedModel)
+	}
+	return false
+}
+
+func ppVideoIsPixverseV6Model(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), PixverseV6VideoDefaultModel)
+}
+
+func ppVideoPixverseV6ModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsPixverseV6Model(model)
 }
 
 func ppVideoIsJimengModel(model string) bool {
@@ -1241,6 +2649,8 @@ func ppVideoPublicUsage(raw []byte, public PPVideoPublicRequest, parsed PPVideoR
 	providerUsage := json.RawMessage(nil)
 	if value := gjson.GetBytes(raw, "usage"); value.Exists() {
 		providerUsage = json.RawMessage(value.Raw)
+	} else if value := gjson.GetBytes(raw, "output.usage"); value.Exists() {
+		providerUsage = json.RawMessage(value.Raw)
 	} else if value := gjson.GetBytes(raw, "data.usage"); value.Exists() {
 		providerUsage = json.RawMessage(value.Raw)
 	} else if value := gjson.GetBytes(raw, "data.data.usage"); value.Exists() {
@@ -1380,9 +2790,9 @@ func normalizePPVideoResolution(resolution string) string {
 	switch strings.ToLower(strings.TrimSpace(resolution)) {
 	case "480", "480p", "sd":
 		return VideoBillingResolution480P
-	case "720", "720p", "hd":
+	case "720", "720p", "768", "768p", "hd":
 		return VideoBillingResolution720P
-	case "1080", "1080p", "full_hd", "full-hd", "fhd":
+	case "1080", "1080p", "2k", "full_hd", "full-hd", "fhd":
 		return VideoBillingResolution1080P
 	default:
 		return strings.ToLower(strings.TrimSpace(resolution))

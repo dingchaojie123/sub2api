@@ -2,7 +2,15 @@ export const PROVIDER_PLATFORMS = ['doubao', 'qwen', 'kimi', 'deepseek'] as cons
 
 export type ProviderPlatform = (typeof PROVIDER_PLATFORMS)[number]
 
-export const VIDEO_ACCOUNT_PLATFORMS = ['kling', 'happyhourse', 'seedance'] as const
+export const VIDEO_ACCOUNT_PLATFORMS = [
+  'kling',
+  'happyhourse',
+  'seedance',
+  'bytedance',
+  'wan3',
+  'minimax-h3',
+  'pixverse-v6'
+] as const
 
 export type VideoAccountPlatform = (typeof VIDEO_ACCOUNT_PLATFORMS)[number]
 
@@ -19,7 +27,11 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'deepseek',
   'kling',
   'happyhourse',
-  'seedance'
+  'seedance',
+  'bytedance',
+  'wan3',
+  'minimax-h3',
+  'pixverse-v6'
 ] as const
 
 export interface ProviderPlatformMetadata {
@@ -108,6 +120,42 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     label: 'Seedance',
     defaultBaseUrl: 'https://app.ppapi.ai/v1',
     baseUrlPlaceholder: 'https://app.ppapi.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  bytedance: {
+    id: 'bytedance',
+    label: 'ByteDance',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  wan3: {
+    id: 'wan3',
+    label: 'Wan3.0',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'minimax-h3': {
+    id: 'minimax-h3',
+    label: 'MiniMax-H3',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'pixverse-v6': {
+    id: 'pixverse-v6',
+    label: 'Pixverse-V6',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
     apiKeyPlaceholder: 'sk-...',
     accountType: 'apikey',
     authScheme: 'bearer'

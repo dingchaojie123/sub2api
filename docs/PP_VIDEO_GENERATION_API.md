@@ -1,6 +1,6 @@
 # 站点视频生成接口
 
-本文档是本站对下游客户提供的唯一视频生成接口文档。下游只需要对接本站接口，不需要关心本站后台使用 Jimeng、Kling、Happy Horse、Seedance 或其他上游服务商。
+本文档是本站对下游客户提供的唯一视频生成接口文档。下游只需要对接本站接口，不需要关心本站后台使用 Jimeng、Kling、Happy Horse、Seedance、ByteDance、Wan3.0、MiniMax-H3、Pixverse-V6 或其他上游服务商。
 
 ## 基础信息
 
@@ -40,6 +40,18 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 精确模型 ID。本站会按 API Key 所属分组和后台账号配置，把对外模型名转换为对应
 上游请求。
 
+### 新增视频模型
+
+以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID，不要使用 `video-v1` 作为新接入的模型名。
+
+| 平台 | 模型 ID | 输入能力 | 时长 | 输出分辨率 |
+| --- | --- | --- | --- | --- |
+| ByteDance | `doubao-seedance-2-0-260128` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `480p`、`720p`、`1080p`、`4K` |
+| Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
+| MiniMax-H3 | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
+| MiniMax-H3 | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
+| Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` |
+
 ## 创建视频任务
 
 推荐接口：
@@ -62,7 +74,7 @@ POST /v1/video/generations
 | --- | --- | --- | --- |
 | `model` | string | 否 | 对外视频模型名，建议从 `/v1/models` 获取。未传时按该 API Key 所属平台和账号模型映射自动选择。 |
 | `prompt` | string | 条件必填 | 视频描述。`prompt`、参考图字段或首尾帧字段至少提供一项。 |
-| `duration` | integer/number/string | 否 | 视频时长，单位秒。建议传 `5`、`10` 或 `15`；未传默认 `5`。 |
+| `duration` | integer/number/string | 否 | 视频时长，单位秒。建议传 `5`、`10` 或 `15`；未传默认 `5`。不同模型的最小/最大时长以“新增视频模型参数”章节为准。 |
 | `images` | string[] | 否 | 推荐的参考图片 URL 列表。多张图片必须是同一人物、同一角色或同一视觉风格的补充参考；不要混入不同人物或不同次元/画风的图片。 |
 | `image` | string | 否 | 单张参考图片的兼容写法。不能与 `images`、`image_url` 同时传；Seedance 会将其标准化为 `images`。 |
 | `image_url` | string | 否 | 单张参考图片 URL 的兼容写法。不能与 `images`、`image` 同时传；Seedance 会将其标准化为 `images`。 |
@@ -82,6 +94,185 @@ POST /v1/video/generations
 | `n` | integer | 否 | 生成视频数量，默认 `1`。 |
 
 不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。K-Ling 的 `duration` 仅支持 `3` 到 `15` 秒的整数值；本站会把统一字段自动转换为 K-Ling 上游需要的 `model_name`、`image`、`image_tail`、`sound` 等字段。
+
+本文档开头列出的 ByteDance、Wan3.0、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
+
+## 新增视频模型参数
+
+所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。以下 JSON 结构是新增视频模型推荐使用的请求体格式。
+
+### ByteDance
+
+模型 ID 固定为 `doubao-seedance-2-0-260128`。`input.content` 至少包含一个内容项，可使用 `text`、`image_url`、`video_url`、`audio_url` 四种类型：
+
+- `text`：`{"type":"text","text":"提示词"}`。
+- `image_url`：`{"type":"image_url","image_url":{"url":"https://..."}, "role":"first_frame|last_frame|reference_image"}`。
+- `video_url`：`{"type":"video_url","video_url":{"url":"https://..."}, "role":"reference_video"}`。
+- `audio_url`：`{"type":"audio_url","audio_url":{"url":"https://..."}, "role":"reference_audio"}`。
+
+`parameters.duration` 必须是 `4` 到 `15` 的整数；`parameters.resolution` 可为 `480p`、`720p`、`1080p` 或 `4K`；`parameters.ratio` 可省略，省略时为 `adaptive`。可选参数包括 `generate_audio`（boolean）、`seed`、`camera_fixed`、`watermark`、`callback_url`、`execution_expires_after` 和 `seedance_tools`。
+
+```json
+{
+  "model": "doubao-seedance-2-0-260128",
+  "input": {
+    "content": [
+      {"type": "text", "text": "清晨的海边，一艘小船穿过薄雾，电影感镜头"},
+      {
+        "type": "image_url",
+        "image_url": {"url": "https://example.com/first-frame.jpg"},
+        "role": "first_frame"
+      }
+    ]
+  },
+  "parameters": {
+    "duration": 5,
+    "resolution": "720p",
+    "ratio": "16:9",
+    "generate_audio": false
+  }
+}
+```
+
+### Wan3.0
+
+模型为 `wan3.0-video` 或 `wan3.0-video-prime`。`input.prompt` 必填；`input.media` 可省略，或传入以下对象组成的数组：
+
+```json
+{"type": "first_frame|last_frame|reference_image|reference_video|reference_audio|file|link", "url": "https://..."}
+```
+
+首帧和尾帧各最多一张；参考图最多 10 张，参考视频和参考音频各最多 5 个；`file` 和 `link` 最多二选一。`first_frame`/`last_frame` 不能与参考媒体、`file` 或 `link` 混用。图片类媒体支持公开 URL 或 `data:image/...;base64,...`，其余媒体使用可访问的 URL。
+
+`parameters.duration` 必须是 `2` 到 `30` 的整数；`parameters.resolution` 可为 `480P`、`720P` 或 `1080P`，默认 `1080P`；`parameters.ratio` 可为 `adaptive`、`16:9`、`9:16`、`1:1`、`4:3` 或 `3:4`。可选参数包括 `audio`、`prompt_extend`、`watermark` 和 `seed`（`0` 至 `2147483647` 的整数）。
+
+```json
+{
+  "model": "wan3.0-video",
+  "input": {
+    "prompt": "猫咪从草地左边跑到右边，阳光明媚，镜头跟拍",
+    "media": [
+      {"type": "first_frame", "url": "https://example.com/start.jpg"},
+      {"type": "last_frame", "url": "https://example.com/end.jpg"}
+    ]
+  },
+  "parameters": {
+    "duration": 8,
+    "resolution": "720P",
+    "ratio": "16:9",
+    "audio": true,
+    "prompt_extend": true
+  }
+}
+```
+
+### MiniMax-H3
+
+模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
+
+- 图片：`image_url`，`role` 为 `first_frame`、`last_frame` 或 `reference_image`。
+- 视频：`video_url`，`role` 固定为 `reference_video`。
+- 音频：`audio_url`，`role` 固定为 `reference_audio`。
+
+首帧和尾帧各最多一张，参考图最多 9 张，参考视频和参考音频各最多 3 个。首尾帧模式不能与参考媒体混用；只传参考音频无效，必须同时有参考图或参考视频。媒体仅支持可公开访问的 HTTP/HTTPS URL，不支持 Base64。
+
+`parameters.duration` 必须是 `4` 到 `15` 的整数；`parameters.resolution` 为 `768P` 或 `2K`。`parameters.ratio` 可为 `adaptive`、`21:9`、`16:9`、`4:3`、`1:1`、`3:4` 或 `9:16`：文生视频不能使用 `adaptive`，首尾帧模式按 `adaptive` 处理。可选参数 `aigc_watermark` 为 boolean，默认 `false`。
+
+```json
+{
+  "model": "MiniMax-H3",
+  "input": {
+    "content": [
+      {"type": "text", "text": "水墨画从静止的山水渐变为云雾流动的动态场景"},
+      {
+        "type": "image_url",
+        "image_url": {"url": "https://example.com/first-frame.png"},
+        "role": "first_frame"
+      },
+      {
+        "type": "image_url",
+        "image_url": {"url": "https://example.com/last-frame.png"},
+        "role": "last_frame"
+      }
+    ]
+  },
+  "parameters": {
+    "duration": 10,
+    "resolution": "2K",
+    "ratio": "adaptive",
+    "aigc_watermark": false
+  }
+}
+```
+
+### MiniMax-Hailuo-2.3
+
+模型 ID 固定为 `MiniMax-Hailuo-2.3`，与 `MiniMax-H3` 共用后台的 MiniMax-H3 平台账号，但请求参数和输入结构相互独立。
+
+- 文生视频：`input.prompt` 必填。
+- 图生视频：在 `input` 中增加 `first_frame_image`，支持公开 HTTP/HTTPS 图片 URL 或 `data:image/...;base64,...`。
+- `input.prompt` 最长 2000 个字符；源图片格式、大小、尺寸和宽高比由上游进一步校验。
+- `parameters.duration` 只能是 `6` 或 `10`；`6` 秒支持 `768P`、`1080P`，`10` 秒仅支持 `768P`。
+- `parameters.resolution` 可为 `768P` 或 `1080P`。可选参数 `prompt_optimizer` 默认 `true`、`fast_pretreatment` 默认 `false`、`aigc_watermark` 默认 `false`。
+
+文生视频请求：
+
+```json
+{
+  "model": "MiniMax-Hailuo-2.3",
+  "input": {
+    "prompt": "A beautiful sunset over the ocean with waves gently crashing on the shore. [推进, 跟随]"
+  },
+  "parameters": {
+    "duration": 6,
+    "resolution": "1080P",
+    "prompt_optimizer": true,
+    "fast_pretreatment": false,
+    "aigc_watermark": false
+  }
+}
+```
+
+图生视频请求：
+
+```json
+{
+  "model": "MiniMax-Hailuo-2.3",
+  "input": {
+    "first_frame_image": "https://example.com/first-frame.jpg",
+    "prompt": "A mouse runs toward the camera, smiling and blinking. [推进, 跟随]"
+  },
+  "parameters": {
+    "duration": 10,
+    "resolution": "768P"
+  }
+}
+```
+
+### Pixverse-V6
+
+模型 ID 固定为 `pixverse-v6`，`input.prompt` 必填。可选输入为：
+
+- `input.first_frame_url` 和 `input.last_frame_url`：首尾帧必须同时提供，支持公开图片 URL 或 `data:image/...;base64,...`。
+- `input.img_url`：参考图，支持公开图片 URL 或 `data:image/...;base64,...`。
+- `input.video_url`：视频延长输入，仅支持公开 HTTP/HTTPS URL。
+
+`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。可选参数还包括整数 `generate_audio` 和 `seed`（`0` 至 `2147483647`）。
+
+```json
+{
+  "model": "pixverse-v6",
+  "input": {
+    "prompt": "一只纸鹤从书桌上起飞，穿过窗外的晚霞",
+    "img_url": "https://example.com/reference.jpg"
+  },
+  "parameters": {
+    "duration": 5,
+    "resolution": "720p",
+    "generate_audio": 1
+  }
+}
+```
 
 ### 图片输入规则
 
@@ -201,6 +392,20 @@ curl https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
 
 任务成功后返回的 `video_url` 是本站或上游媒体代理地址，可能不会以 `.mp4` 结尾。客户端应根据 HTTP `Content-Type` 或播放器的媒体探测能力处理视频，不要通过文件扩展名判断格式。
 
+部分上游（尤其是 Wan3.0）返回的是带 OSS 签名参数的临时 URL。签名参数中的
+`Signature` 可能包含标准 Base64 字符 `+`、`/` 和 `=`，客户端或媒体代理必须保留
+URL 的完整内容：
+
+- 如果把视频 URL 放入代理接口的查询参数，必须对完整 URL 进行一次 URL 编码，例如
+  JavaScript 使用 `encodeURIComponent(videoURL)`；不要直接拼接
+  `?url=`。
+- 服务端只解码外层参数一次，不要对已经解码的完整 URL 再次 `QueryEscape` 或重新
+  拼接其签名查询参数。
+- 更推荐使用 POST JSON 传递 `{ "url": "..." }`，避免嵌套查询参数解析时把
+  `+` 误解为空格。
+- 该 URL 具有有效期，过期后应重新查询任务状态获取新的 `video_url`，不要缓存旧的
+  OSS 签名 URL。
+
 ## 计费与退款
 
 视频生成在本站按统一的站内规则计费，具体上游服务商的接口和计费实现不会暴露给下游客户。上游服务商更换、模型映射调整或接口路径变化，不要求下游客户修改本文档中的调用方式。
@@ -217,6 +422,11 @@ curl https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
 | Seedance | 按输出视频秒数计费，单价取本站该 API Key 所属分组的原有视频价格配置。`480p`、`720p`、`1080p` 分别使用对应价格，`4K` 使用 `1080p` 价格。 |
 | K-Ling | 按输出视频秒数计费，单价取本站该 API Key 所属分组的原有视频价格配置。2x 使用 `720p` 价格，2x Pro 和 4K 使用 `1080p` 价格。 |
 | Happy Horse | 按输出视频秒数计费，720p/1080p 分别取本站该 API Key 所属分组的 `720p`/`1080p` 视频价格。 |
+| ByteDance | 按输出视频秒数计费。`480p`、`720p`、`1080p` 分别使用分组对应价档，`4K` 使用 `1080p` 价档。 |
+| Wan3.0 | 按输出视频秒数计费。`480P`、`720P`、`1080P` 分别使用分组对应价档。 |
+| MiniMax-H3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`2K` 使用分组 `1080p` 价档。 |
+| MiniMax-Hailuo-2.3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`1080P` 使用分组 `1080p` 价档。 |
+| Pixverse-V6 | 按输出视频秒数计费。`360p` 使用分组 `480p` 价档；`540p` 和 `720p` 使用分组 `720p` 价档；`1080p` 使用分组 `1080p` 价档。 |
 
 - K-Ling 的价格档位由请求中的 `mode` 决定；音频参数不改变本站的站内单价。
 - 上述基础费用还会叠加本站分组倍率、视频独立倍率（如果启用）和账号倍率。

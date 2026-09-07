@@ -19,6 +19,10 @@ export type Platform =
   | 'kling'
   | 'happyhourse'
   | 'seedance'
+  | 'bytedance'
+  | 'wan3'
+  | 'minimax-h3'
+  | 'pixverse-v6'
 
 // ── Badge (bg + text + border, for inline badges with border) ───────
 const BADGE: Record<Platform, string> = {
@@ -35,6 +39,10 @@ const BADGE: Record<Platform, string> = {
   kling: 'bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
+  bytedance: 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300',
+  wan3: 'bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-300',
+  'minimax-h3': 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
+  'pixverse-v6': 'bg-lime-500/10 text-lime-700 border-lime-500/30 dark:text-lime-300',
 }
 const BADGE_DEFAULT = 'bg-slate-500/10 text-slate-600 border-slate-500/30 dark:text-slate-400'
 
@@ -53,6 +61,10 @@ const BADGE_LIGHT: Record<Platform, string> = {
   kling: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
+  bytedance: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
+  wan3: 'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
+  'minimax-h3': 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
+  'pixverse-v6': 'bg-lime-500/10 text-lime-700 dark:bg-lime-500/10 dark:text-lime-300',
 }
 
 // ── Border ──────────────────────────────────────────────────────────
@@ -70,6 +82,10 @@ const BORDER: Record<Platform, string> = {
   kling: 'border-sky-500/20 dark:border-sky-500/20',
   happyhourse: 'border-emerald-500/20 dark:border-emerald-500/20',
   seedance: 'border-teal-500/20 dark:border-teal-500/20',
+  bytedance: 'border-violet-500/20 dark:border-violet-500/20',
+  wan3: 'border-fuchsia-500/20 dark:border-fuchsia-500/20',
+  'minimax-h3': 'border-pink-500/20 dark:border-pink-500/20',
+  'pixverse-v6': 'border-lime-500/20 dark:border-lime-500/20',
 }
 const BORDER_DEFAULT = 'border-gray-200 dark:border-dark-700'
 
@@ -88,6 +104,10 @@ const ACCENT_BAR: Record<Platform, string> = {
   kling: 'bg-gradient-to-r from-sky-400 to-sky-600',
   happyhourse: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
   seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
+  bytedance: 'bg-gradient-to-r from-violet-400 to-violet-600',
+  wan3: 'bg-gradient-to-r from-fuchsia-400 to-fuchsia-600',
+  'minimax-h3': 'bg-gradient-to-r from-pink-400 to-pink-600',
+  'pixverse-v6': 'bg-gradient-to-r from-lime-400 to-lime-600',
 }
 const ACCENT_BAR_DEFAULT = 'bg-gradient-to-r from-primary-400 to-primary-500'
 
@@ -106,6 +126,10 @@ const TEXT: Record<Platform, string> = {
   kling: 'text-sky-700 dark:text-sky-300',
   happyhourse: 'text-emerald-700 dark:text-emerald-300',
   seedance: 'text-teal-700 dark:text-teal-300',
+  bytedance: 'text-violet-700 dark:text-violet-300',
+  wan3: 'text-fuchsia-700 dark:text-fuchsia-300',
+  'minimax-h3': 'text-pink-700 dark:text-pink-300',
+  'pixverse-v6': 'text-lime-700 dark:text-lime-300',
 }
 const TEXT_DEFAULT = 'text-primary-600 dark:text-primary-400'
 
@@ -124,6 +148,10 @@ const ICON: Record<Platform, string> = {
   kling: 'text-sky-500 dark:text-sky-300',
   happyhourse: 'text-emerald-500 dark:text-emerald-300',
   seedance: 'text-teal-500 dark:text-teal-300',
+  bytedance: 'text-violet-500 dark:text-violet-300',
+  wan3: 'text-fuchsia-500 dark:text-fuchsia-300',
+  'minimax-h3': 'text-pink-500 dark:text-pink-300',
+  'pixverse-v6': 'text-lime-500 dark:text-lime-300',
 }
 const ICON_DEFAULT = 'text-primary-500 dark:text-primary-400'
 
@@ -142,6 +170,10 @@ const BUTTON: Record<Platform, string> = {
   kling: 'bg-sky-600 text-white hover:bg-sky-700 active:bg-sky-800 dark:bg-sky-600/80 dark:hover:bg-sky-600',
   happyhourse: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
   seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
+  bytedance: 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 dark:bg-violet-600/80 dark:hover:bg-violet-600',
+  wan3: 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 active:bg-fuchsia-800 dark:bg-fuchsia-600/80 dark:hover:bg-fuchsia-600',
+  'minimax-h3': 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
+  'pixverse-v6': 'bg-lime-600 text-white hover:bg-lime-700 active:bg-lime-800 dark:bg-lime-600/80 dark:hover:bg-lime-600',
 }
 const BUTTON_DEFAULT = 'bg-primary-500 text-white hover:bg-primary-600 dark:bg-primary-600 dark:hover:bg-primary-500'
 
@@ -160,6 +192,10 @@ const DISCOUNT: Record<Platform, string> = {
   kling: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   happyhourse: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  bytedance: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  wan3: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300',
+  'minimax-h3': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+  'pixverse-v6': 'bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300',
 }
 const DISCOUNT_DEFAULT = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
 
@@ -178,6 +214,10 @@ const GRADIENT: Record<Platform, string> = {
   kling: 'from-sky-500 to-sky-600',
   happyhourse: 'from-emerald-500 to-emerald-600',
   seedance: 'from-teal-500 to-teal-600',
+  bytedance: 'from-violet-500 to-violet-600',
+  wan3: 'from-fuchsia-500 to-fuchsia-600',
+  'minimax-h3': 'from-pink-500 to-pink-600',
+  'pixverse-v6': 'from-lime-500 to-lime-600',
 }
 const GRADIENT_DEFAULT = 'from-primary-500 to-primary-600'
 
@@ -196,6 +236,10 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   kling: 'text-sky-100',
   happyhourse: 'text-emerald-100',
   seedance: 'text-teal-100',
+  bytedance: 'text-violet-100',
+  wan3: 'text-fuchsia-100',
+  'minimax-h3': 'text-pink-100',
+  'pixverse-v6': 'text-lime-100',
 }
 const GRADIENT_TEXT_DEFAULT = 'text-primary-100'
 
@@ -213,13 +257,17 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   kling: 'text-sky-200',
   happyhourse: 'text-emerald-200',
   seedance: 'text-teal-200',
+  bytedance: 'text-violet-200',
+  wan3: 'text-fuchsia-200',
+  'minimax-h3': 'text-pink-200',
+  'pixverse-v6': 'text-lime-200',
 }
 const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'kling' || p === 'happyhourse' || p === 'seedance'
+  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'pixverse-v6'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -281,6 +329,10 @@ export function platformLabel(p: string): string {
     case 'kling': return 'K-Ling'
     case 'happyhourse': return 'Happy-Hourse'
     case 'seedance': return 'Seedance'
+    case 'bytedance': return 'ByteDance'
+    case 'wan3': return 'Wan3.0'
+    case 'minimax-h3': return 'MiniMax-H3'
+    case 'pixverse-v6': return 'Pixverse-V6'
     default: return p || 'API'
   }
 }

@@ -271,6 +271,8 @@ type OpenAIForwardResult struct {
 	// TaskStatus is used by async media providers. For Jimeng video it is the
 	// normalized upstream task status; only a final succeeded status is billable.
 	TaskStatus string
+	// ErrorMessage is the provider task failure detail, when available.
+	ErrorMessage string
 	// ResponseStatusCode/ContentType/Body preserve a buffered upstream response
 	// so the caller can persist task billing state before writing to the client.
 	ResponseStatusCode  int

@@ -99,7 +99,7 @@ export default {
         },
       },
       emailTabDisabledTitle: '邮箱验证未启用',
-      emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
+      emailTabDisabledHint: '邮箱验证尚未启用。可先配置并测试 SMTP，确认邮件能够正常送达后再开启邮箱验证。',
       registration: {
         title: '注册设置',
         description: '控制用户注册和验证',
@@ -765,7 +765,7 @@ export default {
         fromName: '发件人名称',
         fromNamePlaceholder: 'Corgi',
         useTls: '使用 TLS',
-        useTlsHint: '为 SMTP 连接启用 TLS 加密'
+        useTlsHint: '465 端口开启隐式 TLS；587 端口关闭此项并使用 STARTTLS'
       },
       testEmail: {
         title: '发送测试邮件',

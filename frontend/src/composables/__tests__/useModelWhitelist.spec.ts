@@ -5,6 +5,11 @@ vi.mock('@/api/admin/accounts', () => ({
 }))
 
 import {
+  BYTEDANCE_FIXED_MODEL,
+  MINIMAX_HAILUO_23_FIXED_MODEL,
+  MINIMAX_H3_FIXED_MODEL,
+  PIXVERSE_V6_FIXED_MODEL,
+  WAN3_FIXED_MODELS,
   buildModelMappingObject,
   getModelsByPlatform,
   getPresetMappingsByPlatform,
@@ -34,11 +39,48 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('deepseek')).toContain('deepseek-reasoner')
   })
 
-  it('video platforms require upstream model synchronization instead of static presets', () => {
-    for (const platform of ['kling', 'happyhourse', 'seedance']) {
+  it('video platforms expose fixed ModelVerse models and sync the other PP platforms', () => {
+    for (const platform of [
+      'kling',
+      'happyhourse',
+      'seedance'
+    ]) {
       expect(getModelsByPlatform(platform)).toEqual([])
       expect(getPresetMappingsByPlatform(platform)).toEqual([])
     }
+
+    expect(getModelsByPlatform('bytedance')).toEqual([BYTEDANCE_FIXED_MODEL])
+    expect(getPresetMappingsByPlatform('bytedance')).toEqual([
+      expect.objectContaining({
+        from: BYTEDANCE_FIXED_MODEL,
+        to: BYTEDANCE_FIXED_MODEL
+      })
+    ])
+    expect(getModelsByPlatform('wan3')).toEqual(WAN3_FIXED_MODELS)
+    expect(getPresetMappingsByPlatform('wan3')).toEqual(
+      WAN3_FIXED_MODELS.map(model => expect.objectContaining({ from: model, to: model }))
+    )
+    expect(getModelsByPlatform('minimax-h3')).toEqual([
+      MINIMAX_H3_FIXED_MODEL,
+      MINIMAX_HAILUO_23_FIXED_MODEL
+    ])
+    expect(getPresetMappingsByPlatform('minimax-h3')).toEqual([
+      expect.objectContaining({
+        from: MINIMAX_H3_FIXED_MODEL,
+        to: MINIMAX_H3_FIXED_MODEL
+      }),
+      expect.objectContaining({
+        from: MINIMAX_HAILUO_23_FIXED_MODEL,
+        to: MINIMAX_HAILUO_23_FIXED_MODEL
+      })
+    ])
+    expect(getModelsByPlatform('pixverse-v6')).toEqual([PIXVERSE_V6_FIXED_MODEL])
+    expect(getPresetMappingsByPlatform('pixverse-v6')).toEqual([
+      expect.objectContaining({
+        from: PIXVERSE_V6_FIXED_MODEL,
+        to: PIXVERSE_V6_FIXED_MODEL
+      })
+    ])
   })
 
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {

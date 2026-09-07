@@ -99,7 +99,7 @@ export default {
         },
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
-      emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
+      emailTabDisabledHint: 'Email verification is not enabled. Configure and test SMTP first, then enable email verification.',
       registration: {
         title: 'Registration Settings',
         description: 'Control user registration and verification',
@@ -772,7 +772,7 @@ export default {
         fromName: 'From Name',
         fromNamePlaceholder: 'Corgi',
         useTls: 'Use TLS',
-        useTlsHint: 'Enable TLS encryption for SMTP connection'
+        useTlsHint: 'Enable for implicit TLS on port 465; disable for STARTTLS on port 587'
       },
       testEmail: {
         title: 'Send Test Email',

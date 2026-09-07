@@ -207,6 +207,7 @@ import { AuthLayout } from '@/components/layout'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 import { resetPassword } from '@/api/auth'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 
@@ -247,6 +248,16 @@ watch(validationToastMessage, (value, previousValue) => {
   }
 })
 
+function readQueryString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  if (Array.isArray(value) && typeof value[0] === 'string') {
+    return value[0].trim()
+  }
+  return ''
+}
+
 // Check if the reset link is valid (has email and token)
 const isInvalidLink = computed(() => !email.value || !token.value)
 
@@ -254,8 +265,8 @@ const isInvalidLink = computed(() => !email.value || !token.value)
 
 onMounted(() => {
   // Get email and token from URL query parameters
-  email.value = (route.query.email as string) || ''
-  token.value = (route.query.token as string) || ''
+  email.value = readQueryString(route.query.email)
+  token.value = readQueryString(route.query.token)
 
   if (!email.value || !token.value) {
     appStore.showError(t('auth.invalidResetLink'))
@@ -312,17 +323,16 @@ async function handleSubmit(): Promise<void> {
     isSuccess.value = true
     appStore.showSuccess(t('auth.passwordResetSuccess'))
   } catch (error: unknown) {
-    const err = error as { message?: string; response?: { data?: { detail?: string; code?: string } } }
-
     // Check for invalid/expired token error
-    if (err.response?.data?.code === 'INVALID_RESET_TOKEN') {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'INVALID_RESET_TOKEN'
+    ) {
       errorMessage.value = t('auth.invalidOrExpiredToken')
-    } else if (err.response?.data?.detail) {
-      errorMessage.value = err.response.data.detail
-    } else if (err.message) {
-      errorMessage.value = err.message
     } else {
-      errorMessage.value = t('auth.resetPasswordFailed')
+      errorMessage.value = extractApiErrorMessage(error, t('auth.resetPasswordFailed'))
     }
 
     appStore.showError(errorMessage.value)

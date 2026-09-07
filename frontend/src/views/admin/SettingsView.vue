@@ -7191,8 +7191,8 @@
             </div>
           </div>
 
-          <!-- SMTP Settings - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <!-- SMTP can be configured before enabling email verification. -->
+          <div class="card">
             <div
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -7354,8 +7354,8 @@
             </div>
           </div>
 
-          <!-- Send Test Email - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <!-- Test delivery can be checked before enabling email verification. -->
+          <div class="card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -8487,7 +8487,7 @@ const form = reactive<SettingsForm>({
   smtp_password_configured: false,
   smtp_from_email: "",
   smtp_from_name: "",
-  smtp_use_tls: true,
+  smtp_use_tls: false,
   // Cloudflare Turnstile
   turnstile_enabled: false,
   turnstile_site_key: "",

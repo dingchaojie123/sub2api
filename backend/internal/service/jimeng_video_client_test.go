@@ -84,6 +84,7 @@ func TestJimengVideoClientCreateGenerationUsesVideoEndpointAndBearerAuth(t *test
 	require.Equal(t, "make a short video", gotBody["prompt"])
 	require.Equal(t, float64(5), gotBody["duration"])
 	require.Equal(t, float64(7), gotBody["seed"])
+	require.Equal(t, true, gotBody["async"])
 	require.Equal(t, "task_123", result.TaskID)
 	require.Equal(t, JimengTaskStatusProcessing, result.Status)
 }
@@ -182,7 +183,7 @@ func TestForwardJimengVideoGenerationUsesAccountCredentialAndReturnsUsage(t *tes
 	require.Equal(t, JimengVideoRoutingModel, response["model"])
 	require.Equal(t, "https://jimeng.example/v1/videos/generations", upstream.lastReq.URL.String())
 	require.Equal(t, "Bearer jimeng-upstream-key", upstream.lastReq.Header.Get("Authorization"))
-	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.lastBody))
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello","async":true}`, string(upstream.lastBody))
 	require.Equal(t, "task_forward", result.ResponseID)
 	require.False(t, result.HasUsage)
 	require.True(t, result.Usage.InputTokens > 0)
@@ -234,7 +235,7 @@ func TestForwardJimengVideoGenerationNormalizesLegacyModelForUpstream(t *testing
 	}, JimengVideoEndpointGenerations, "", body)
 
 	require.NoError(t, err)
-	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.lastBody))
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello","async":true}`, string(upstream.lastBody))
 }
 
 func TestForwardJimengVideoGenerationPreservesSelectedSeedanceModel(t *testing.T) {
@@ -257,7 +258,7 @@ func TestForwardJimengVideoGenerationPreservesSelectedSeedanceModel(t *testing.T
 	}, JimengVideoEndpointGenerations, "", body)
 
 	require.NoError(t, err)
-	require.JSONEq(t, `{"model":"seedance2.0-431","prompt":"hello"}`, string(upstream.lastBody))
+	require.JSONEq(t, `{"model":"seedance2.0-431","prompt":"hello","async":true}`, string(upstream.lastBody))
 	require.Equal(t, "seedance2.0-431", result.Model)
 	require.Equal(t, JimengVideoBillingModel, result.BillingModel)
 	require.Equal(t, "seedance2.0-431", result.UpstreamModel)
@@ -302,8 +303,8 @@ func TestForwardJimengVideoGenerationFallsBackToLegacyEndpoint(t *testing.T) {
 		"https://jimeng.example/v1/video/generations",
 	}, upstream.requestURLs)
 	require.Len(t, upstream.bodies, 2)
-	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.bodies[0]))
-	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello"}`, string(upstream.bodies[1]))
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello","async":true}`, string(upstream.bodies[0]))
+	require.JSONEq(t, `{"model":"by-seedance2.0-933","prompt":"hello","async":true}`, string(upstream.bodies[1]))
 	require.Equal(t, JimengTaskStatusProcessing, result.TaskStatus)
 	require.Equal(t, "/v1/video/generations", result.UpstreamEndpoint)
 }
@@ -431,6 +432,74 @@ func TestForwardJimengVideoGenerationDoesNotBillAcceptedTask(t *testing.T) {
 		"status": "processing",
 		"model": "by-seedance2.0-933"
 	}`, string(result.ResponseBody))
+}
+
+func TestForwardJimengVideoGenerationAppliesAccountModelMappingAndKeepsPublicModel(t *testing.T) {
+	upstream := &jimengHTTPUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"task_id":"task_mapped","status":"submitted"}`))),
+	}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"seedance2.0-431","prompt":"hello","async":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(body))
+
+	result, err := svc.ForwardJimengVideoBuffered(context.Background(), c, &Account{
+		ID:       7,
+		Platform: PlatformJimeng,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":     "jimeng-upstream-key",
+			"base_url":    "https://jimeng.example/v1",
+			"model_mapping": map[string]any{
+				"seedance2.0-431": "vendor-seedance2.0-431",
+			},
+		},
+	}, JimengVideoEndpointGenerations, "", body)
+
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"vendor-seedance2.0-431","prompt":"hello","async":true}`, string(upstream.lastBody))
+	require.Equal(t, "seedance2.0-431", result.Model)
+	require.Equal(t, "vendor-seedance2.0-431", result.UpstreamModel)
+}
+
+func TestJimengVideoResponseExtractsDataArrayAndIgnoresStatusAndReferenceURLs(t *testing.T) {
+	raw := []byte(`{
+		"id": "task_array_result",
+		"status": "succeeded",
+		"status_url": "https://mother.example/v1/videos/task_array_result",
+		"image_references": ["https://mother.example/v1/video/assets/reference-image"],
+		"data": [{
+			"url": "https://mother.example/v1/video/assets/generated-video",
+			"mp4_url": "https://mother.example/v1/video/assets/generated-video"
+		}],
+		"videos": [{
+			"url": "https://mother.example/v1/video/assets/generated-video",
+			"video_url": "https://mother.example/v1/video/assets/generated-video",
+			"mp4_url": "https://mother.example/v1/video/assets/generated-video"
+		}]
+	}`)
+
+	parsed, err := parseJimengGenerationResult(raw)
+	require.NoError(t, err)
+	require.Equal(t, "task_array_result", parsed.TaskID)
+	require.Equal(t, JimengTaskStatusSucceeded, parsed.Status)
+
+	normalized := NormalizeJimengVideoPublicResponse(raw, parsed, "seedance2.0-431")
+	var response map[string]any
+	require.NoError(t, json.Unmarshal(normalized, &response))
+	require.Equal(t, "https://mother.example/v1/video/assets/generated-video", response["video_url"])
+	require.Equal(t, "https://mother.example/v1/video/assets/generated-video", response["url"])
+	require.Equal(t, "https://mother.example/v1/video/assets/generated-video", response["result_url"])
+	require.NotEqual(t, response["status_url"], response["video_url"])
+	require.Equal(t, "https://mother.example/v1/video/assets/reference-image", response["image_references"].([]any)[0])
+}
+
+func TestJimengVideoBillingMetadataDefaultsToFiveSeconds(t *testing.T) {
+	require.Equal(t, 5, JimengVideoBillingMetadataFromRequest([]byte(`{"model":"seedance2.0-431","prompt":"hello"}`)).VideoDurationSeconds)
+	require.Equal(t, 10, JimengVideoBillingMetadataFromRequest([]byte(`{"duration":10}`)).VideoDurationSeconds)
 }
 
 func TestNormalizeJimengVideoPublicResponseAddsStableFields(t *testing.T) {

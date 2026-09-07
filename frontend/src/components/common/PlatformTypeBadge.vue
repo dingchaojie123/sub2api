@@ -98,6 +98,10 @@ const platformLabel = computed(() => {
   if (props.platform === 'kling') return 'K-Ling'
   if (props.platform === 'happyhourse') return 'Happy-Hourse'
   if (props.platform === 'seedance') return 'Seedance'
+  if (props.platform === 'bytedance') return 'ByteDance'
+  if (props.platform === 'wan3') return 'Wan3.0'
+  if (props.platform === 'minimax-h3') return 'MiniMax-H3'
+  if (props.platform === 'pixverse-v6') return 'Pixverse-V6'
   return 'Gemini'
 })
 
@@ -207,6 +211,18 @@ const platformClass = computed(() => {
   if (props.platform === 'seedance') {
     return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
   }
+  if (props.platform === 'bytedance') {
+    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+  }
+  if (props.platform === 'wan3') {
+    return 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+  }
+  if (props.platform === 'minimax-h3') {
+    return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
+  }
+  if (props.platform === 'pixverse-v6') {
+    return 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300'
+  }
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
 })
 
@@ -246,6 +262,18 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'seedance') {
     return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300'
+  }
+  if (props.platform === 'bytedance') {
+    return 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'
+  }
+  if (props.platform === 'wan3') {
+    return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+  }
+  if (props.platform === 'minimax-h3') {
+    return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'
+  }
+  if (props.platform === 'pixverse-v6') {
+    return 'bg-lime-100 text-lime-600 dark:bg-lime-900/30 dark:text-lime-300'
   }
   return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
 })

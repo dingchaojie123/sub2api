@@ -61,6 +61,20 @@
     <path d="M12 2.5c1.3 2.42 2.05 4.45 2.05 6.05A2.05 2.05 0 1 1 9.95 8.55C9.95 6.95 10.7 4.92 12 2.5zm0 10.05a4.95 4.95 0 1 1 0 9.9 4.95 4.95 0 0 1 0-9.9zm0 2a2.95 2.95 0 1 0 0 5.9 2.95 2.95 0 0 0 0-5.9z" />
     <path d="M3.1 9.2c2.7-.5 4.85-.35 6.05.3l-1 1.72c-.73-.4-2.28-.52-4.68-.08L3.1 9.2zm17.8 0-.37 1.94c-2.4-.44-3.95-.32-4.68.08l-1-1.72c1.2-.65 3.35-.8 6.05-.3z" />
   </svg>
+  <!-- Video platform logo mark (play button in a frame) -->
+  <svg
+    v-else-if="
+      platform === 'bytedance' ||
+      platform === 'wan3' ||
+      platform === 'minimax-h3' ||
+      platform === 'pixverse-v6'
+    "
+    :class="sizeClass"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M5 4.5A2.5 2.5 0 0 0 2.5 7v10A2.5 2.5 0 0 0 5 19.5h14a2.5 2.5 0 0 0 2.5-2.5V7A2.5 2.5 0 0 0 19 4.5H5zm5.1 3.9 5.35 3.1a.58.58 0 0 1 0 1l-5.35 3.1A.58.58 0 0 1 9.25 15V9a.58.58 0 0 1 .85-.6z" />
+  </svg>
   <!-- Fallback: generic platform icon -->
   <svg v-else :class="sizeClass" fill="currentColor" viewBox="0 0 24 24">
     <path

@@ -34,7 +34,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		return nil, fmt.Errorf("PP video account is required")
 	}
 
-	isStatus := strings.TrimSpace(taskID) != ""
+	isCancel := operation == PPVideoOperationCancel
+	isStatus := strings.TrimSpace(taskID) != "" && !isCancel
+	isSubmission := !isStatus && !isCancel
 	publicRequest := PPVideoPublicRequest{}
 	if len(publicRequests) > 0 {
 		publicRequest = publicRequests[0]
@@ -44,6 +46,8 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	var err error
 	if isStatus {
 		path, err = PPVideoStatusUpstreamPath(account.Platform, operation, taskID)
+	} else if isCancel {
+		path, err = PPVideoUpstreamPath(account.Platform, operation, taskID)
 	} else {
 		path, err = PPVideoUpstreamPath(account.Platform, operation, "")
 	}
@@ -54,14 +58,19 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if token == "" {
 		return nil, fmt.Errorf("PP video api key not found in credentials")
 	}
-	baseURL, err := normalizePPVideoBaseURL(account.GetOpenAIBaseURL())
+	baseURLRaw := account.GetOpenAIBaseURL()
+	if strings.TrimSpace(baseURLRaw) == "" &&
+		(account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6) {
+		baseURLRaw = ModelVerseVideoDefaultBaseURL
+	}
+	baseURL, err := normalizePPVideoBaseURL(baseURLRaw)
 	if err != nil {
 		return nil, err
 	}
 
 	method := http.MethodPost
 	var reader io.Reader
-	if isStatus {
+	if isStatus || isCancel {
 		method = http.MethodGet
 	} else {
 		if len(upstreamBody) == 0 {
@@ -87,7 +96,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if err != nil {
 		return nil, err
 	}
-	if isStatus {
+	if isStatus || isCancel {
 		headers, err = PPVideoStatusRequestHeaders(account.Platform, token)
 		if err != nil {
 			return nil, err
@@ -126,7 +135,10 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if err != nil {
 		return nil, err
 	}
-	responseBody := NormalizePPVideoPublicResponse(account.Platform, respBody, publicRequest, parsed)
+	responseBody := respBody
+	if !isCancel {
+		responseBody = NormalizePPVideoPublicResponse(account.Platform, respBody, publicRequest, parsed)
+	}
 	responseHeaders := resp.Header.Clone()
 	if responseHeaders == nil {
 		responseHeaders = make(http.Header)
@@ -159,6 +171,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		ResponseHeaders:                responseHeaders,
 		Duration:                       time.Since(start),
 		TaskStatus:                     parsed.Status,
+		ErrorMessage:                   parsed.ErrorMessage,
 		ResponseStatusCode:             resp.StatusCode,
 		ResponseContentType:            strings.TrimSpace(responseHeaders.Get("Content-Type")),
 		ResponseBody:                   append([]byte(nil), responseBody...),
@@ -170,7 +183,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		VideoOutputHeight:              parsed.OutputHeight,
 		VideoFrameRate:                 parsed.FrameRate,
 	}
-	if !isStatus {
+	if isSubmission {
 		meta := PPVideoBillingMetadataFromRequest(account.Platform, upstreamBody)
 		result.VideoDurationSeconds = meta.RequestedDurationSeconds
 		if result.VideoResolution == "" {
@@ -275,6 +288,18 @@ func isPPVideoAccountEligibleForModel(account *Account, requestedModel string) b
 	}
 	if ppVideoModelKnownForeignToPlatform(account.Platform, requestedModel) {
 		return false
+	}
+	if account.Platform == PlatformByteDance && ppVideoByteDanceModelAllowed(requestedModel) {
+		return true
+	}
+	if account.Platform == PlatformWan3 && ppVideoWan30ModelAllowed(requestedModel) {
+		return true
+	}
+	if account.Platform == PlatformMiniMaxH3 && ppVideoMiniMaxH3ModelAllowedForAccount(requestedModel, account) {
+		return true
+	}
+	if account.Platform == PlatformPixverseV6 && ppVideoPixverseV6ModelAllowed(requestedModel) {
+		return true
 	}
 	if account.IsModelSupported(requestedModel) {
 		return true

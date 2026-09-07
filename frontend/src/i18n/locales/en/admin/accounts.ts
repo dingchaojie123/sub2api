@@ -112,6 +112,10 @@ export default {
         kling: 'K-Ling',
         happyhourse: 'Happy-Hourse',
         seedance: 'Seedance',
+        bytedance: 'ByteDance',
+        wan3: 'Wan3.0',
+        'minimax-h3': 'MiniMax-H3',
+        'pixverse-v6': 'Pixverse-V6',
       },
       types: {
         oauth: 'OAuth',

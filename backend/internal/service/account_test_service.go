@@ -758,6 +758,38 @@ func (s *AccountTestService) testPPVideoAccountConnection(c *gin.Context, accoun
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: account.Platform})
 
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+		platformLabel := "ByteDance"
+		fixedModels := []string{ByteDanceVideoDefaultModel}
+		if account.Platform == PlatformWan3 {
+			platformLabel = "Wan3.0"
+			fixedModels = []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel}
+		} else if account.Platform == PlatformMiniMaxH3 {
+			platformLabel = "MiniMax-H3"
+			fixedModels = []string{MiniMaxH3VideoDefaultModel, MiniMaxHailuo23VideoModel}
+		} else if account.Platform == PlatformPixverseV6 {
+			platformLabel = "Pixverse-V6"
+			fixedModels = []string{PixverseV6VideoDefaultModel}
+		}
+		if strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return s.sendErrorAndEnd(c, "No "+platformLabel+" API key is available")
+		}
+		baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
+		if baseURL == "" {
+			baseURL = ModelVerseVideoDefaultBaseURL
+		}
+		if _, err := s.validateUpstreamBaseURL(baseURL); err != nil {
+			return s.sendErrorAndEnd(c, "Invalid "+platformLabel+" base URL: "+err.Error())
+		}
+		s.sendEvent(c, TestEvent{
+			Type: "content",
+			Text: platformLabel + " ModelVerse credentials are configured",
+			Data: map[string]any{"models": fixedModels},
+		})
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
+	}
+
 	models, err := s.FetchUpstreamSupportedModels(ctx, account)
 	if err != nil {
 		return s.sendErrorAndEnd(c, err.Error())

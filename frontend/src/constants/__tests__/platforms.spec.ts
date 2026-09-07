@@ -26,12 +26,24 @@ describe('provider platform metadata', () => {
 
 describe('video account platform metadata', () => {
   it('defines video platforms with PP API defaults and Bearer auth', () => {
-    expect(VIDEO_ACCOUNT_PLATFORMS).toEqual(['kling', 'happyhourse', 'seedance'])
+    expect(VIDEO_ACCOUNT_PLATFORMS).toEqual([
+      'kling',
+      'happyhourse',
+      'seedance',
+      'bytedance',
+      'wan3',
+      'minimax-h3',
+      'pixverse-v6'
+    ])
 
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      expect(metadata.defaultBaseUrl).toBe('https://app.ppapi.ai/v1')
+      expect(metadata.defaultBaseUrl).toBe(
+        platform === 'bytedance' || platform === 'wan3' || platform === 'minimax-h3' || platform === 'pixverse-v6'
+          ? 'https://api.modelverse.cn/v1'
+          : 'https://app.ppapi.ai/v1'
+      )
       expect(metadata.authScheme).toBe('bearer')
       expect(metadata.accountType).toBe('apikey')
       expect(isVideoAccountPlatform(platform)).toBe(true)

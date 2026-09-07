@@ -295,54 +295,17 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string, locale .
 	return s.emailService.SendVerifyCode(ctx, email, siteName, firstEmailLocale(locale))
 }
 
-// SendVerifyCodeAsync 异步发送邮箱验证码并返回倒计时
+// SendVerifyCodeAsync 发送邮箱验证码并返回倒计时。
+// 注册流程必须等待实际 SMTP 投递结果，不能只把任务放入后台队列后返回成功。
 func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, locale ...string) (*SendVerifyCodeResult, error) {
 	logger.LegacyPrintf("service.auth", "[Auth] SendVerifyCodeAsync called for email: %s", email)
 
-	// 检查是否开放注册（默认关闭）
-	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
-		logger.LegacyPrintf("service.auth", "%s", "[Auth] Registration is disabled")
-		return nil, ErrRegDisabled
-	}
-
-	if isReservedEmail(email) {
-		return nil, ErrEmailReserved
-	}
-	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
+	if err := s.SendVerifyCode(ctx, email, locale...); err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to send verify code to %s: %v", email, err)
 		return nil, err
 	}
 
-	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
-	if err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
-		return nil, ErrServiceUnavailable
-	}
-	if existsEmail {
-		logger.LegacyPrintf("service.auth", "[Auth] Email already exists: %s", email)
-		return nil, ErrEmailExists
-	}
-
-	// 检查邮件队列服务是否配置
-	if s.emailQueueService == nil {
-		logger.LegacyPrintf("service.auth", "%s", "[Auth] Email queue service not configured")
-		return nil, errors.New("email queue service not configured")
-	}
-
-	// 获取网站名称
-	siteName := "Corgi"
-	if s.settingService != nil {
-		siteName = s.settingService.GetSiteName(ctx)
-	}
-
-	// 异步发送
-	logger.LegacyPrintf("service.auth", "[Auth] Enqueueing verify code for: %s", email)
-	if err := s.emailQueueService.EnqueueVerifyCode(email, siteName, firstEmailLocale(locale)); err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Failed to enqueue: %v", err)
-		return nil, fmt.Errorf("enqueue verify code: %w", err)
-	}
-
-	logger.LegacyPrintf("service.auth", "[Auth] Verify code enqueued successfully for: %s", email)
+	logger.LegacyPrintf("service.auth", "[Auth] Verify code sent successfully to: %s", email)
 	return &SendVerifyCodeResult{
 		Countdown: 60, // 60秒倒计时
 	}, nil

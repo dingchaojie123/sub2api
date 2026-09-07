@@ -30,6 +30,108 @@ func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 	h.handlePPVideo(c, "", strings.TrimSpace(c.Param("request_id")))
 }
 
+func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
+	streamStarted := false
+	defer h.recoverResponsesPanic(c, &streamStarted)
+
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok || apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformByteDance {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video cancellation is not supported for this platform")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
+		return
+	}
+	if !h.ensureResponsesDependencies(c, requestLogger(c, "handler.openai_gateway.pp_video_cancel")) {
+		return
+	}
+
+	requestID := strings.TrimSpace(c.Param("request_id"))
+	if requestID == "" {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Video request id is required")
+		return
+	}
+	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
+	if err != nil || task == nil || task.Platform != service.PlatformByteDance {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
+		return
+	}
+	if service.IsTerminalPPVideoTaskStatus(task.Status) {
+		h.errorResponse(c, http.StatusConflict, "invalid_request_error", "Video request is already finished")
+		return
+	}
+	if strings.TrimSpace(task.TaskID) == "" {
+		h.errorResponse(c, http.StatusConflict, "invalid_request_error", "Video request has not been submitted upstream")
+		return
+	}
+
+	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	selection, err := h.gatewayService.SelectPPVideoTaskAccountForStatus(c.Request.Context(), task.AccountID, task.Platform)
+	if err != nil || selection == nil || selection.Account == nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "no_available_account", "No eligible PP video account")
+		return
+	}
+	if selection.ReleaseFunc != nil {
+		defer selection.ReleaseFunc()
+	}
+
+	durationMilliseconds := task.GeneratedVideoDurationMilliseconds
+	if durationMilliseconds <= 0 {
+		durationMilliseconds = task.RequestedVideoDurationMilliseconds
+	}
+	result, err := h.gatewayService.ForwardPPVideoBuffered(
+		c.Request.Context(),
+		c,
+		selection.Account,
+		service.PPVideoOperationCancel,
+		task.TaskID,
+		nil,
+		service.PPVideoPublicRequest{
+			Model:                task.Model,
+			DurationMilliseconds: durationMilliseconds,
+			VideoCount:           task.VideoCount,
+			Resolution:           task.VideoResolution,
+		},
+	)
+	if err != nil {
+		if !service.IsResponseCommitted(c) {
+			h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video cancellation failed")
+		}
+		return
+	}
+	if result == nil {
+		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video cancellation returned no response")
+		return
+	}
+
+	task, err = h.gatewayService.MarkPPVideoTaskStatus(c.Request.Context(), service.MarkPPVideoTaskStatusParams{
+		TaskID:            task.TaskID,
+		Status:            service.PPVideoTaskStatusFailed,
+		LastErrorCode:     "cancelled",
+		LastErrorMessage:  "video task cancelled",
+		ResponseStatus:    result.ResponseStatusCode,
+		ResponseContentType: result.ResponseContentType,
+		ResponseBody:      string(result.ResponseBody),
+	})
+	if err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video cancellation")
+		return
+	}
+	if err := h.gatewayService.SettlePPVideoTask(c.Request.Context(), &service.PPVideoSettlementInput{
+		Task: task, FinalStatus: service.PPVideoTaskStatusFailed, APIKey: apiKey, User: apiKey.User,
+		Account: selection.Account, Subscription: subscription,
+		InboundEndpoint: GetInboundEndpoint(c), UpstreamEndpoint: result.UpstreamEndpoint,
+		RequestPayloadHash: task.RequestHash, APIKeyService: h.apiKeyService,
+		QuotaPlatform: service.QuotaPlatform(c.Request.Context(), apiKey),
+	}); err != nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to settle cancelled video billing")
+		return
+	}
+	h.gatewayService.WritePPVideoForwardResult(c, result)
+}
+
 func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.PPVideoOperation, requestID string) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
@@ -325,6 +427,13 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			VideoCount:                         result.VideoCount, VideoResolution: result.VideoResolution,
 			ResponseStatus: result.ResponseStatusCode, ResponseContentType: result.ResponseContentType,
 			ResponseBody: string(result.ResponseBody),
+			LastErrorCode: func() string {
+				if status == service.PPVideoTaskStatusFailed && strings.TrimSpace(result.ErrorMessage) != "" {
+					return "upstream_task_failed"
+				}
+				return ""
+			}(),
+			LastErrorMessage: result.ErrorMessage,
 		})
 		if err != nil {
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video task status")

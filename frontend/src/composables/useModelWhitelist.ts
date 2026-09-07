@@ -162,10 +162,18 @@ const xaiModels = [
 export const JIMENG_FIXED_MODEL = 'by-seedance2.0-933'
 const jimengModels = [JIMENG_FIXED_MODEL]
 
-// PP 视频平台模型必须从对应上游账号同步，不使用内置模型列表兜底。
+export const BYTEDANCE_FIXED_MODEL = 'doubao-seedance-2-0-260128'
+export const WAN3_FIXED_MODELS = ['wan3.0-video', 'wan3.0-video-prime']
+export const MINIMAX_H3_FIXED_MODEL = 'MiniMax-H3'
+export const MINIMAX_HAILUO_23_FIXED_MODEL = 'MiniMax-Hailuo-2.3'
+export const PIXVERSE_V6_FIXED_MODEL = 'pixverse-v6'
 const klingModels: string[] = []
 const happyHourseModels: string[] = []
 const seedanceModels: string[] = []
+const bytedanceModels = [BYTEDANCE_FIXED_MODEL]
+const wan3Models = [...WAN3_FIXED_MODELS]
+const minimaxH3Models = [MINIMAX_H3_FIXED_MODEL, MINIMAX_HAILUO_23_FIXED_MODEL]
+const pixverseV6Models = [PIXVERSE_V6_FIXED_MODEL]
 
 // Cohere
 const cohereModels = [
@@ -251,6 +259,10 @@ const allModelsList: string[] = [
   ...klingModels,
   ...happyHourseModels,
   ...seedanceModels,
+  ...bytedanceModels,
+  ...wan3Models,
+  ...minimaxH3Models,
+  ...pixverseV6Models,
   ...cohereModels,
   ...yiModels,
   ...moonshotModels,
@@ -438,6 +450,14 @@ export function getModelsByPlatform(platform: string): string[] {
       return happyHourseModels
     case 'seedance':
       return seedanceModels
+    case 'bytedance':
+      return bytedanceModels
+    case 'wan3':
+      return wan3Models
+    case 'minimax-h3':
+      return minimaxH3Models
+    case 'pixverse-v6':
+      return pixverseV6Models
     case 'anthropic':
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
@@ -472,10 +492,58 @@ export function getPresetMappingsByPlatform(platform: string) {
       }
     ]
   }
+  if (platform === 'bytedance') {
+    return [
+      {
+        label: 'Doubao Seedance 2.0',
+        from: BYTEDANCE_FIXED_MODEL,
+        to: BYTEDANCE_FIXED_MODEL,
+        color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400'
+      }
+    ]
+  }
+  if (platform === 'minimax-h3') {
+    return [
+      {
+        label: 'MiniMax-H3',
+        from: MINIMAX_H3_FIXED_MODEL,
+        to: MINIMAX_H3_FIXED_MODEL,
+        color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400'
+      },
+      {
+        label: 'MiniMax Hailuo 2.3',
+        from: MINIMAX_HAILUO_23_FIXED_MODEL,
+        to: MINIMAX_HAILUO_23_FIXED_MODEL,
+        color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400'
+      }
+    ]
+  }
+  if (platform === 'wan3') {
+    return WAN3_FIXED_MODELS.map((model, index) => ({
+      label: index === 0 ? 'Wan3.0 Video' : 'Wan3.0 Video Prime',
+      from: model,
+      to: model,
+      color: 'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200 dark:bg-fuchsia-900/30 dark:text-fuchsia-400'
+    }))
+  }
+  if (platform === 'pixverse-v6') {
+    return [
+      {
+        label: 'Pixverse-V6',
+        from: PIXVERSE_V6_FIXED_MODEL,
+        to: PIXVERSE_V6_FIXED_MODEL,
+        color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400'
+      }
+    ]
+  }
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   if (platform === 'kimi') return []
-  if (platform === 'kling' || platform === 'happyhourse' || platform === 'seedance') return []
+  if (
+    platform === 'kling' ||
+    platform === 'happyhourse' ||
+    platform === 'seedance'
+  ) return []
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings
   return anthropicPresetMappings

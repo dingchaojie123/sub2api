@@ -87,13 +87,14 @@ describe('validateIntervals', () => {
 })
 
 describe('billingModesForPlatform', () => {
-  it('does not offer channel video-per-second pricing for Kling and Happy-Hourse', () => {
+  it('does not offer channel video-per-second pricing for PP video platforms', () => {
     expect(billingModesForPlatform('kling')).not.toContain('video')
     expect(billingModesForPlatform('happyhourse')).not.toContain('video')
-  })
-
-  it('does not offer channel video-per-second pricing for Seedance', () => {
     expect(billingModesForPlatform('seedance')).toEqual(['token', 'per_request', 'image'])
+    expect(billingModesForPlatform('bytedance')).toEqual(['token', 'per_request', 'image'])
+    expect(billingModesForPlatform('wan3')).toEqual(['token', 'per_request', 'image'])
+    expect(billingModesForPlatform('minimax-h3')).toEqual(['token', 'per_request', 'image'])
+    expect(billingModesForPlatform('pixverse-v6')).toEqual(['token', 'per_request', 'image'])
   })
 
   it('keeps an existing legacy mode selectable so it can be viewed and saved', () => {

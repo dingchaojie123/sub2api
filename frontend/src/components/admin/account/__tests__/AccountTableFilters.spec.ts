@@ -8,7 +8,11 @@ vi.mock('vue-i18n', async () => {
   const messages: Record<string, string> = {
     'admin.accounts.platforms.kling': 'K-Ling',
     'admin.accounts.platforms.happyhourse': 'Happy-Hourse',
-    'admin.accounts.platforms.seedance': 'Seedance'
+    'admin.accounts.platforms.seedance': 'Seedance',
+    'admin.accounts.platforms.bytedance': 'ByteDance',
+    'admin.accounts.platforms.wan3': 'Wan3.0',
+    'admin.accounts.platforms.minimax-h3': 'MiniMax-H3',
+    'admin.accounts.platforms.pixverse-v6': 'Pixverse-V6'
   }
 
   return {
@@ -20,7 +24,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 describe('AccountTableFilters', () => {
-  it('offers the three video account platforms in the platform filter', () => {
+  it('offers all video account platforms in the platform filter', () => {
     const wrapper = mount(AccountTableFilters, {
       props: {
         searchQuery: '',
@@ -40,5 +44,9 @@ describe('AccountTableFilters', () => {
     expect(wrapper.text()).toContain('K-Ling')
     expect(wrapper.text()).toContain('Happy-Hourse')
     expect(wrapper.text()).toContain('Seedance')
+    expect(wrapper.text()).toContain('ByteDance')
+    expect(wrapper.text()).toContain('Wan3.0')
+    expect(wrapper.text()).toContain('MiniMax-H3')
+    expect(wrapper.text()).toContain('Pixverse-V6')
   })
 })

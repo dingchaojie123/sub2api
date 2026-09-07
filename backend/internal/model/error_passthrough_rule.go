@@ -45,6 +45,10 @@ const (
 	PlatformKling       = "kling"
 	PlatformHappyHourse = "happyhourse"
 	PlatformSeedance    = "seedance"
+	PlatformByteDance   = "bytedance"
+	PlatformWan3        = "wan3"
+	PlatformMiniMaxH3   = "minimax-h3"
+	PlatformPixverseV6  = "pixverse-v6"
 )
 
 // AllPlatforms 返回所有支持的平台列表
@@ -63,6 +67,10 @@ func AllPlatforms() []string {
 		PlatformKling,
 		PlatformHappyHourse,
 		PlatformSeedance,
+		PlatformByteDance,
+		PlatformWan3,
+		PlatformMiniMaxH3,
+		PlatformPixverseV6,
 	}
 }
 

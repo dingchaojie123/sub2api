@@ -30,6 +30,10 @@ describe("groups image pricing platform support", () => {
     expect(supportsVideoPricingPlatform("kling")).toBe(true);
     expect(supportsVideoPricingPlatform("happyhourse")).toBe(true);
     expect(supportsVideoPricingPlatform("seedance")).toBe(true);
+    expect(supportsVideoPricingPlatform("bytedance")).toBe(true);
+    expect(supportsVideoPricingPlatform("wan3")).toBe(true);
+    expect(supportsVideoPricingPlatform("minimax-h3")).toBe(true);
+    expect(supportsVideoPricingPlatform("pixverse-v6")).toBe(true);
     expect(supportsVideoPricingPlatform("openai")).toBe(false);
   });
 
@@ -37,10 +41,18 @@ describe("groups image pricing platform support", () => {
     expect(isPPVideoPricingPlatform("kling")).toBe(true);
     expect(isPPVideoPricingPlatform("happyhourse")).toBe(true);
     expect(isPPVideoPricingPlatform("seedance")).toBe(true);
+    expect(isPPVideoPricingPlatform("bytedance")).toBe(true);
+    expect(isPPVideoPricingPlatform("wan3")).toBe(true);
+    expect(isPPVideoPricingPlatform("minimax-h3")).toBe(true);
+    expect(isPPVideoPricingPlatform("pixverse-v6")).toBe(true);
     expect(isPPVideoPricingPlatform("grok")).toBe(false);
     expect(usesGroupVideoPriceConfig("kling")).toBe(true);
     expect(usesGroupVideoPriceConfig("happyhourse")).toBe(true);
     expect(usesGroupVideoPriceConfig("seedance")).toBe(true);
+    expect(usesGroupVideoPriceConfig("bytedance")).toBe(true);
+    expect(usesGroupVideoPriceConfig("wan3")).toBe(true);
+    expect(usesGroupVideoPriceConfig("minimax-h3")).toBe(true);
+    expect(usesGroupVideoPriceConfig("pixverse-v6")).toBe(true);
   });
 
   it("keeps non-media group platforms out of the image pricing controls", () => {

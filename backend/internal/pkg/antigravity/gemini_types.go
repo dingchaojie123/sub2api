@@ -66,8 +66,9 @@ type GeminiGenerationConfig struct {
 	TopP            *float64              `json:"topP,omitempty"`
 	TopK            *int                  `json:"topK,omitempty"`
 	ThinkingConfig  *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
-	StopSequences   []string              `json:"stopSequences,omitempty"`
-	ImageConfig     *GeminiImageConfig    `json:"imageConfig,omitempty"`
+	StopSequences      []string           `json:"stopSequences,omitempty"`
+	ResponseModalities []string           `json:"responseModalities,omitempty"`
+	ImageConfig        *GeminiImageConfig `json:"imageConfig,omitempty"`
 }
 
 // GeminiImageConfig Gemini 图片生成配置（gemini-3-pro-image / gemini-3.1-flash-image 等图片模型支持）

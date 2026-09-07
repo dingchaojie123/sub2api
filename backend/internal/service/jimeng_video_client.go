@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -26,12 +27,20 @@ type JimengVideoClient struct {
 }
 
 type JimengVideoGenerationRequest struct {
-	Model    string
-	Prompt   string
-	Image    string
-	Images   []string
-	Duration int
-	Extra    map[string]any
+	Model         string
+	Prompt        string
+	Image         string
+	Images        []string
+	Videos        []string
+	Audios        []string
+	AspectRatio   string
+	Resolution    string
+	GenerateAudio *bool
+	StartFrameURL string
+	EndFrameURL   string
+	Seed          *int
+	Duration      int
+	Extra         map[string]any
 }
 
 type JimengVideoGenerationResult struct {
@@ -61,7 +70,7 @@ func (c *JimengVideoClient) CreateGeneration(ctx context.Context, input JimengVi
 	if c == nil {
 		return nil, fmt.Errorf("jimeng client is nil")
 	}
-	payload := make(map[string]any, len(input.Extra)+6)
+	payload := make(map[string]any, len(input.Extra)+14)
 	for key, value := range input.Extra {
 		key = strings.TrimSpace(key)
 		if key != "" {
@@ -83,6 +92,30 @@ func (c *JimengVideoClient) CreateGeneration(ctx context.Context, input JimengVi
 	}
 	if len(input.Images) > 0 {
 		payload["images"] = input.Images
+	}
+	if len(input.Videos) > 0 {
+		payload["videos"] = input.Videos
+	}
+	if len(input.Audios) > 0 {
+		payload["audios"] = input.Audios
+	}
+	if value := strings.TrimSpace(input.AspectRatio); value != "" {
+		payload["aspect_ratio"] = value
+	}
+	if value := strings.TrimSpace(input.Resolution); value != "" {
+		payload["resolution"] = value
+	}
+	if input.GenerateAudio != nil {
+		payload["generate_audio"] = *input.GenerateAudio
+	}
+	if value := strings.TrimSpace(input.StartFrameURL); value != "" {
+		payload["start_frame_url"] = value
+	}
+	if value := strings.TrimSpace(input.EndFrameURL); value != "" {
+		payload["end_frame_url"] = value
+	}
+	if input.Seed != nil {
+		payload["seed"] = *input.Seed
 	}
 	if input.Duration > 0 {
 		payload["duration"] = input.Duration
@@ -201,6 +234,7 @@ func parseJimengGenerationResult(body []byte) (*JimengVideoGenerationResult, err
 func jimengVideoTaskIDPaths() []string {
 	return []string{
 		"task_id", "request_id", "id",
+		"data.0.task_id", "data.0.request_id", "data.0.id",
 		"data.task_id", "data.request_id", "data.id",
 		"data.data.task_id", "data.data.request_id", "data.data.id",
 		"data.data.data.task_id", "data.data.data.request_id", "data.data.data.id",
@@ -210,6 +244,7 @@ func jimengVideoTaskIDPaths() []string {
 func jimengVideoStatusPaths() []string {
 	return []string{
 		"status", "state", "task_status",
+		"data.0.status", "data.0.state", "data.0.task_status",
 		"data.status", "data.state", "data.task_status",
 		"data.data.status", "data.data.state", "data.data.task_status",
 		"data.data.data.status", "data.data.data.state", "data.data.data.task_status",
@@ -304,15 +339,22 @@ func extractJimengValueByPath(value any, path []string) (any, bool) {
 	if len(path) == 0 {
 		return value, true
 	}
-	obj, ok := value.(map[string]any)
-	if !ok {
+	switch typed := value.(type) {
+	case map[string]any:
+		next, ok := typed[path[0]]
+		if !ok {
+			return nil, false
+		}
+		return extractJimengValueByPath(next, path[1:])
+	case []any:
+		index, err := strconv.Atoi(path[0])
+		if err != nil || index < 0 || index >= len(typed) {
+			return nil, false
+		}
+		return extractJimengValueByPath(typed[index], path[1:])
+	default:
 		return nil, false
 	}
-	next, ok := obj[path[0]]
-	if !ok {
-		return nil, false
-	}
-	return extractJimengValueByPath(next, path[1:])
 }
 
 func normalizeJimengBaseURL(raw string) (string, error) {

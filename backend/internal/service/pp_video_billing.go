@@ -63,6 +63,9 @@ func ppVideoGroupBillingResolution(meta PPVideoBillingMetadata) string {
 	if meta.Platform == PlatformSeedance && rawResolution == "4k" {
 		resolution = VideoBillingResolution1080P
 	}
+	if meta.Platform == PlatformPixverseV6 {
+		resolution = pixverseV6BillingResolution(rawResolution)
+	}
 	if meta.Platform == PlatformKling {
 		switch strings.ToLower(strings.TrimSpace(meta.KlingMode)) {
 		case "", "std", "2x":
@@ -107,6 +110,27 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	}
 	if meta.ValidationError != nil {
 		return nil, meta.ValidationError
+	}
+	if meta.Platform == PlatformByteDance ||
+		(meta.Platform == PlatformMiniMaxH3 && !ppVideoIsMiniMaxHailuo23Model(meta.Model)) {
+		if meta.RequestedDurationMilliseconds <= 0 ||
+			meta.RequestedDurationMilliseconds%1000 != 0 ||
+			meta.RequestedDurationMilliseconds < 4000 ||
+			meta.RequestedDurationMilliseconds > 15000 {
+			return nil, fmt.Errorf("%s duration must be an integer number of seconds from 4 to 15", meta.Platform)
+		}
+	}
+	if meta.Platform == PlatformMiniMaxH3 && ppVideoIsMiniMaxHailuo23Model(meta.Model) {
+		if meta.RequestedDurationMilliseconds != 6000 && meta.RequestedDurationMilliseconds != 10000 {
+			return nil, fmt.Errorf("MiniMax-Hailuo-2.3 duration must be 6 or 10 seconds")
+		}
+	}
+	if meta.Platform == PlatformPixverseV6 &&
+		(meta.RequestedDurationMilliseconds <= 0 ||
+			meta.RequestedDurationMilliseconds%1000 != 0 ||
+			meta.RequestedDurationMilliseconds < 1000 ||
+			meta.RequestedDurationMilliseconds > 15000) {
+		return nil, fmt.Errorf("%s duration must be an integer number of seconds from 1 to 15", meta.Platform)
 	}
 	billingAPIKey := apiKey
 	if s != nil {

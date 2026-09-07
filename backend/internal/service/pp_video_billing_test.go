@@ -163,6 +163,72 @@ func TestCalculatePPVideoCostUsesGroupVideoPriceForKling(t *testing.T) {
 	}
 }
 
+func TestPPVideoGroupBillingResolutionMapsMiniMaxH3Tiers(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, VideoBillingResolution720P, ppVideoGroupBillingResolution(PPVideoBillingMetadata{
+		Platform:        PlatformMiniMaxH3,
+		VideoResolution: "768P",
+	}))
+	require.Equal(t, VideoBillingResolution1080P, ppVideoGroupBillingResolution(PPVideoBillingMetadata{
+		Platform:        PlatformMiniMaxH3,
+		VideoResolution: "2K",
+	}))
+}
+
+func TestCalculatePPVideoCostValidatesMiniMaxHailuo23Durations(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(103)
+	svc := &OpenAIGatewayService{
+		billingService: newTestBillingService(),
+	}
+	apiKey := &APIKey{
+		GroupID: &groupID,
+		Group: &Group{
+			ID:             groupID,
+			RateMultiplier: 1,
+			VideoPrice720P: func() *float64 { v := 0.2; return &v }(),
+		},
+	}
+
+	cost, err := svc.CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{}, PPVideoBillingMetadata{
+		Platform:                      PlatformMiniMaxH3,
+		Model:                         MiniMaxHailuo23VideoModel,
+		RequestedDurationMilliseconds: 6000,
+		VideoCount:                    1,
+		VideoResolution:               "768P",
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 6, cost.BillingUnits, 1e-12)
+
+	_, err = svc.CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{}, PPVideoBillingMetadata{
+		Platform:                      PlatformMiniMaxH3,
+		Model:                         MiniMaxHailuo23VideoModel,
+		RequestedDurationMilliseconds: 5000,
+		VideoCount:                    1,
+		VideoResolution:               "768P",
+	})
+	require.ErrorContains(t, err, "MiniMax-Hailuo-2.3 duration must be 6 or 10 seconds")
+}
+
+func TestPPVideoGroupBillingResolutionMapsPixverseV6Tiers(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, VideoBillingResolution480P, ppVideoGroupBillingResolution(PPVideoBillingMetadata{
+		Platform:        PlatformPixverseV6,
+		VideoResolution: "360p",
+	}))
+	require.Equal(t, VideoBillingResolution720P, ppVideoGroupBillingResolution(PPVideoBillingMetadata{
+		Platform:        PlatformPixverseV6,
+		VideoResolution: "540p",
+	}))
+	require.Equal(t, VideoBillingResolution1080P, ppVideoGroupBillingResolution(PPVideoBillingMetadata{
+		Platform:        PlatformPixverseV6,
+		VideoResolution: "1080p",
+	}))
+}
+
 func TestCalculatePPVideoCostUsesGroupVideoPriceForHappyHorse(t *testing.T) {
 	t.Parallel()
 

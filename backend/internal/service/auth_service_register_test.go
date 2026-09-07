@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -62,8 +64,9 @@ func (s *settingRepoStub) Delete(ctx context.Context, key string) error {
 }
 
 type emailCacheStub struct {
-	data *VerificationCodeData
-	err  error
+	data        *VerificationCodeData
+	err         error
+	deleteCalls int
 }
 
 type defaultSubscriptionAssignerStub struct {
@@ -275,10 +278,13 @@ func (s *emailCacheStub) GetVerificationCode(ctx context.Context, email string) 
 }
 
 func (s *emailCacheStub) SetVerificationCode(ctx context.Context, email string, data *VerificationCodeData, ttl time.Duration) error {
+	s.data = data
 	return nil
 }
 
 func (s *emailCacheStub) DeleteVerificationCode(ctx context.Context, email string) error {
+	s.data = nil
+	s.deleteCalls++
 	return nil
 }
 
@@ -585,6 +591,52 @@ func TestAuthService_SendVerifyCode_EmailSuffixNotAllowed(t *testing.T) {
 	require.Contains(t, appErr.Message, "@example.com")
 	require.Contains(t, appErr.Message, "@company.com")
 	require.Equal(t, "2", appErr.Metadata["allowed_suffix_count"])
+}
+
+func TestAuthService_SendVerifyCodeAsync_ReportsSMTPConfigurationFailure(t *testing.T) {
+	service := newAuthService(&userRepoStub{}, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+	}, &emailCacheStub{}, nil)
+
+	_, err := service.SendVerifyCodeAsync(context.Background(), "user@test.com")
+	require.ErrorIs(t, err, ErrEmailNotConfigured)
+}
+
+func TestAuthService_SendVerifyCodeAsync_WaitsForSMTPDelivery(t *testing.T) {
+	smtpServer := startNotificationEmailTestSMTPServer(t)
+	settings := smtpServer.settings()
+	settings[SettingKeyRegistrationEnabled] = "true"
+	cache := &emailCacheStub{}
+	service := newAuthService(&userRepoStub{}, settings, cache, nil)
+
+	result, err := service.SendVerifyCodeAsync(context.Background(), "user@test.com")
+	require.NoError(t, err)
+	require.Equal(t, 60, result.Countdown)
+	require.Equal(t, int64(1), smtpServer.messageCount())
+	require.NotNil(t, cache.data)
+}
+
+func TestAuthService_SendVerifyCodeAsync_ClearsCodeWhenSMTPDeliveryFails(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	port := listener.Addr().(*net.TCPAddr).Port
+	require.NoError(t, listener.Close())
+
+	cache := &emailCacheStub{}
+	service := newAuthService(&userRepoStub{}, map[string]string{
+		SettingKeyRegistrationEnabled: "true",
+		SettingKeySMTPHost:             "127.0.0.1",
+		SettingKeySMTPPort:             fmt.Sprintf("%d", port),
+		SettingKeySMTPUsername:         "user",
+		SettingKeySMTPPassword:         "password",
+		SettingKeySMTPFrom:             "noreply@example.com",
+		SettingKeySMTPUseTLS:           "false",
+	}, cache, nil)
+
+	_, err = service.SendVerifyCodeAsync(context.Background(), "user@test.com")
+	require.Error(t, err)
+	require.Nil(t, cache.data)
+	require.Equal(t, 1, cache.deleteCalls)
 }
 
 func TestAuthService_Register_CreateError(t *testing.T) {

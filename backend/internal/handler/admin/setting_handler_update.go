@@ -504,6 +504,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		req.SMTPFromName = previousSettings.SMTPFromName
 		req.SMTPUseTLS = previousSettings.SMTPUseTLS
 	}
+	if req.EmailVerifyEnabled {
+		if req.SMTPHost == "" {
+			response.BadRequest(c, "SMTP host is required when email verification is enabled")
+			return
+		}
+		if req.SMTPFrom == "" {
+			response.BadRequest(c, "SMTP from email is required when email verification is enabled")
+			return
+		}
+	}
 
 	// Turnstile 参数验证
 	if req.TurnstileEnabled {

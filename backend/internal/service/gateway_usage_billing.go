@@ -646,6 +646,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	account := input.Account
 	subscription := input.Subscription
 	ApplyForwardImageBillingResolution(result)
+	// API key auth may carry an old group snapshot that predates media pricing
+	// fields. Refresh it before resolving multipliers and image prices so Gemini
+	// image billing uses the same group configuration as the admin panel.
+	apiKey = s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey)
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
 	// 用于粘性会话切换时的特殊计费处理
@@ -758,6 +762,25 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.gateway")
 
 	return nil
+}
+
+func (s *GatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Context, apiKey *APIKey) *APIKey {
+	if apiKey == nil || apiKey.GroupID == nil || *apiKey.GroupID <= 0 {
+		return apiKey
+	}
+	if !groupMediaPricingLooksIncomplete(apiKey.Group) {
+		return apiKey
+	}
+	if s == nil || s.groupRepo == nil {
+		return apiKey
+	}
+	group, err := s.groupRepo.GetByIDLite(ctx, *apiKey.GroupID)
+	if err != nil || group == nil {
+		return apiKey
+	}
+	clone := *apiKey
+	clone.Group = group
+	return &clone
 }
 
 // calculateRecordUsageCost 根据请求类型和选项计算费用。

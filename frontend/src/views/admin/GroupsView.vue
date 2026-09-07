@@ -3850,6 +3850,10 @@ const platformOptions = computed(() => [
   { value: "kling", label: "K-Ling" },
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
+  { value: "bytedance", label: "ByteDance" },
+  { value: "wan3", label: "Wan3.0" },
+  { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "pixverse-v6", label: "Pixverse-V6" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -3867,6 +3871,10 @@ const platformFilterOptions = computed(() => [
   { value: "kling", label: "K-Ling" },
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
+  { value: "bytedance", label: "ByteDance" },
+  { value: "wan3", label: "Wan3.0" },
+  { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "pixverse-v6", label: "Pixverse-V6" },
 ]);
 
 const editStatusOptions = computed(() => [

@@ -80,6 +80,29 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	if account == nil {
 		return nil, newUpstreamModelSyncConfigError("Account is required", nil)
 	}
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+		platformLabel := "ByteDance"
+		fixedModels := []string{ByteDanceVideoDefaultModel}
+		if account.Platform == PlatformWan3 {
+			platformLabel = "Wan3.0"
+			fixedModels = []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel}
+		} else if account.Platform == PlatformMiniMaxH3 {
+			platformLabel = "MiniMax-H3"
+			fixedModels = []string{MiniMaxH3VideoDefaultModel, MiniMaxHailuo23VideoModel}
+		} else if account.Platform == PlatformPixverseV6 {
+			platformLabel = "Pixverse-V6"
+			fixedModels = []string{PixverseV6VideoDefaultModel}
+		}
+		if account.Type != AccountTypeAPIKey {
+			return nil, newUpstreamModelSyncUnsupportedError(
+				fmt.Sprintf("Unsupported %s account type for upstream model sync: %s", platformLabel, account.Type), nil,
+			)
+		}
+		if strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("No "+platformLabel+" API key is available", nil)
+		}
+		return fixedModels, nil
+	}
 
 	if account.Platform == PlatformAntigravity && account.Type != AccountTypeAPIKey {
 		return s.fetchAntigravityOAuthUpstreamModels(ctx, account)
@@ -215,6 +238,20 @@ func (s *AccountTestService) buildJimengUpstreamModelsRequest(ctx context.Contex
 }
 
 func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+		platformLabel := "ByteDance"
+		if account.Platform == PlatformWan3 {
+			platformLabel = "Wan3.0"
+		} else if account.Platform == PlatformMiniMaxH3 {
+			platformLabel = "MiniMax-H3"
+		} else if account.Platform == PlatformPixverseV6 {
+			platformLabel = "Pixverse-V6"
+		}
+		return nil, newUpstreamModelSyncUnsupportedError(
+			platformLabel+" ModelVerse does not expose a model-list endpoint; its fixed model is configured locally",
+			nil,
+		)
+	}
 	if account.Type != AccountTypeAPIKey {
 		return nil, newUpstreamModelSyncUnsupportedError(
 			fmt.Sprintf("Unsupported PP video account type for upstream model sync: %s", account.Type), nil,
@@ -598,6 +635,22 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 		case PlatformSeedance:
 			if strings.HasPrefix(normalized, "doubao-seedance-") ||
 				strings.HasPrefix(normalized, "seedance") {
+				filtered = append(filtered, model)
+			}
+		case PlatformByteDance:
+			if strings.EqualFold(strings.TrimSpace(model), ByteDanceVideoDefaultModel) {
+				filtered = append(filtered, model)
+			}
+		case PlatformWan3:
+			if ppVideoIsWan30Model(model) {
+				filtered = append(filtered, model)
+			}
+		case PlatformMiniMaxH3:
+			if ppVideoIsMiniMaxModel(model) {
+				filtered = append(filtered, model)
+			}
+		case PlatformPixverseV6:
+			if strings.EqualFold(strings.TrimSpace(model), PixverseV6VideoDefaultModel) {
 				filtered = append(filtered, model)
 			}
 		}

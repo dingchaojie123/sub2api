@@ -314,7 +314,7 @@ func (s *OpenAIGatewayService) CalculateJimengVideoCost(ctx context.Context, api
 		JimengVideoBillingModel,
 		NormalizeVideoBillingResolutionOrDefault(meta.VideoResolution),
 		1,
-		NormalizeVideoBillingDurationSecondsOrDefault(meta.VideoDurationSeconds),
+		NormalizeJimengVideoDurationSecondsOrDefault(meta.VideoDurationSeconds),
 		videoPriceConfigFromAPIKey(apiKey),
 		videoMultiplier,
 	), nil
@@ -564,7 +564,7 @@ func (s *OpenAIGatewayService) recordJimengVideoBalanceUsage(ctx context.Context
 	billingMode := string(BillingModeVideo)
 	accountRateMultiplier := in.Account.BillingRateMultiplier()
 	videoResolution := NormalizeVideoBillingResolutionOrDefault(task.VideoResolution)
-	videoDurationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(task.VideoDurationSeconds)
+	videoDurationSeconds := NormalizeJimengVideoDurationSecondsOrDefault(task.VideoDurationSeconds)
 	totalCost := jimengVideoTaskTotalCost(task, actualCost)
 	rateMultiplier := 1.0
 	if totalCost > 0 {

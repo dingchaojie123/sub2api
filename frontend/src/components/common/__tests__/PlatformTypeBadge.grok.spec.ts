@@ -88,7 +88,11 @@ describe('PlatformTypeBadge video account platforms', () => {
   it.each([
     ['kling', 'K-Ling', 'bg-sky-100'],
     ['happyhourse', 'Happy-Hourse', 'bg-emerald-100'],
-    ['seedance', 'Seedance', 'bg-teal-100']
+    ['seedance', 'Seedance', 'bg-teal-100'],
+    ['bytedance', 'ByteDance', 'bg-violet-100'],
+    ['wan3', 'Wan3.0', 'bg-fuchsia-100'],
+    ['minimax-h3', 'MiniMax-H3', 'bg-pink-100'],
+    ['pixverse-v6', 'Pixverse-V6', 'bg-lime-100']
   ])('renders %s with a distinct platform badge', (platform, label, colorClass) => {
     const wrapper = mount(PlatformTypeBadge, {
       props: {

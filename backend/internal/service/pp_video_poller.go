@@ -304,6 +304,13 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 		ResponseStatus:                     result.ResponseStatusCode,
 		ResponseContentType:                result.ResponseContentType,
 		ResponseBody:                       string(result.ResponseBody),
+		LastErrorCode: func() string {
+			if upstreamStatus == PPVideoTaskStatusFailed && strings.TrimSpace(result.ErrorMessage) != "" {
+				return "upstream_task_failed"
+			}
+			return ""
+		}(),
+		LastErrorMessage: result.ErrorMessage,
 	})
 	if err != nil {
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err

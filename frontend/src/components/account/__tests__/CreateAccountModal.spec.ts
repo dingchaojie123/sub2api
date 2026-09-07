@@ -193,7 +193,7 @@ async function fillProviderApiKeyAccount(
 
 async function fillVideoApiKeyAccount(
   wrapper: ReturnType<typeof mountModal>,
-  platform: 'kling' | 'happyhourse' | 'seedance'
+  platform: 'kling' | 'happyhourse' | 'seedance' | 'bytedance' | 'wan3' | 'minimax-h3' | 'pixverse-v6'
 ) {
   await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
   await flushPromises()
@@ -202,29 +202,6 @@ async function fillVideoApiKeyAccount(
     .get('form#create-account-form input[type="text"]:not([data-tour="account-form-name"])')
     .setValue(`https://${platform}.example.com/v1`)
   await wrapper.get('form#create-account-form input[type="password"]').setValue(`${platform}-key`)
-}
-
-function expectedVideoModelMapping(platform: 'kling' | 'happyhourse' | 'seedance') {
-  if (platform === 'kling') {
-    return {
-      'kling-v3': 'kling-v3'
-    }
-  }
-  if (platform === 'happyhourse') {
-    return {
-      'happyhorse-1.0-t2v': 'happyhorse-1.0-t2v',
-      'happyhorse-1.0-i2v': 'happyhorse-1.0-i2v'
-    }
-  }
-  return {
-    'by-seedance2.0-933': 'by-seedance2.0-933',
-    'seedance2.0-431': 'seedance2.0-431',
-    'seedance2.0-900': 'seedance2.0-900',
-    'seedance2.0-933': 'seedance2.0-933',
-    'seedance2.0-fast-431': 'seedance2.0-fast-431',
-    'seedance2.0-fast-933': 'seedance2.0-fast-933',
-    'seedance2.5': 'seedance2.5'
-  }
 }
 
 async function openCodexImportStep(toggleClicks = 0) {
@@ -269,7 +246,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(platformSelector.classes()).toContain('flex-nowrap')
     expect(platformSelector.classes()).not.toContain('flex-wrap')
     expect(platformSelector.classes()).toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(13)
+    expect(platformButtons).toHaveLength(17)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')
       expect(button.classes()).not.toContain('flex-1')
@@ -479,10 +456,62 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
         credentials: {
           base_url: `https://${platform}.example.com/v1`,
           api_key: `${platform}-key`,
-          auth_mode: 'bearer',
-          model_mapping: expectedVideoModelMapping(platform),
+          auth_mode: 'bearer'
         },
       })
+      expect(createAccountMock.mock.calls[0]?.[0]?.credentials).not.toHaveProperty('model_mapping')
+    }
+  )
+
+  it.each(['bytedance', 'wan3', 'minimax-h3', 'pixverse-v6'] as const)(
+    'creates the new %s video platform as a Bearer API key account',
+    async (platform) => {
+      const wrapper = mountModal()
+      await fillVideoApiKeyAccount(wrapper, platform)
+
+      await wrapper.get('form#create-account-form').trigger('submit.prevent')
+      await flushPromises()
+
+      expect(createAccountMock).toHaveBeenCalledTimes(1)
+      expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+        platform,
+        type: 'apikey',
+        credentials: {
+          base_url: `https://${platform}.example.com/v1`,
+          api_key: `${platform}-key`,
+          auth_mode: 'bearer'
+        }
+      })
+      const credentials = createAccountMock.mock.calls[0]?.[0]?.credentials
+      if (platform === 'bytedance') {
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'doubao-seedance-2-0-260128': 'doubao-seedance-2-0-260128'
+          }
+        })
+      } else if (platform === 'wan3') {
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'wan3.0-video': 'wan3.0-video',
+            'wan3.0-video-prime': 'wan3.0-video-prime'
+          }
+        })
+      } else if (platform === 'minimax-h3') {
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'MiniMax-H3': 'MiniMax-H3',
+            'MiniMax-Hailuo-2.3': 'MiniMax-Hailuo-2.3'
+          }
+        })
+      } else if (platform === 'pixverse-v6') {
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'pixverse-v6': 'pixverse-v6'
+          }
+        })
+      } else {
+        expect(credentials).not.toHaveProperty('model_mapping')
+      }
     }
   )
 

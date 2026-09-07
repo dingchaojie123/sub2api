@@ -39,7 +39,11 @@ const pOpts = computed(() => [
   { value: 'deepseek', label: t('admin.accounts.platforms.deepseek') },
   { value: 'kling', label: t('admin.accounts.platforms.kling') },
   { value: 'happyhourse', label: t('admin.accounts.platforms.happyhourse') },
-  { value: 'seedance', label: t('admin.accounts.platforms.seedance') }
+  { value: 'seedance', label: t('admin.accounts.platforms.seedance') },
+  { value: 'bytedance', label: t('admin.accounts.platforms.bytedance') },
+  { value: 'wan3', label: t('admin.accounts.platforms.wan3') },
+  { value: 'minimax-h3', label: t('admin.accounts.platforms.minimax-h3') },
+  { value: 'pixverse-v6', label: t('admin.accounts.platforms.pixverse-v6') }
 ])
 const tOpts = computed(() => [{ value: '', label: t('admin.accounts.allTypes') }, { value: 'oauth', label: t('admin.accounts.oauthType') }, { value: 'setup-token', label: t('admin.accounts.setupToken') }, { value: 'apikey', label: t('admin.accounts.apiKey') }, { value: 'bedrock', label: 'AWS Bedrock' }])
 const sOpts = computed(() => [{ value: '', label: t('admin.accounts.allStatus') }, { value: 'active', label: t('admin.accounts.status.active') }, { value: 'inactive', label: t('admin.accounts.status.inactive') }, { value: 'error', label: t('admin.accounts.status.error') }, { value: 'rate_limited', label: t('admin.accounts.status.rateLimited') }, { value: 'temp_unschedulable', label: t('admin.accounts.status.tempUnschedulable') }, { value: 'unschedulable', label: t('admin.accounts.status.unschedulable') }])

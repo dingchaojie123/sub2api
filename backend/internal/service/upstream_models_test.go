@@ -165,6 +165,30 @@ func TestFilterUpstreamModelsForPlatform(t *testing.T) {
 			},
 		},
 		{
+			name:     "ByteDance keeps only the fixed ModelVerse model",
+			platform: PlatformByteDance,
+			models:   []string{ByteDanceVideoDefaultModel, "doubao-seedance-2-0-mini-260615", "gpt-5"},
+			want:     []string{ByteDanceVideoDefaultModel},
+		},
+		{
+			name:     "Wan3.0 keeps only its fixed ModelVerse models",
+			platform: PlatformWan3,
+			models:   []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel, "MiniMax-H3", "gpt-5"},
+			want:     []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel},
+		},
+		{
+			name:     "MiniMax-H3 keeps only its fixed ModelVerse models",
+			platform: PlatformMiniMaxH3,
+			models:   []string{MiniMaxH3VideoDefaultModel, MiniMaxHailuo23VideoModel, "MiniMax-Video-01", "gpt-5"},
+			want:     []string{MiniMaxH3VideoDefaultModel, MiniMaxHailuo23VideoModel},
+		},
+		{
+			name:     "Pixverse v6 keeps only the fixed ModelVerse model",
+			platform: PlatformPixverseV6,
+			models:   []string{PixverseV6VideoDefaultModel, "pixverse-v5", "gpt-5"},
+			want:     []string{PixverseV6VideoDefaultModel},
+		},
+		{
 			name:     "non video platforms are unchanged",
 			platform: PlatformOpenAI,
 			models:   []string{"gpt-5", "qwen3"},
@@ -180,6 +204,98 @@ func TestFilterUpstreamModelsForPlatform(t *testing.T) {
 			require.Equal(t, tt.want, filterUpstreamModelsForPlatform(tt.platform, tt.models))
 		})
 	}
+}
+
+func TestFetchUpstreamSupportedModelsUsesByteDanceFixedModelWithoutHTTPProbe(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          upstreamModelSyncTestConfig(),
+	}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:       12,
+		Platform: PlatformByteDance,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "bd-key",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{ByteDanceVideoDefaultModel}, models)
+	require.Empty(t, upstream.requests)
+}
+
+func TestFetchUpstreamSupportedModelsUsesMiniMaxH3FixedModelWithoutHTTPProbe(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          upstreamModelSyncTestConfig(),
+	}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:       13,
+		Platform: PlatformMiniMaxH3,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "h3-key",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{MiniMaxH3VideoDefaultModel, MiniMaxHailuo23VideoModel}, models)
+	require.Empty(t, upstream.requests)
+}
+
+func TestFetchUpstreamSupportedModelsUsesPixverseV6FixedModelWithoutHTTPProbe(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          upstreamModelSyncTestConfig(),
+	}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:       15,
+		Platform: PlatformPixverseV6,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "pix-key",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{PixverseV6VideoDefaultModel}, models)
+	require.Empty(t, upstream.requests)
+}
+
+func TestFetchUpstreamSupportedModelsUsesWan30FixedModelsWithoutHTTPProbe(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          upstreamModelSyncTestConfig(),
+	}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:       14,
+		Platform: PlatformWan3,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "wan-key",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel}, models)
+	require.Empty(t, upstream.requests)
 }
 
 func TestBuildUpstreamModelsRequestsForAPIKeyAccounts(t *testing.T) {

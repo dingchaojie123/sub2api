@@ -235,10 +235,12 @@ func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T
 	for _, route := range []string{
 		"POST /v1/videos/generations",
 		"GET /v1/videos/:request_id",
+		"DELETE /v1/videos/:request_id",
 		"POST /v1/video/generations",
 		"GET /v1/video/generations/:request_id",
 		"POST /videos/generations",
 		"GET /videos/:request_id",
+		"DELETE /videos/:request_id",
 	} {
 		require.True(t, registered[route], "%s should be registered", route)
 	}

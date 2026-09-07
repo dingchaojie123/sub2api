@@ -2442,6 +2442,18 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		for requestedModel := range mapping {
 			requestedModels = append(requestedModels, requestedModel)
 		}
+		if len(requestedModels) == 0 {
+			switch account.Platform {
+			case service.PlatformByteDance:
+				requestedModels = append(requestedModels, service.ByteDanceVideoDefaultModel)
+			case service.PlatformWan3:
+				requestedModels = append(requestedModels, service.Wan30VideoDefaultModel, service.Wan30VideoPrimeModel)
+			case service.PlatformMiniMaxH3:
+				requestedModels = append(requestedModels, service.MiniMaxH3VideoDefaultModel, service.MiniMaxHailuo23VideoModel)
+			case service.PlatformPixverseV6:
+				requestedModels = append(requestedModels, service.PixverseV6VideoDefaultModel)
+			}
+		}
 		requestedModels = service.FilterPPVideoPublicModelsForPlatform(account.Platform, requestedModels)
 		sort.Strings(requestedModels)
 

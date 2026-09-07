@@ -39,7 +39,11 @@ export function billingModesForPlatform(
   if (
     normalizedPlatform === 'kling' ||
     normalizedPlatform === 'happyhourse' ||
-    normalizedPlatform === 'seedance'
+    normalizedPlatform === 'seedance' ||
+    normalizedPlatform === 'bytedance' ||
+    normalizedPlatform === 'wan3' ||
+    normalizedPlatform === 'minimax-h3' ||
+    normalizedPlatform === 'pixverse-v6'
   ) {
     // These providers use the group-level video price card, not a channel
     // model's video-per-second price.

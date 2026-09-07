@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -96,6 +97,7 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 
 	var upstreamBody []byte
 	publicModel := jimengVideoPublicModelFromArgs(publicModels...)
+	upstreamModel := ""
 	if endpoint != JimengVideoEndpointStatus {
 		if len(body) == 0 {
 			return nil, fmt.Errorf("jimeng video request body is empty")
@@ -103,7 +105,9 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 		if publicModel == "" {
 			publicModel = JimengVideoRequestedModelFromBody(body)
 		}
-		upstreamBody, err = normalizeJimengVideoGenerationBody(body)
+		publicModel = NormalizeJimengVideoRequestedModel(publicModel)
+		upstreamModel = jimengVideoUpstreamModelForAccount(account, publicModel)
+		upstreamBody, err = normalizeJimengVideoGenerationBody(body, upstreamModel)
 		if err != nil {
 			return nil, err
 		}
@@ -111,9 +115,8 @@ func (s *OpenAIGatewayService) forwardJimengVideo(
 	if publicModel == "" {
 		publicModel = JimengVideoRoutingModel
 	}
-	upstreamModel := publicModel
-	if endpoint != JimengVideoEndpointStatus {
-		upstreamModel = NormalizeJimengVideoRequestedModel(gjson.GetBytes(upstreamBody, "model").String())
+	if upstreamModel == "" {
+		upstreamModel = jimengVideoUpstreamModelForAccount(account, publicModel)
 	}
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
 	defer releaseUpstreamCtx()
@@ -211,7 +214,7 @@ func ValidateJimengVideoGenerationRequestBody(body []byte) error {
 	return validateVideoPromptFieldLength("Jimeng", "prompt", prompt, jimengVideoPromptMaxRunes)
 }
 
-func normalizeJimengVideoGenerationBody(body []byte) ([]byte, error) {
+func normalizeJimengVideoGenerationBody(body []byte, upstreamModel string) ([]byte, error) {
 	if err := ValidateJimengVideoGenerationRequestBody(body); err != nil {
 		return nil, err
 	}
@@ -219,14 +222,15 @@ func normalizeJimengVideoGenerationBody(body []byte) ([]byte, error) {
 		return body, nil
 	}
 
-	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
-	if model != "" &&
-		!strings.EqualFold(model, JimengVideoLegacyRoutingModel) &&
-		!strings.EqualFold(model, JimengVideoBillingModel) {
-		return body, nil
+	if upstreamModel == "" {
+		upstreamModel = NormalizeJimengVideoRequestedModel(gjson.GetBytes(body, "model").String())
 	}
 
-	normalized, err := sjson.SetBytes(body, "model", JimengVideoRoutingModel)
+	normalized, err := sjson.SetBytes(body, "model", upstreamModel)
+	if err != nil {
+		return body, nil
+	}
+	normalized, err = sjson.SetBytes(normalized, "async", true)
 	if err != nil {
 		return body, nil
 	}
@@ -248,6 +252,18 @@ func JimengVideoRequestedModelFromBody(body []byte) string {
 		return JimengVideoRoutingModel
 	}
 	return NormalizeJimengVideoRequestedModel(gjson.GetBytes(body, "model").String())
+}
+
+func jimengVideoUpstreamModelForAccount(account *Account, publicModel string) string {
+	publicModel = NormalizeJimengVideoRequestedModel(publicModel)
+	if account != nil {
+		if mappedModel, matched := account.ResolveMappedModel(publicModel); matched {
+			if mappedModel = strings.TrimSpace(mappedModel); mappedModel != "" {
+				return mappedModel
+			}
+		}
+	}
+	return publicModel
 }
 
 func jimengVideoPublicModelFromArgs(models ...string) string {
@@ -357,100 +373,86 @@ func jimengVideoResponseHasFinalVideo(body []byte) bool {
 }
 
 func jimengVideoExtractFinalVideoURL(body []byte) string {
-	return extractJimengStringFromBytes(body, jimengVideoVideoURLPaths()...)
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return ""
+	}
+	var value any
+	if err := json.Unmarshal(body, &value); err != nil {
+		return ""
+	}
+	return extractJimengVideoURL(value)
 }
 
-func jimengVideoVideoURLPaths() []string {
-	suffixes := []string{
-		"video_url",
-		"result_url",
-		"url",
-		"download_url",
-		"video_url_download",
-		"file_url",
-		"media_url",
-		"play_url",
-		"video_urls.0",
-		"urls.0",
-		"content.video_url",
-		"content.result_url",
-		"content.url",
-		"content.download_url",
-		"content.video_url_download",
-		"content.file_url",
-		"content.media_url",
-		"content.play_url",
-		"result.video_url",
-		"result.result_url",
-		"result.url",
-		"result.download_url",
-		"result.video_url_download",
-		"result.file_url",
-		"result.media_url",
-		"result.play_url",
-		"result.video_urls.0",
-		"result.urls.0",
-		"task_result.video_url",
-		"task_result.result_url",
-		"task_result.url",
-		"task_result.download_url",
-		"task_result.video_url_download",
-		"task_result.file_url",
-		"task_result.media_url",
-		"task_result.play_url",
-		"task_result.video_urls.0",
-		"task_result.urls.0",
-		"task_result.videos.0.url",
-		"task_result.videos.0.video_url",
-		"task_result.videos.0.result_url",
-		"task_result.videos.0.download_url",
-		"task_result.videos.0.video_url_download",
-		"task_result.videos.0.file_url",
-		"task_result.videos.0.media_url",
-		"task_result.videos.0.play_url",
-		"output.video_url",
-		"output.result_url",
-		"output.url",
-		"output.download_url",
-		"output.video_url_download",
-		"output.file_url",
-		"output.media_url",
-		"output.play_url",
-		"output.video_urls.0",
-		"output.urls.0",
-		"output.0.video_url",
-		"output.0.result_url",
-		"output.0.url",
-		"output.0.download_url",
-		"output.0.video_url_download",
-		"output.0.file_url",
-		"output.0.media_url",
-		"output.0.play_url",
-		"outputs.0.video_url",
-		"outputs.0.result_url",
-		"outputs.0.url",
-		"outputs.0.download_url",
-		"outputs.0.video_url_download",
-		"outputs.0.file_url",
-		"outputs.0.media_url",
-		"outputs.0.play_url",
-		"videos.0.url",
-		"videos.0.video_url",
-		"videos.0.result_url",
-		"videos.0.download_url",
-		"videos.0.video_url_download",
-		"videos.0.file_url",
-		"videos.0.media_url",
-		"videos.0.play_url",
-	}
-	prefixes := []string{"", "data.", "data.data.", "data.data.data."}
-	paths := make([]string, 0, len(prefixes)*len(suffixes))
-	for _, prefix := range prefixes {
-		for _, suffix := range suffixes {
-			paths = append(paths, prefix+suffix)
+var jimengVideoURLFields = []string{
+	"video_url",
+	"mp4_url",
+	"url",
+	"result_url",
+	"download_url",
+	"video_url_download",
+	"file_url",
+	"media_url",
+	"play_url",
+}
+
+var jimengVideoIgnoredURLFields = map[string]struct{}{
+	"status_url":         {},
+	"image_references":   {},
+	"ref_images":         {},
+	"start_frame_url":    {},
+	"end_frame_url":      {},
+	"reference_images":   {},
+	"reference_videos":   {},
+	"reference_audios":   {},
+}
+
+func extractJimengVideoURL(value any) string {
+	var walk func(any) string
+	walk = func(current any) string {
+		switch typed := current.(type) {
+		case map[string]any:
+			for _, field := range jimengVideoURLFields {
+				if _, ignored := jimengVideoIgnoredURLFields[field]; ignored {
+					continue
+				}
+				if candidate, ok := typed[field].(string); ok {
+					if candidate = strings.TrimSpace(candidate); candidate != "" {
+						return candidate
+					}
+				}
+			}
+			keys := make([]string, 0, len(typed))
+			for key := range typed {
+				if _, ignored := jimengVideoIgnoredURLFields[key]; ignored {
+					continue
+				}
+				skip := false
+				for _, field := range jimengVideoURLFields {
+					if key == field {
+						skip = true
+						break
+					}
+				}
+				if !skip {
+					keys = append(keys, key)
+				}
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				if candidate := walk(typed[key]); candidate != "" {
+					return candidate
+				}
+			}
+		case []any:
+			for _, item := range typed {
+				if candidate := walk(item); candidate != "" {
+					return candidate
+				}
+			}
 		}
+		return ""
 	}
-	return paths
+	return walk(value)
 }
 
 func jimengVideoExtractVideoURL(body []byte) string {
@@ -593,7 +595,7 @@ func jimengVideoBillingMetadataFromRequest(body []byte) JimengVideoBillingMetada
 			"video.resolution",
 			"video.size",
 		)),
-		VideoDurationSeconds: NormalizeVideoBillingDurationSecondsOrDefault(firstJimengJSONInt(body,
+		VideoDurationSeconds: NormalizeJimengVideoDurationSecondsOrDefault(firstJimengJSONInt(body,
 			"duration",
 			"duration_seconds",
 			"seconds",
@@ -605,6 +607,15 @@ func jimengVideoBillingMetadataFromRequest(body []byte) JimengVideoBillingMetada
 			"video.duration_seconds",
 		)),
 	}
+}
+
+const jimengVideoDefaultDurationSeconds = 5
+
+func NormalizeJimengVideoDurationSecondsOrDefault(durationSeconds int) int {
+	if durationSeconds <= 0 {
+		return jimengVideoDefaultDurationSeconds
+	}
+	return NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds)
 }
 
 func JimengVideoBillingMetadataFromRequest(body []byte) JimengVideoBillingMetadata {

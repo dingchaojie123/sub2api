@@ -326,6 +326,11 @@ func (s *EmailService) GenerateVerifyCode() (string, error) {
 
 // SendVerifyCode 发送验证码邮件
 func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName string, locale ...string) error {
+	// 注册接口会等待此方法返回，因此先校验 SMTP 配置，避免验证码写入缓存后才发现邮件服务未配置。
+	if _, err := s.GetSMTPConfig(ctx); err != nil {
+		return err
+	}
+
 	// 检查是否在冷却期内
 	existing, err := s.cache.GetVerificationCode(ctx, email)
 	if err == nil && existing != nil {
@@ -366,6 +371,7 @@ func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName strin
 			return nil
 		}
 		if !shouldFallbackNotificationEmail(err) {
+			s.deleteVerificationCodeAfterSendFailure(ctx, email, err)
 			return err
 		}
 		slog.Warn("failed to send templated verification email, falling back to legacy template", "recipient_hash", notificationEmailHash(email), "error", err)
@@ -377,10 +383,21 @@ func (s *EmailService) SendVerifyCode(ctx context.Context, email, siteName strin
 
 	// 发送邮件
 	if err := s.SendEmail(ctx, email, subject, body); err != nil {
+		s.deleteVerificationCodeAfterSendFailure(ctx, email, err)
 		return fmt.Errorf("send email: %w", err)
 	}
 
 	return nil
+}
+
+func (s *EmailService) deleteVerificationCodeAfterSendFailure(ctx context.Context, email string, sendErr error) {
+	if err := s.cache.DeleteVerificationCode(ctx, email); err != nil {
+		slog.Warn("failed to delete verification code after email delivery failure",
+			"recipient_hash", notificationEmailHash(email),
+			"send_error", sendErr,
+			"delete_error", err,
+		)
+	}
 }
 
 // VerifyCode 验证验证码

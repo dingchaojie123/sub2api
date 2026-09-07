@@ -25,6 +25,10 @@ func TestVideoPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
 		PlatformKling,
 		PlatformHappyHourse,
 		PlatformSeedance,
+		PlatformByteDance,
+		PlatformWan3,
+		PlatformMiniMaxH3,
+		PlatformPixverseV6,
 	}
 
 	for _, platform := range platforms {

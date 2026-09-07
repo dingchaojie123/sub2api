@@ -196,7 +196,11 @@ const upstreamSyncPlatforms = new Set([
   'deepseek',
   'kling',
   'happyhourse',
-  'seedance'
+  'seedance',
+  'bytedance',
+  'wan3',
+  'minimax-h3',
+  'pixverse-v6',
 ])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {

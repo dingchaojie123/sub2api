@@ -63,6 +63,8 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.Images(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokImages(c)
+		case service.PlatformGemini:
+			h.Gateway.GeminiImages(c)
 		default:
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{
@@ -81,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -101,7 +103,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -234,6 +236,7 @@ func RegisterGatewayRoutes(
 		gateway.GET("/videos/image2video/:request_id", h.OpenAIGateway.PPVideoStatus)
 		gateway.POST("/videos/edits", videoEditHandler)
 		gateway.POST("/videos/extensions", videoExtensionHandler)
+		gateway.DELETE("/videos/:request_id", h.OpenAIGateway.PPVideoCancel)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id/content", videoContentHandler)
 	}
@@ -315,6 +318,7 @@ func RegisterGatewayRoutes(
 	r.GET("/videos/image2video/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoStatus)
 	r.POST("/videos/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoEditHandler)
 	r.POST("/videos/extensions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoExtensionHandler)
+	r.DELETE("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoCancel)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 	r.GET("/videos/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoContentHandler)
 

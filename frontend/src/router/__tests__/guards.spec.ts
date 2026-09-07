@@ -84,7 +84,7 @@ function simulateGuard(
       return authState.isAdmin ? '/admin/dashboard' : '/dashboard'
     }
     if (authState.backendModeEnabled && !authState.isAuthenticated) {
-      const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
+      const allowed = ['/login', '/forgot-password', '/reset-password', '/key-usage', '/setup', '/payment/result']
       const callbackPaths = [
         '/auth/callback',
         '/auth/linuxdo/callback',
@@ -133,7 +133,7 @@ function simulateGuard(
     if (authState.isAuthenticated && authState.isAdmin) {
       return null
     }
-    const allowed = ['/login', '/key-usage', '/setup', '/payment/result']
+    const allowed = ['/login', '/forgot-password', '/reset-password', '/key-usage', '/setup', '/payment/result']
     const callbackPaths = [
       '/auth/callback',
       '/auth/linuxdo/callback',
@@ -358,6 +358,19 @@ describe('路由守卫逻辑', () => {
       }
       const redirect = simulateGuard('/login', { requiresAuth: false }, authState)
       expect(redirect).toBeNull()
+    })
+
+    it('unauthenticated: password reset pages are allowed', () => {
+      const authState: MockAuthState = {
+        isAuthenticated: false,
+        isAdmin: false,
+        isSimpleMode: false,
+        backendModeEnabled: true,
+        hasPendingAuthSession: false,
+      }
+
+      expect(simulateGuard('/forgot-password', { requiresAuth: false }, authState)).toBeNull()
+      expect(simulateGuard('/reset-password', { requiresAuth: false }, authState)).toBeNull()
     })
 
     it('unauthenticated: /key-usage is allowed', () => {

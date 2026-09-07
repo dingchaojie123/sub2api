@@ -31,6 +31,10 @@ const (
 	PlatformKling       = "kling"
 	PlatformHappyHourse = "happyhourse"
 	PlatformSeedance    = "seedance"
+	PlatformByteDance   = "bytedance"
+	PlatformWan3        = "wan3"
+	PlatformMiniMaxH3   = "minimax-h3"
+	PlatformPixverseV6  = "pixverse-v6"
 )
 
 // Account type constants

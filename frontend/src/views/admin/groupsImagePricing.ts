@@ -13,6 +13,10 @@ export const ppVideoPricingPlatforms = new Set([
   "kling",
   "happyhourse",
   "seedance",
+  "bytedance",
+  "wan3",
+  "minimax-h3",
+  "pixverse-v6",
 ]);
 
 export const supportsVideoPricingPlatform = (platform: string): boolean =>
@@ -22,7 +26,7 @@ export const isPPVideoPricingPlatform = (platform: string): boolean =>
   ppVideoPricingPlatforms.has(platform);
 
 export const usesGroupVideoPriceConfig = (platform: string): boolean =>
-  ["grok", "kling", "happyhourse", "seedance"].includes(platform);
+  ["grok", "kling", "happyhourse", "seedance", "bytedance", "wan3", "minimax-h3", "pixverse-v6"].includes(platform);
 
 export const imagePricingI18nKey = (_platform: string, key: string): string =>
   `admin.groups.imagePricing.${key}`;

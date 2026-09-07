@@ -481,7 +481,7 @@ func isGrokImageGenerationModel(model string) bool {
 
 func validateOpenAIImagesModel(model string) error {
 	model = strings.TrimSpace(model)
-	if isOpenAIImageGenerationModel(model) {
+	if isOpenAIImageGenerationModel(model) || isImageGenerationModel(model) {
 		return nil
 	}
 	if model == "" {
