@@ -132,6 +132,20 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 			meta.RequestedDurationMilliseconds > 15000) {
 		return nil, fmt.Errorf("%s duration must be an integer number of seconds from 1 to 15", meta.Platform)
 	}
+	if meta.Platform == PlatformGrokImagineVideo &&
+		(meta.RequestedDurationMilliseconds <= 0 ||
+			meta.RequestedDurationMilliseconds%1000 != 0 ||
+			meta.RequestedDurationMilliseconds < 1000 ||
+			meta.RequestedDurationMilliseconds > 15000) {
+		return nil, fmt.Errorf("%s duration must be an integer number of seconds from 1 to 15", meta.Platform)
+	}
+	if meta.Platform == PlatformKuaishou &&
+		(meta.RequestedDurationMilliseconds <= 0 ||
+			meta.RequestedDurationMilliseconds%1000 != 0 ||
+			meta.RequestedDurationMilliseconds < 3000 ||
+			meta.RequestedDurationMilliseconds > 15000) {
+		return nil, fmt.Errorf("%s duration must be an integer number of seconds from 3 to 15", meta.Platform)
+	}
 	billingAPIKey := apiKey
 	if s != nil {
 		billingAPIKey = s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey)

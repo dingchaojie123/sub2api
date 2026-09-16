@@ -10,7 +10,6 @@ import (
 	"time"
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
-	"github.com/Wei-Shaw/sub2api/ent/user"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
@@ -286,13 +285,14 @@ FROM cleared`, userID)
 			return service.ErrAffiliateQuotaEmpty
 		}
 
-		affected, err := txClient.User.Update().
-			Where(user.IDEQ(userID)).
-			AddBalance(transferred).
-			AddTotalRecharged(transferred).
-			Save(txCtx)
+		updateSQL, updateArgs := buildUpdateBalanceSQL(txClient, userID, transferred)
+		updateResult, err := txClient.ExecContext(txCtx, updateSQL, updateArgs...)
 		if err != nil {
 			return fmt.Errorf("credit user balance by affiliate quota: %w", err)
+		}
+		affected, err := updateResult.RowsAffected()
+		if err != nil {
+			return err
 		}
 		if affected == 0 {
 			return service.ErrUserNotFound

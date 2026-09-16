@@ -878,6 +878,7 @@ func userEntityToService(u *dbent.User) *service.User {
 		PasswordHash:               u.PasswordHash,
 		Role:                       u.Role,
 		Balance:                    u.Balance,
+		DisplayBalance:             displayBalanceOrBalance(u.DisplayBalance, u.Balance),
 		FrozenBalance:              u.FrozenBalance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,

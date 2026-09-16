@@ -265,7 +265,11 @@ export default {
         bytedance: 'ByteDance',
         wan3: 'Wan3.0',
         'minimax-h3': 'MiniMax-H3',
+        'minimax-speech': 'MiniMax-Speech',
+        'qwen-tts': 'Qwen TTS',
         'pixverse-v6': 'Pixverse-V6',
+        'grok-imagine-video': 'Grok Imagine Video',
+        kuaishou: 'Kuaishou',
       },
       types: {
         oauth: 'OAuth',
@@ -614,6 +618,10 @@ export default {
       },
       videoPlatform: {
         baseUrlHint: '请输入该视频平台或其代理的 Base URL。',
+        apiKeyHint: 'API Key 将按 Bearer 鉴权方式保存。'
+      },
+      audioPlatform: {
+        baseUrlHint: '请输入 MiniMax Speech API 或其代理的 Base URL。',
         apiKeyHint: 'API Key 将按 Bearer 鉴权方式保存。'
       },
       openaiCompatible: {

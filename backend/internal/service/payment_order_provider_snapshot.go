@@ -76,6 +76,27 @@ func psSnapshotIntValue(value any) int {
 	return 0
 }
 
+func psSnapshotFloatValue(value any) float64 {
+	switch typed := value.(type) {
+	case float32:
+		return float64(typed)
+	case float64:
+		return typed
+	case int:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(typed), 64)
+		if err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
 func (s *PaymentService) resolveSnapshotOrderProviderInstance(ctx context.Context, order *dbent.PaymentOrder, snapshot *paymentOrderProviderSnapshot) (*dbent.PaymentProviderInstance, error) {
 	if s == nil || s.entClient == nil || order == nil || snapshot == nil {
 		return nil, nil

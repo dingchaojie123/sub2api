@@ -60,7 +60,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	}
 	baseURLRaw := account.GetOpenAIBaseURL()
 	if strings.TrimSpace(baseURLRaw) == "" &&
-		(account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6) {
+		(account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou) {
 		baseURLRaw = ModelVerseVideoDefaultBaseURL
 	}
 	baseURL, err := normalizePPVideoBaseURL(baseURLRaw)
@@ -299,6 +299,12 @@ func isPPVideoAccountEligibleForModel(account *Account, requestedModel string) b
 		return true
 	}
 	if account.Platform == PlatformPixverseV6 && ppVideoPixverseV6ModelAllowed(requestedModel) {
+		return true
+	}
+	if account.Platform == PlatformGrokImagineVideo && ppVideoGrokImagineVideoModelAllowed(requestedModel) {
+		return true
+	}
+	if account.Platform == PlatformKuaishou && ppVideoKuaishouModelAllowed(requestedModel) {
 		return true
 	}
 	if account.IsModelSupported(requestedModel) {

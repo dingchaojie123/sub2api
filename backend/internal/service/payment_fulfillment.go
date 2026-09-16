@@ -30,6 +30,11 @@ var ErrOrderNotFound = errors.New("payment order not found")
 
 const paymentFulfillmentLeaseDuration = 5 * time.Minute
 
+const (
+	paymentAuditActionDisplayBalanceCredited    = "DISPLAY_BALANCE_CREDITED"
+	paymentAuditActionRealBalanceCreditAdjusted = "REAL_BALANCE_CREDIT_ADJUSTED"
+)
+
 type paymentFulfillmentLease struct {
 	version time.Time
 }
@@ -193,6 +198,9 @@ func (s *PaymentService) alreadyProcessed(ctx context.Context, o *dbent.PaymentO
 	}
 	switch cur.Status {
 	case OrderStatusCompleted, OrderStatusRefunded:
+		if cur.Status == OrderStatusCompleted && cur.OrderType == payment.OrderTypeBalance {
+			return s.reconcileCompletedBalanceFulfillment(ctx, cur)
+		}
 		return nil
 	case OrderStatusFailed, OrderStatusPaid, OrderStatusRecharging:
 		return s.executeFulfillment(ctx, o.ID)
@@ -230,7 +238,7 @@ func (s *PaymentService) ExecuteBalanceFulfillment(ctx context.Context, oid int6
 		return infraerrors.NotFound("NOT_FOUND", "order not found")
 	}
 	if o.Status == OrderStatusCompleted {
-		return nil
+		return s.reconcileCompletedBalanceFulfillment(ctx, o)
 	}
 	if psIsRefundStatus(o.Status) {
 		return infraerrors.BadRequest("INVALID_STATUS", "refund-related order cannot fulfill")
@@ -331,29 +339,222 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder, l
 	// Idempotency: check if redeem code already exists (from a previous partial run)
 	existing, lookupErr := s.redeemService.GetByCode(ctx, o.RechargeCode)
 	action := resolveRedeemAction(existing, lookupErr)
+	realAmount := PaymentOrderRealBalanceAmount(o)
 
 	switch action {
 	case redeemActionSkipCompleted:
+		if err := s.applyBalanceRechargeRealCreditAdjustment(ctx, o, existing); err != nil {
+			return err
+		}
+		if err := s.applyBalanceRechargeDisplayCredit(ctx, o); err != nil {
+			return err
+		}
 		if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 			return err
 		}
 		// Code already created and redeemed — just mark completed
 		return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
 	case redeemActionCreate:
-		rc := &RedeemCode{Code: o.RechargeCode, Type: RedeemTypeBalance, Value: o.Amount, Status: StatusUnused}
+		rc := &RedeemCode{Code: o.RechargeCode, Type: RedeemTypeBalance, Value: realAmount, Status: StatusUnused}
 		if err := s.redeemService.CreateCode(ctx, rc); err != nil {
 			return fmt.Errorf("create redeem code: %w", err)
 		}
 	case redeemActionRedeem:
 		// Code exists but unused — skip creation, proceed to redeem
 	}
-	if _, err := s.redeemService.Redeem(ContextSkipRedeemAffiliate(ctx), o.UserID, o.RechargeCode); err != nil {
+	redeemCtx := ContextSkipRedeemBalanceDisplayBonus(ContextSkipRedeemAffiliate(ctx))
+	if _, err := s.redeemService.Redeem(redeemCtx, o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
+	}
+	if err := s.applyBalanceRechargeDisplayCredit(ctx, o); err != nil {
+		return err
 	}
 	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
 		return err
 	}
 	return s.markCompleted(ctx, o, lease, "RECHARGE_SUCCESS")
+}
+
+func (s *PaymentService) reconcileCompletedBalanceFulfillment(ctx context.Context, o *dbent.PaymentOrder) error {
+	if s == nil || s.redeemService == nil || o == nil || o.OrderType != payment.OrderTypeBalance {
+		return nil
+	}
+	existing, err := s.redeemService.GetByCode(ctx, o.RechargeCode)
+	if err != nil || existing == nil || !existing.IsUsed() {
+		return nil
+	}
+	if err := s.applyBalanceRechargeRealCreditAdjustment(ctx, o, existing); err != nil {
+		return err
+	}
+	return s.applyBalanceRechargeDisplayCredit(ctx, o)
+}
+
+func (s *PaymentService) applyBalanceRechargeRealCreditAdjustment(ctx context.Context, o *dbent.PaymentOrder, existing *RedeemCode) error {
+	if s == nil || s.entClient == nil || o == nil || existing == nil || o.OrderType != payment.OrderTypeBalance {
+		return nil
+	}
+	realAmount := PaymentOrderRealBalanceAmount(o)
+	delta := roundBalanceDisplayAmount(realAmount - existing.Value)
+	if delta <= 0 {
+		return nil
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin real balance adjustment tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	orderID := strconv.FormatInt(o.ID, 10)
+	exists, err := tx.PaymentAuditLog.Query().
+		Where(
+			paymentauditlog.OrderIDEQ(orderID),
+			paymentauditlog.ActionEQ(paymentAuditActionRealBalanceCreditAdjusted),
+		).
+		Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("query real balance adjustment audit: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
+	query, args := buildRealBalanceCreditAdjustmentSQL(tx.Client(), delta, o.UserID)
+	result, err := tx.Client().ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("adjust real balance: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return infraerrors.NotFound("USER_NOT_FOUND", "user not found")
+	}
+
+	detail, _ := json.Marshal(map[string]any{
+		"redeemCodeValue": existing.Value,
+		"realAmount":      realAmount,
+		"displayAmount":   PaymentOrderDisplayAmount(o),
+		"delta":           delta,
+	})
+	if _, err := tx.PaymentAuditLog.Create().
+		SetOrderID(orderID).
+		SetAction(paymentAuditActionRealBalanceCreditAdjusted).
+		SetDetail(string(detail)).
+		SetOperator("system").
+		Save(ctx); err != nil {
+		return fmt.Errorf("write real balance adjustment audit: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit real balance adjustment tx: %w", err)
+	}
+	return nil
+}
+
+func (s *PaymentService) applyBalanceRechargeDisplayCredit(ctx context.Context, o *dbent.PaymentOrder) error {
+	if s == nil || s.entClient == nil || o == nil || o.OrderType != payment.OrderTypeBalance {
+		return nil
+	}
+	displayAmount := PaymentOrderDisplayAmount(o)
+	realAmount := PaymentOrderRealBalanceAmount(o)
+	delta := roundBalanceDisplayAmount(displayAmount - realAmount)
+	if delta <= 0 {
+		return nil
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin display balance credit tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	orderID := strconv.FormatInt(o.ID, 10)
+	exists, err := tx.PaymentAuditLog.Query().
+		Where(
+			paymentauditlog.OrderIDEQ(orderID),
+			paymentauditlog.ActionEQ(paymentAuditActionDisplayBalanceCredited),
+		).
+		Exist(ctx)
+	if err != nil {
+		return fmt.Errorf("query display balance audit: %w", err)
+	}
+	if exists {
+		return nil
+	}
+
+	query, args := buildDisplayBalanceCreditSQL(tx.Client(), delta, o.UserID)
+	result, err := tx.Client().ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("credit display balance: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return infraerrors.NotFound("USER_NOT_FOUND", "user not found")
+	}
+
+	detail, _ := json.Marshal(map[string]any{
+		"realAmount":    realAmount,
+		"displayAmount": displayAmount,
+		"delta":         delta,
+	})
+	if _, err := tx.PaymentAuditLog.Create().
+		SetOrderID(orderID).
+		SetAction(paymentAuditActionDisplayBalanceCredited).
+		SetDetail(string(detail)).
+		SetOperator("system").
+		Save(ctx); err != nil {
+		return fmt.Errorf("write display balance audit: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit display balance credit tx: %w", err)
+	}
+	return nil
+}
+
+func buildRealBalanceCreditAdjustmentSQL(client *dbent.Client, delta float64, userID int64) (string, []any) {
+	nowExpr := paymentAuditCurrentTimestampExpr(client)
+	if paymentAuditDialect(client) == dialect.Postgres {
+		return fmt.Sprintf(`
+UPDATE users
+SET display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 THEN COALESCE(display_balance, 0) + $1
+        WHEN balance > 0 THEN balance + $1
+        ELSE $1
+    END,
+    balance = balance + $1,
+    total_recharged = total_recharged + $1,
+    updated_at = %s
+WHERE id = $2
+  AND deleted_at IS NULL`, nowExpr), []any{delta, userID}
+	}
+	return fmt.Sprintf(`
+UPDATE users
+SET display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 THEN COALESCE(display_balance, 0) + ?
+        WHEN balance > 0 THEN balance + ?
+        ELSE ?
+    END,
+    balance = balance + ?,
+    total_recharged = total_recharged + ?,
+    updated_at = %s
+WHERE id = ?
+  AND deleted_at IS NULL`, nowExpr), []any{delta, delta, delta, delta, delta, userID}
+}
+
+func buildDisplayBalanceCreditSQL(client *dbent.Client, delta float64, userID int64) (string, []any) {
+	nowExpr := paymentAuditCurrentTimestampExpr(client)
+	if paymentAuditDialect(client) == dialect.Postgres {
+		return fmt.Sprintf(`
+UPDATE users
+SET display_balance = COALESCE(display_balance, 0) + $1,
+    updated_at = %s
+WHERE id = $2
+  AND deleted_at IS NULL`, nowExpr), []any{delta, userID}
+	}
+	return fmt.Sprintf(`
+UPDATE users
+SET display_balance = COALESCE(display_balance, 0) + ?,
+    updated_at = %s
+WHERE id = ?
+  AND deleted_at IS NULL`, nowExpr), []any{delta, userID}
 }
 
 func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrder, lease *paymentFulfillmentLease, auditAction string) error {
@@ -379,7 +580,8 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 	if !s.hasAuditLog(ctx, o.ID, auditAction) {
 		s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
 			"rechargeCode":   o.RechargeCode,
-			"creditedAmount": o.Amount,
+			"creditedAmount": PaymentOrderRealBalanceAmount(o),
+			"displayAmount":  PaymentOrderDisplayAmount(o),
 			"payAmount":      o.PayAmount,
 		})
 		s.dispatchPaymentFulfillmentNotification(o, auditAction)
@@ -413,9 +615,10 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 	currentBalance := ""
 	if s.userRepo != nil {
 		if user, err := s.userRepo.GetByID(ctx, o.UserID); err == nil && user != nil {
-			currentBalance = fmt.Sprintf("%.2f", user.Balance)
+			currentBalance = fmt.Sprintf("%.2f", user.DisplayBalance)
 		}
 	}
+	displayAmount := PaymentOrderDisplayAmount(o)
 	return s.notificationEmailService.Send(ctx, NotificationEmailSendInput{
 		Event:          NotificationEmailEventBalanceRechargeSuccess,
 		RecipientEmail: o.UserEmail,
@@ -424,7 +627,7 @@ func (s *PaymentService) sendBalanceRechargeSuccessNotification(ctx context.Cont
 		SourceType:     "payment_order",
 		SourceID:       strconv.FormatInt(o.ID, 10),
 		Variables: map[string]string{
-			"recharge_amount": fmt.Sprintf("%.2f", o.Amount),
+			"recharge_amount": fmt.Sprintf("%.2f", displayAmount),
 			"current_balance": currentBalance,
 			"order_id":        strconv.FormatInt(o.ID, 10),
 		},

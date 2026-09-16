@@ -10,7 +10,9 @@ describe('video account platform colors', () => {
     ['bytedance', 'ByteDance', 'violet'],
     ['wan3', 'Wan3.0', 'fuchsia'],
     ['minimax-h3', 'MiniMax-H3', 'pink'],
-    ['pixverse-v6', 'Pixverse-V6', 'lime']
+    ['pixverse-v6', 'Pixverse-V6', 'lime'],
+    ['grok-imagine-video', 'Grok Imagine Video', 'cyan'],
+    ['kuaishou', 'Kuaishou', 'sky']
   ])('labels and colors %s', (platform, label, color) => {
     expect(platformLabel(platform)).toBe(label)
     expect(platformBadgeClass(platform)).toContain(color)

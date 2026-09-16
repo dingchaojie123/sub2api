@@ -732,7 +732,7 @@ Long-running OpenAI/Grok image generation and editing can be submitted through `
 
 ## PP Video Generation
 
-Kling, Happy Horse, and Seedance video generation can be configured as PP upstream accounts and exposed through the site API. See [PP Video Generation API](docs/PP_VIDEO_GENERATION_API.md) for supported routes, task polling, and actual-duration billing.
+Video generation and Qwen TTS speech synthesis can be exposed through the site API. See the [Media Generation API](docs/PP_VIDEO_GENERATION_API.md) for supported routes, task polling, and billing rules.
 
 ---
 

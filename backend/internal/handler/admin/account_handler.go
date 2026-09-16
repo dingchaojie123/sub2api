@@ -2452,11 +2452,35 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 				requestedModels = append(requestedModels, service.MiniMaxH3VideoDefaultModel, service.MiniMaxHailuo23VideoModel)
 			case service.PlatformPixverseV6:
 				requestedModels = append(requestedModels, service.PixverseV6VideoDefaultModel)
+			case service.PlatformGrokImagineVideo:
+				requestedModels = append(requestedModels, service.GrokImagineVideoDefaultModel)
+			case service.PlatformKuaishou:
+				requestedModels = append(requestedModels, service.KuaishouVideoDefaultModel)
 			}
 		}
 		requestedModels = service.FilterPPVideoPublicModelsForPlatform(account.Platform, requestedModels)
 		sort.Strings(requestedModels)
 
+		models := make([]openai.Model, 0, len(requestedModels))
+		for _, requestedModel := range requestedModels {
+			models = append(models, openai.Model{
+				ID:          requestedModel,
+				Object:      "model",
+				Type:        "model",
+				DisplayName: requestedModel,
+			})
+		}
+		response.Success(c, models)
+		return
+	}
+
+	if service.IsAudioPlatform(account.Platform) {
+		mapping := account.GetModelMapping()
+		requestedModels := make([]string, 0, len(mapping))
+		for requestedModel := range mapping {
+			requestedModels = append(requestedModels, requestedModel)
+		}
+		sort.Strings(requestedModels)
 		models := make([]openai.Model, 0, len(requestedModels))
 		for _, requestedModel := range requestedModels {
 			models = append(models, openai.Model{

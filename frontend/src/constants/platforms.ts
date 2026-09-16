@@ -9,10 +9,16 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'bytedance',
   'wan3',
   'minimax-h3',
-  'pixverse-v6'
+  'pixverse-v6',
+  'grok-imagine-video',
+  'kuaishou'
 ] as const
 
 export type VideoAccountPlatform = (typeof VIDEO_ACCOUNT_PLATFORMS)[number]
+
+export const AUDIO_ACCOUNT_PLATFORMS = ['minimax-speech', 'qwen-tts'] as const
+
+export type AudioAccountPlatform = (typeof AUDIO_ACCOUNT_PLATFORMS)[number]
 
 export const CHANNEL_PRICING_PLATFORMS = [
   'anthropic',
@@ -31,7 +37,11 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'bytedance',
   'wan3',
   'minimax-h3',
-  'pixverse-v6'
+  'minimax-speech',
+  'qwen-tts',
+  'pixverse-v6',
+  'grok-imagine-video',
+  'kuaishou'
 ] as const
 
 export interface ProviderPlatformMetadata {
@@ -46,6 +56,16 @@ export interface ProviderPlatformMetadata {
 
 export interface VideoAccountPlatformMetadata {
   id: VideoAccountPlatform
+  label: string
+  defaultBaseUrl: string
+  baseUrlPlaceholder: string
+  apiKeyPlaceholder: string
+  accountType: 'apikey'
+  authScheme: 'bearer'
+}
+
+export interface AudioAccountPlatformMetadata {
+  id: AudioAccountPlatform
   label: string
   defaultBaseUrl: string
   baseUrlPlaceholder: string
@@ -159,6 +179,48 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     apiKeyPlaceholder: 'sk-...',
     accountType: 'apikey',
     authScheme: 'bearer'
+  },
+  'grok-imagine-video': {
+    id: 'grok-imagine-video',
+    label: 'Grok Imagine Video',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  kuaishou: {
+    id: 'kuaishou',
+    label: 'Kuaishou',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  }
+}
+
+export const AUDIO_ACCOUNT_PLATFORM_METADATA: Record<
+  AudioAccountPlatform,
+  AudioAccountPlatformMetadata
+> = {
+  'minimax-speech': {
+    id: 'minimax-speech',
+    label: 'MiniMax-Speech',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'qwen-tts': {
+    id: 'qwen-tts',
+    label: 'Qwen TTS',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
   }
 }
 
@@ -168,6 +230,10 @@ export function isProviderPlatform(platform: string): platform is ProviderPlatfo
 
 export function isVideoAccountPlatform(platform: string): platform is VideoAccountPlatform {
   return (VIDEO_ACCOUNT_PLATFORMS as readonly string[]).includes(platform)
+}
+
+export function isAudioAccountPlatform(platform: string): platform is AudioAccountPlatform {
+  return (AUDIO_ACCOUNT_PLATFORMS as readonly string[]).includes(platform)
 }
 
 export function getPlatformMetadata(platform: string): ProviderPlatformMetadata {
@@ -182,4 +248,10 @@ export function getVideoAccountPlatformMetadata(
   platform: VideoAccountPlatform
 ): VideoAccountPlatformMetadata {
   return VIDEO_ACCOUNT_PLATFORM_METADATA[platform]
+}
+
+export function getAudioAccountPlatformMetadata(
+  platform: AudioAccountPlatform
+): AudioAccountPlatformMetadata {
+  return AUDIO_ACCOUNT_PLATFORM_METADATA[platform]
 }

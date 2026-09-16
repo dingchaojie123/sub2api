@@ -167,6 +167,8 @@ export const WAN3_FIXED_MODELS = ['wan3.0-video', 'wan3.0-video-prime']
 export const MINIMAX_H3_FIXED_MODEL = 'MiniMax-H3'
 export const MINIMAX_HAILUO_23_FIXED_MODEL = 'MiniMax-Hailuo-2.3'
 export const PIXVERSE_V6_FIXED_MODEL = 'pixverse-v6'
+export const GROK_IMAGINE_VIDEO_FIXED_MODEL = 'grok-imagine-video'
+export const KUAISHOU_FIXED_MODEL = 'kling-v3'
 const klingModels: string[] = []
 const happyHourseModels: string[] = []
 const seedanceModels: string[] = []
@@ -174,6 +176,8 @@ const bytedanceModels = [BYTEDANCE_FIXED_MODEL]
 const wan3Models = [...WAN3_FIXED_MODELS]
 const minimaxH3Models = [MINIMAX_H3_FIXED_MODEL, MINIMAX_HAILUO_23_FIXED_MODEL]
 const pixverseV6Models = [PIXVERSE_V6_FIXED_MODEL]
+const grokImagineVideoModels = [GROK_IMAGINE_VIDEO_FIXED_MODEL]
+const kuaishouModels = [KUAISHOU_FIXED_MODEL]
 
 // Cohere
 const cohereModels = [
@@ -263,6 +267,8 @@ const allModelsList: string[] = [
   ...wan3Models,
   ...minimaxH3Models,
   ...pixverseV6Models,
+  ...grokImagineVideoModels,
+  ...kuaishouModels,
   ...cohereModels,
   ...yiModels,
   ...moonshotModels,
@@ -456,8 +462,15 @@ export function getModelsByPlatform(platform: string): string[] {
       return wan3Models
     case 'minimax-h3':
       return minimaxH3Models
+    case 'minimax-speech':
+    case 'qwen-tts':
+      return []
     case 'pixverse-v6':
       return pixverseV6Models
+    case 'grok-imagine-video':
+      return grokImagineVideoModels
+    case 'kuaishou':
+      return kuaishouModels
     case 'anthropic':
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
@@ -533,6 +546,26 @@ export function getPresetMappingsByPlatform(platform: string) {
         from: PIXVERSE_V6_FIXED_MODEL,
         to: PIXVERSE_V6_FIXED_MODEL,
         color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400'
+      }
+    ]
+  }
+  if (platform === 'grok-imagine-video') {
+    return [
+      {
+        label: 'Grok Imagine Video',
+        from: GROK_IMAGINE_VIDEO_FIXED_MODEL,
+        to: GROK_IMAGINE_VIDEO_FIXED_MODEL,
+        color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400'
+      }
+    ]
+  }
+  if (platform === 'kuaishou') {
+    return [
+      {
+        label: 'Kuaishou Kling v3',
+        from: KUAISHOU_FIXED_MODEL,
+        to: KUAISHOU_FIXED_MODEL,
+        color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-400'
       }
     ]
   }

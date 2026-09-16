@@ -40,18 +40,18 @@ func TestPPVideoUpstreamPath(t *testing.T) {
 			taskID:    "kling-task-1",
 			want:      "/v1/videos/text2video/kling-task-1",
 		},
-			{
-				name:      "Kling image to video submission",
-				platform:  PlatformKling,
-				operation: PPVideoOperationKlingImageToVideo,
-				want:      "/v1/videos/image2video",
-			},
-			{
-				name:      "ByteDance submission",
-				platform:  PlatformByteDance,
-				operation: PPVideoOperationGeneric,
-				want:      "/v1/tasks/submit",
-			},
+		{
+			name:      "Kling image to video submission",
+			platform:  PlatformKling,
+			operation: PPVideoOperationKlingImageToVideo,
+			want:      "/v1/videos/image2video",
+		},
+		{
+			name:      "ByteDance submission",
+			platform:  PlatformByteDance,
+			operation: PPVideoOperationGeneric,
+			want:      "/v1/tasks/submit",
+		},
 		{
 			name:      "ByteDance status",
 			platform:  PlatformByteDance,
@@ -98,14 +98,27 @@ func TestPPVideoUpstreamPath(t *testing.T) {
 			taskID:    "task/1",
 			want:      "/v1/tasks/status?task_id=task%2F1",
 		},
-			{
-				name:      "ByteDance cancellation",
-				platform:  PlatformByteDance,
-				operation: PPVideoOperationCancel,
-				taskID:    "task/1",
-				want:      "/v1/tasks/cancel?task_id=task%2F1",
-			},
-		}
+		{
+			name:      "Grok Imagine Video submission",
+			platform:  PlatformGrokImagineVideo,
+			operation: PPVideoOperationGeneric,
+			want:      "/v1/tasks/submit",
+		},
+		{
+			name:      "Grok Imagine Video status",
+			platform:  PlatformGrokImagineVideo,
+			operation: PPVideoOperationGeneric,
+			taskID:    "task/1",
+			want:      "/v1/tasks/status?task_id=task%2F1",
+		},
+		{
+			name:      "ByteDance cancellation",
+			platform:  PlatformByteDance,
+			operation: PPVideoOperationCancel,
+			taskID:    "task/1",
+			want:      "/v1/tasks/cancel?task_id=task%2F1",
+		},
+	}
 
 	for _, tt := range tests {
 		tt := tt
@@ -140,14 +153,15 @@ func TestPPVideoRequestHeaders(t *testing.T) {
 		platform  string
 		wantAsync string
 	}{
-			{name: "Seedance", platform: PlatformSeedance},
-			{name: "Happy Horse", platform: PlatformHappyHourse, wantAsync: "enable"},
-			{name: "Kling", platform: PlatformKling},
-			{name: "ByteDance", platform: PlatformByteDance},
-			{name: "Wan3.0", platform: PlatformWan3},
-			{name: "MiniMax-H3", platform: PlatformMiniMaxH3},
-			{name: "Pixverse v6", platform: PlatformPixverseV6},
-		}
+		{name: "Seedance", platform: PlatformSeedance},
+		{name: "Happy Horse", platform: PlatformHappyHourse, wantAsync: "enable"},
+		{name: "Kling", platform: PlatformKling},
+		{name: "ByteDance", platform: PlatformByteDance},
+		{name: "Wan3.0", platform: PlatformWan3},
+		{name: "MiniMax-H3", platform: PlatformMiniMaxH3},
+		{name: "Pixverse v6", platform: PlatformPixverseV6},
+		{name: "Grok Imagine Video", platform: PlatformGrokImagineVideo},
+	}
 
 	for _, tt := range tests {
 		tt := tt
@@ -280,6 +294,13 @@ func TestParsePPVideoResponseRecognizesTaskIDsAndStatuses(t *testing.T) {
 			wantTaskID: "pix-task-1",
 			wantStatus: PPVideoTaskStatusSucceeded,
 		},
+		{
+			name:       "Grok Imagine Video output task status",
+			platform:   PlatformGrokImagineVideo,
+			body:       `{"output":{"task_id":"grok-task-1","task_status":"Running"}}`,
+			wantTaskID: "grok-task-1",
+			wantStatus: PPVideoTaskStatusProcessing,
+		},
 	}
 
 	for _, tt := range tests {
@@ -399,6 +420,34 @@ func TestParsePPVideoResponseUsesPixverseV6UsageAndFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, PPVideoTaskStatusFailed, failure.Status)
 	require.Equal(t, "invalid media", failure.ErrorMessage)
+}
+
+func TestParsePPVideoResponseUsesGrokImagineVideoUsageAndFailure(t *testing.T) {
+	t.Parallel()
+
+	success, err := ParsePPVideoResponse(PlatformGrokImagineVideo, []byte(`{
+		"output": {
+			"task_id": "grok-task-1",
+			"task_status": "Success",
+			"urls": ["https://cdn.example.com/grok.mp4"]
+		},
+		"usage": {"duration": 8, "output_video_duration": 7.5}
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, "grok-task-1", success.TaskID)
+	require.Equal(t, PPVideoTaskStatusSucceeded, success.Status)
+	require.Equal(t, int64(7500), success.GeneratedDurationMilliseconds)
+
+	failure, err := ParsePPVideoResponse(PlatformGrokImagineVideo, []byte(`{
+		"output": {
+			"task_id": "grok-task-2",
+			"task_status": "Failure",
+			"error_message": "invalid reference media"
+		}
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusFailed, failure.Status)
+	require.Equal(t, "invalid reference media", failure.ErrorMessage)
 }
 
 func TestParsePPVideoResponseExtractsProviderMetadata(t *testing.T) {
@@ -986,6 +1035,84 @@ func TestPreparePPVideoRequestBodyNormalizesPixverseV6TextToVideoPayload(t *test
 	require.Equal(t, VideoBillingResolution480P, public.Resolution)
 	require.False(t, public.HasImage)
 	require.Equal(t, "21:9", gjson.GetBytes(body, "parameters.aspect_ratio").String())
+	require.Equal(t, int64(1), gjson.GetBytes(body, "parameters.generate_audio").Int())
+}
+
+func TestPreparePPVideoRequestBodyNormalizesGrokImagineVideoPayload(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformGrokImagineVideo,
+		PPVideoOperationGeneric,
+		[]byte(`{
+			"model": "video-v1",
+			"input": {
+				"prompt": "a cinematic mountain sunrise",
+				"reference_urls": ["https://example.com/reference-1.png", "https://example.com/reference-2.png"]
+			},
+			"parameters": {
+				"duration": 8,
+				"resolution": "720p",
+				"aspect_ratio": "9:16"
+			},
+			"unexpected": "drop me"
+		}`),
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "video-v1", public.Model)
+	require.Equal(t, GrokImagineVideoDefaultModel, public.UpstreamModel)
+	require.Equal(t, "a cinematic mountain sunrise", public.Prompt)
+	require.Equal(t, int64(8000), public.DurationMilliseconds)
+	require.Equal(t, VideoBillingResolution720P, public.Resolution)
+	require.True(t, public.HasImage)
+	require.JSONEq(t, `{
+		"model": "grok-imagine-video",
+		"input": {
+			"prompt": "a cinematic mountain sunrise",
+			"reference_urls": ["https://example.com/reference-1.png", "https://example.com/reference-2.png"]
+		},
+		"parameters": {
+			"duration": 8,
+			"resolution": "720p",
+			"aspect_ratio": "9:16"
+		}
+	}`, string(body))
+}
+
+func TestPreparePPVideoRequestBodyUsesGrokImagineVideoDefaultsAndRejectsMixedReferences(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformGrokImagineVideo,
+		PPVideoOperationGeneric,
+		[]byte(`{"input":{"prompt":"waves","img_url":"https://example.com/input.png"}}`),
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(8000), public.DurationMilliseconds)
+	require.Equal(t, VideoBillingResolution480P, public.Resolution)
+	require.Equal(t, 8, int(gjson.GetBytes(body, "parameters.duration").Int()))
+	require.Equal(t, "480p", gjson.GetBytes(body, "parameters.resolution").String())
+	require.Equal(t, "16:9", gjson.GetBytes(body, "parameters.aspect_ratio").String())
+
+	_, _, err = PreparePPVideoRequestBody(
+		PlatformGrokImagineVideo,
+		PPVideoOperationGeneric,
+		[]byte(`{"input":{"prompt":"waves","img_url":"https://example.com/input.png","reference_urls":["https://example.com/reference.png"]}}`),
+	)
+	require.ErrorContains(t, err, "mutually exclusive")
+}
+
+func TestPreparePPVideoRequestBodyRejectsGrokImagineVideoTextOnlyPayload(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := PreparePPVideoRequestBody(
+		PlatformGrokImagineVideo,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"grok-imagine-video","input":{"prompt":"a sunrise over the ocean"},"parameters":{"duration":5,"resolution":"720p","aspect_ratio":"16:9"}}`),
+	)
+
+	require.ErrorContains(t, err, "text-to-video is not supported")
 }
 
 func TestPreparePPVideoRequestBodyRejectsInvalidMiniMaxH3MediaModes(t *testing.T) {

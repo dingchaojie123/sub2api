@@ -3853,7 +3853,11 @@ const platformOptions = computed(() => [
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "minimax-speech", label: "MiniMax-Speech" },
+  { value: "qwen-tts", label: "Qwen TTS" },
   { value: "pixverse-v6", label: "Pixverse-V6" },
+  { value: "grok-imagine-video", label: "Grok Imagine Video" },
+  { value: "kuaishou", label: "Kuaishou" },
 ]);
 
 const platformFilterOptions = computed(() => [
@@ -3874,7 +3878,11 @@ const platformFilterOptions = computed(() => [
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "minimax-speech", label: "MiniMax-Speech" },
+  { value: "qwen-tts", label: "Qwen TTS" },
   { value: "pixverse-v6", label: "Pixverse-V6" },
+  { value: "grok-imagine-video", label: "Grok Imagine Video" },
+  { value: "kuaishou", label: "Kuaishou" },
 ]);
 
 const editStatusOptions = computed(() => [

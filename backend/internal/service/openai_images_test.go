@@ -92,9 +92,36 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditImageArrayField(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gemini-3.1-flash-image"))
+	require.NoError(t, writer.WriteField("prompt", "use this reference"))
+	imagePart, err := writer.CreateFormFile("image[]", "reference.png")
+	require.NoError(t, err)
+	_, err = imagePart.Write([]byte("png"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	parsed, err := (&OpenAIGatewayService{}).ParseOpenAIImagesRequest(c, body.Bytes())
+	require.NoError(t, err)
+	require.Equal(t, "gemini-3.1-flash-image", parsed.Model)
+	require.Equal(t, openAIImagesEditsEndpoint, parsed.Endpoint)
+	require.Len(t, parsed.Uploads, 1)
+	require.Equal(t, "image[]", parsed.Uploads[0].FieldName)
+	require.Equal(t, []byte("png"), parsed.Uploads[0].Data)
+}
+
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_DoubaoSeedream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := []byte(`{"model":"doubao-seedream-5-0-260128","prompt":"draw a cat","size":"1536x1024"}`)
+	body := []byte(`{"model":"doubao-seedream-5-0-260128","prompt":"draw a cat","size":"1536x1024","watermark":false}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -105,6 +132,8 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_DoubaoSeedream(t *testing.
 	parsed, err := (&OpenAIGatewayService{}).ParseOpenAIImagesRequest(c, body)
 	require.NoError(t, err)
 	require.Equal(t, "doubao-seedream-5-0-260128", parsed.Model)
+	require.NotNil(t, parsed.Watermark)
+	require.False(t, *parsed.Watermark)
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
@@ -138,6 +167,8 @@ func TestBuildDoubaoImagesRequestBody_UpgradesSmallSizes(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Equal(t, "application/json", contentType)
+			require.True(t, gjson.GetBytes(body, "watermark").Exists())
+			require.False(t, gjson.GetBytes(body, "watermark").Bool())
 			got := gjson.GetBytes(body, "size")
 			require.Equal(t, tt.wantSet, got.Exists())
 			if tt.wantSet {
@@ -145,6 +176,19 @@ func TestBuildDoubaoImagesRequestBody_UpgradesSmallSizes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBuildDoubaoImagesRequestBody_PreservesExplicitWatermark(t *testing.T) {
+	watermark := true
+	body, contentType, err := buildDoubaoImagesRequestBody(&OpenAIImagesRequest{
+		Model:     "doubao-seedream-5-0-260128",
+		Prompt:    "draw a cat",
+		Watermark: &watermark,
+	}, "doubao-seedream-5-0-260128")
+
+	require.NoError(t, err)
+	require.Equal(t, "application/json", contentType)
+	require.True(t, gjson.GetBytes(body, "watermark").Bool())
 }
 
 func TestOpenAIImagesRequestModerationBody_JSONEditIncludesInputImageURLs(t *testing.T) {
@@ -1590,6 +1634,7 @@ func TestOpenAIGatewayServiceForwardImages_DoubaoEditUsesGenerationsJSON(t *test
 	require.Equal(t, "doubao-seedream-5-0-260128", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Equal(t, "replace background", gjson.GetBytes(upstream.lastBody, "prompt").String())
 	require.Equal(t, "data:image/png;base64,cG5nLWltYWdlLWNvbnRlbnQ=", gjson.GetBytes(upstream.lastBody, "image.0").String())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "watermark").Bool())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "sequential_image_generation").Exists())
 }
 

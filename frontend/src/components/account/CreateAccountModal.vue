@@ -71,7 +71,7 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
         <div
-          class="mt-2 flex max-w-full flex-nowrap gap-1 overflow-x-auto rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+          class="mt-2 flex max-w-full flex-wrap gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
           data-tour="account-form-platform"
         >
           <button
@@ -193,6 +193,21 @@
           </button>
           <button
             v-for="platform in videoAccountPlatformOptions"
+            :key="platform.id"
+            type="button"
+            @click="form.platform = platform.id"
+            :class="[
+              'flex min-w-[8.5rem] shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === platform.id
+                ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-600 dark:text-primary-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <PlatformIcon :platform="platform.id" size="sm" />
+            {{ t(`admin.accounts.platforms.${platform.id}`) }}
+          </button>
+          <button
+            v-for="platform in audioAccountPlatformOptions"
             :key="platform.id"
             type="button"
             @click="form.platform = platform.id"
@@ -523,6 +538,38 @@
 
       <!-- Account Type Selection (video platforms) -->
       <div v-if="isVideoAccountPlatform(form.platform)">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-1 gap-3" data-tour="account-form-type">
+          <button
+            type="button"
+            @click="accountCategory = 'apikey'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              accountCategory === 'apikey'
+                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+                : 'border-gray-200 hover:border-primary-300 dark:border-dark-600 dark:hover:border-primary-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                accountCategory === 'apikey'
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">API Key</span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Bearer</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (audio platforms) -->
+      <div v-if="isAudioAccountPlatform(form.platform)">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
         <div class="mt-2 grid grid-cols-1 gap-3" data-tour="account-form-type">
           <button
@@ -2004,7 +2051,10 @@
 
       <!-- 配额控制 (非 Anthropic apikey/bedrock) -->
       <div
-        v-else-if="(form.type === 'apikey' || form.type === 'bedrock') && !isVideoAccountPlatform(form.platform)"
+        v-else-if="
+          (form.type === 'apikey' || form.type === 'bedrock') &&
+          !isVideoAccountPlatform(form.platform)
+        "
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -3687,10 +3737,13 @@ import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
   PROVIDER_PLATFORMS,
   VIDEO_ACCOUNT_PLATFORMS,
+  AUDIO_ACCOUNT_PLATFORMS,
   getPlatformMetadata,
   getVideoAccountPlatformMetadata,
+  getAudioAccountPlatformMetadata,
   isProviderPlatform,
-  isVideoAccountPlatform
+  isVideoAccountPlatform,
+  isAudioAccountPlatform
 } from '@/constants/platforms'
 import {
   OPENAI_WS_MODE_CTX_POOL,
@@ -3725,6 +3778,9 @@ const providerPlatformOptions = PROVIDER_PLATFORMS.map(platform => getPlatformMe
 const videoAccountPlatformOptions = VIDEO_ACCOUNT_PLATFORMS.map(platform =>
   getVideoAccountPlatformMetadata(platform)
 )
+const audioAccountPlatformOptions = AUDIO_ACCOUNT_PLATFORMS.map(platform =>
+  getAudioAccountPlatformMetadata(platform)
+)
 const groupSelectorPlatform = computed(() => {
   return form.platform
 })
@@ -3741,6 +3797,7 @@ const oauthStepTitle = computed(() => {
 const baseUrlHint = computed(() => {
   if (form.platform === 'jimeng') return t('admin.accounts.jimeng.baseUrlHint')
   if (isVideoAccountPlatform(form.platform)) return t('admin.accounts.videoPlatform.baseUrlHint')
+  if (isAudioAccountPlatform(form.platform)) return t('admin.accounts.audioPlatform.baseUrlHint')
   if (isProviderPlatform(form.platform)) return t('admin.accounts.openaiCompatible.baseUrlHint')
   if (form.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
@@ -3751,6 +3808,7 @@ const baseUrlHint = computed(() => {
 const apiKeyHint = computed(() => {
   if (form.platform === 'jimeng') return t('admin.accounts.jimeng.apiKeyHint')
   if (isVideoAccountPlatform(form.platform)) return t('admin.accounts.videoPlatform.apiKeyHint')
+  if (isAudioAccountPlatform(form.platform)) return t('admin.accounts.audioPlatform.apiKeyHint')
   if (isProviderPlatform(form.platform)) return t('admin.accounts.openaiCompatible.apiKeyHint')
   if (form.platform === 'openai') return t('admin.accounts.openai.apiKeyHint')
   if (form.platform === 'gemini') return t('admin.accounts.gemini.apiKeyHint')
@@ -3760,6 +3818,7 @@ const apiKeyHint = computed(() => {
 
 const defaultApiKeyBaseUrl = (platform: AccountPlatform): string => {
   if (isVideoAccountPlatform(platform)) return getVideoAccountPlatformMetadata(platform).defaultBaseUrl
+  if (isAudioAccountPlatform(platform)) return getAudioAccountPlatformMetadata(platform).defaultBaseUrl
   if (isProviderPlatform(platform)) return getPlatformMetadata(platform).defaultBaseUrl
   if (platform === 'jimeng') return ''
   if (platform === 'openai') return 'https://api.openai.com'
@@ -3772,6 +3831,9 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
   if (isVideoAccountPlatform(form.platform)) {
     return getVideoAccountPlatformMetadata(form.platform).baseUrlPlaceholder
   }
+  if (isAudioAccountPlatform(form.platform)) {
+    return getAudioAccountPlatformMetadata(form.platform).baseUrlPlaceholder
+  }
   if (isProviderPlatform(form.platform)) return getPlatformMetadata(form.platform).baseUrlPlaceholder
   if (form.platform === 'jimeng') return 'https://your-jimeng-proxy.example.com/v1'
   if (form.platform === 'openai') return 'https://api.openai.com'
@@ -3783,6 +3845,9 @@ const apiKeyBaseUrlPlaceholder = computed(() => {
 const apiKeyValuePlaceholder = computed(() => {
   if (isVideoAccountPlatform(form.platform)) {
     return getVideoAccountPlatformMetadata(form.platform).apiKeyPlaceholder
+  }
+  if (isAudioAccountPlatform(form.platform)) {
+    return getAudioAccountPlatformMetadata(form.platform).apiKeyPlaceholder
   }
   if (isProviderPlatform(form.platform)) return getPlatformMetadata(form.platform).apiKeyPlaceholder
   if (form.platform === 'jimeng') return 'sk-...'
@@ -4398,6 +4463,13 @@ watch(
       allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newPlatform).modelPlatform)]
     }
     if (isVideoAccountPlatform(newPlatform)) {
+      accountCategory.value = 'apikey'
+      addMethod.value = 'oauth'
+      modelRestrictionMode.value = 'whitelist'
+      allowedModels.value = [...getModelsByPlatform(newPlatform)]
+      form.group_ids = []
+    }
+    if (isAudioAccountPlatform(newPlatform)) {
       accountCategory.value = 'apikey'
       addMethod.value = 'oauth'
       modelRestrictionMode.value = 'whitelist'
@@ -5245,7 +5317,12 @@ const handleSubmit = async () => {
     appStore.showError(t('admin.accounts.pleaseEnterApiKey'))
     return
   }
-  if ((form.platform === 'jimeng' || isVideoAccountPlatform(form.platform)) && !apiKeyBaseUrl.value.trim()) {
+  if (
+    (form.platform === 'jimeng' ||
+      isVideoAccountPlatform(form.platform) ||
+      isAudioAccountPlatform(form.platform)) &&
+    !apiKeyBaseUrl.value.trim()
+  ) {
     appStore.showError(t('admin.accounts.pleaseEnterBaseUrl'))
     return
   }
@@ -5261,6 +5338,9 @@ const handleSubmit = async () => {
   }
   if (isVideoAccountPlatform(form.platform)) {
     credentials.auth_mode = getVideoAccountPlatformMetadata(form.platform).authScheme
+  }
+  if (isAudioAccountPlatform(form.platform)) {
+    credentials.auth_mode = getAudioAccountPlatformMetadata(form.platform).authScheme
   }
   if (form.platform === 'gemini') {
     credentials.tier_id = geminiTierAIStudio.value
@@ -5388,7 +5468,10 @@ const createAccountAndFinish = async (
   }
   // Inject quota limits for apikey/bedrock accounts
   let finalExtra = extra
-  if ((type === 'apikey' || type === 'bedrock') && !isVideoAccountPlatform(platform)) {
+  if (
+    (type === 'apikey' || type === 'bedrock') &&
+    !isVideoAccountPlatform(platform)
+  ) {
     const quotaExtra: Record<string, unknown> = { ...(extra || {}) }
     if (editQuotaLimit.value != null && editQuotaLimit.value > 0) {
       quotaExtra.quota_limit = editQuotaLimit.value

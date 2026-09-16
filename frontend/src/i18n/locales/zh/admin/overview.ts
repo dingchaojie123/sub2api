@@ -867,6 +867,8 @@ export default {
         qwen: '千问',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        'minimax-speech': 'MiniMax-Speech',
+        'qwen-tts': 'Qwen TTS',
       },
       saving: '保存中...',
       noGroups: '暂无分组',

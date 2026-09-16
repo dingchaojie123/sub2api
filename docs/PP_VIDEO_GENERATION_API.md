@@ -1,6 +1,6 @@
-# 站点视频生成接口
+# 站点媒体生成接口
 
-本文档是本站对下游客户提供的唯一视频生成接口文档。下游只需要对接本站接口，不需要关心本站后台使用 Jimeng、Kling、Happy Horse、Seedance、ByteDance、Wan3.0、MiniMax-H3、Pixverse-V6 或其他上游服务商。
+本文档是本站对下游客户提供的媒体生成接口文档，覆盖视频生成和 Qwen TTS 语音合成。下游只需要对接本站接口，不需要关心后台使用的具体上游服务商或其凭据。
 
 ## 基础信息
 
@@ -20,7 +20,66 @@ Idempotency-Key: YOUR_UNIQUE_REQUEST_KEY
 
 同一个 `Idempotency-Key` 重试同一个请求会返回同一个任务结果；同一个 key 不能用于不同请求。
 
-## 查询可用模型
+## 音频语音合成（Qwen TTS）
+
+Qwen TTS 使用同步接口生成音频。API Key 必须属于平台为 `qwen-tts` 的分组；管理员配置的 ModelVerse 凭据不会返回给调用方。
+
+### 创建语音
+
+`POST /v1/audio/speech`
+
+```bash
+curl https://YOUR_SITE/v1/audio/speech \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3-tts-flash",
+    "input": "今天天气真好，我们去公园散步吧。",
+    "voice": "Cherry",
+    "metadata": {"language_type": "Chinese"}
+  }'
+```
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `model` | 是 | 从该 Qwen TTS 账号同步到的上游支持模型中选择；可通过 `GET /v1/models` 查询。 |
+| `input` | 是 | 要合成的文本，最长 600 个字符。 |
+| `voice` | 是 | 上游音色名称，例如 `Cherry`、`Ethan`、`Serena`、`Chelsie`。 |
+| `metadata.language_type` | 否 | `Auto`（默认）、`Chinese`、`English`、`German`、`Italian`、`Portuguese`、`Spanish`、`Japanese`、`Korean`、`French` 或 `Russian`。 |
+
+成功时会原样返回 Qwen TTS 的响应，其中包含临时音频地址：
+
+```json
+{
+  "request_id": "5c63c65c-cad8-4bf4-959d-example",
+  "code": "",
+  "message": "",
+  "output": {
+    "finish_reason": "stop",
+    "audio": {
+      "data": "",
+      "url": "https://example.com/audio.wav",
+      "id": "audio_5c63c65c-cad8-4bf4-959d-example",
+      "expires_at": 1766113409
+    }
+  },
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "characters": 195
+  }
+}
+```
+
+### 音频计费
+
+Qwen TTS 使用渠道配置的 Token 计费方式。网关以响应中的 `usage.characters` 作为本次请求的输入 Token 数量；上游文档中的 `input_tokens` 与 `output_tokens` 均为 `0`，不会参与计费。上游请求失败或业务返回失败时不会生成用量扣费。
+
+上游返回的音频 URL 有有效期，请在过期前下载或持久化音频。
+
+## 视频生成
+
+### 查询可用模型
 
 推荐先通过模型列表查询当前 API Key 可用的视频模型：
 
@@ -40,7 +99,7 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 精确模型 ID。本站会按 API Key 所属分组和后台账号配置，把对外模型名转换为对应
 上游请求。
 
-### 新增视频模型
+#### 新增视频模型
 
 以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID，不要使用 `video-v1` 作为新接入的模型名。
 
@@ -51,8 +110,9 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | MiniMax-H3 | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
 | MiniMax-H3 | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
 | Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` |
+| Grok Imagine Video | `grok-imagine-video` | 图生、参考生 | 1-15 秒整数 | `480p`、`720p` |
 
-## 创建视频任务
+### 创建视频任务
 
 推荐接口：
 
@@ -68,7 +128,7 @@ POST /v1/video/generations
 
 请求提交后立即返回任务 ID。视频任务固定异步执行，随后请按“查询任务状态”章节轮询结果。
 
-### 请求字段
+#### 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
@@ -97,11 +157,11 @@ POST /v1/video/generations
 
 本文档开头列出的 ByteDance、Wan3.0、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
 
-## 新增视频模型参数
+### 新增视频模型参数
 
 所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。以下 JSON 结构是新增视频模型推荐使用的请求体格式。
 
-### ByteDance
+#### ByteDance
 
 模型 ID 固定为 `doubao-seedance-2-0-260128`。`input.content` 至少包含一个内容项，可使用 `text`、`image_url`、`video_url`、`audio_url` 四种类型：
 
@@ -134,7 +194,7 @@ POST /v1/video/generations
 }
 ```
 
-### Wan3.0
+#### Wan3.0
 
 模型为 `wan3.0-video` 或 `wan3.0-video-prime`。`input.prompt` 必填；`input.media` 可省略，或传入以下对象组成的数组：
 
@@ -166,7 +226,7 @@ POST /v1/video/generations
 }
 ```
 
-### MiniMax-H3
+#### MiniMax-H3
 
 模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
 
@@ -205,7 +265,7 @@ POST /v1/video/generations
 }
 ```
 
-### MiniMax-Hailuo-2.3
+#### MiniMax-Hailuo-2.3
 
 模型 ID 固定为 `MiniMax-Hailuo-2.3`，与 `MiniMax-H3` 共用后台的 MiniMax-H3 平台账号，但请求参数和输入结构相互独立。
 
@@ -249,7 +309,7 @@ POST /v1/video/generations
 }
 ```
 
-### Pixverse-V6
+#### Pixverse-V6
 
 模型 ID 固定为 `pixverse-v6`，`input.prompt` 必填。可选输入为：
 
@@ -257,7 +317,7 @@ POST /v1/video/generations
 - `input.img_url`：参考图，支持公开图片 URL 或 `data:image/...;base64,...`。
 - `input.video_url`：视频延长输入，仅支持公开 HTTP/HTTPS URL。
 
-`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。可选参数还包括整数 `generate_audio` 和 `seed`（`0` 至 `2147483647`）。
+`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。`generate_audio` 为整数音频开关，默认 `1`（with_audio，有声音），传 `0` 可关闭声音；`seed` 可选，取值范围为 `0` 至 `2147483647`。
 
 ```json
 {
@@ -274,7 +334,31 @@ POST /v1/video/generations
 }
 ```
 
-### 图片输入规则
+#### Grok Imagine Video
+
+模型 ID 固定为 `grok-imagine-video`，仅支持图生和参考生视频，不支持纯文生视频。`input.prompt` 必填，并且必须在以下两种输入中二选一：
+
+- `input.img_url`：单张参考图片的 HTTP/HTTPS URL。
+- `input.reference_urls`：一张或多张参考图片的 HTTP/HTTPS URL 数组。
+
+二者不能同时传。`parameters.duration` 为 `1` 至 `15` 的整秒；`parameters.resolution` 仅支持 `480p`、`720p`；`parameters.aspect_ratio` 支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4`、`3:2`、`2:3`。
+
+```json
+{
+  "model": "grok-imagine-video",
+  "input": {
+    "prompt": "让画面中的纸鹤振翅飞过晚霞",
+    "img_url": "https://example.com/reference.png"
+  },
+  "parameters": {
+    "duration": 5,
+    "resolution": "720p",
+    "aspect_ratio": "9:16"
+  }
+}
+```
+
+#### 图片输入规则
 
 Seedance 请求必须在下面两种模式中二选一：
 
@@ -283,7 +367,7 @@ Seedance 请求必须在下面两种模式中二选一：
 
 这项限制用于避免上游在“人物参考”和“首帧/尾帧控制”之间自行选择主输入，从而造成角色身份或 3D/真人画风漂移。若目标是保持人物一致性，请只传同一角色的参考图，并在 `prompt` 中明确要求保持角色身份、材质和画风。
 
-### 文生视频示例
+#### 文生视频示例
 
 ```bash
 curl -X POST https://YOUR_SITE/v1/videos/generations \
@@ -299,7 +383,7 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
   }'
 ```
 
-### 带参考素材示例
+#### 带参考素材示例
 
 ```bash
 curl -X POST https://YOUR_SITE/v1/videos/generations \
@@ -316,7 +400,7 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
   }'
 ```
 
-### 创建响应
+#### 创建响应
 
 ```json
 {
@@ -331,7 +415,7 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
 
 `id` 和 `task_id` 含义相同，都是后续查询任务使用的任务 ID。创建响应也可能返回 `submitted` 或上游原始状态，客户端应继续轮询直到成功或失败。
 
-## 查询任务状态
+### 查询任务状态
 
 推荐接口：
 
@@ -388,7 +472,7 @@ curl https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
 
 响应中可能包含额外上游字段，客户应只依赖本文档列出的稳定字段。
 
-## 下载或播放视频
+### 下载或播放视频
 
 任务成功后返回的 `video_url` 是本站或上游媒体代理地址，可能不会以 `.mp4` 结尾。客户端应根据 HTTP `Content-Type` 或播放器的媒体探测能力处理视频，不要通过文件扩展名判断格式。
 
@@ -406,7 +490,7 @@ URL 的完整内容：
 - 该 URL 具有有效期，过期后应重新查询任务状态获取新的 `video_url`，不要缓存旧的
   OSS 签名 URL。
 
-## 计费与退款
+### 计费与退款
 
 视频生成在本站按统一的站内规则计费，具体上游服务商的接口和计费实现不会暴露给下游客户。上游服务商更换、模型映射调整或接口路径变化，不要求下游客户修改本文档中的调用方式。
 
@@ -432,7 +516,7 @@ URL 的完整内容：
 - 上述基础费用还会叠加本站分组倍率、视频独立倍率（如果启用）和账号倍率。
 - `videos`、`audios`、`input_video_duration`、输出宽高和帧率等字段会按上游能力透传，但不会改变本站的按秒计费结果。
 
-## Python 轮询示例
+### Python 轮询示例
 
 ```python
 import time
@@ -478,7 +562,7 @@ while True:
     time.sleep(5)
 ```
 
-## 常见错误
+### 常见错误
 
 | HTTP 状态 | 场景 | 处理方式 |
 | --- | --- | --- |

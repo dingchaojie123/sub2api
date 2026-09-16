@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -33,7 +34,13 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 		return
 	}
 
-	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
+	var body []byte
+	var err error
+	if isMultipartImagesContentType(c.GetHeader("Content-Type")) {
+		body, err = pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	} else {
+		body, err = readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
+	}
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
 		return
@@ -141,6 +148,13 @@ func (h *GatewayHandler) GeminiImages(c *gin.Context) {
 		if err != nil || selection == nil || selection.Account == nil {
 			if err == nil {
 				err = errors.New("no available Gemini accounts")
+			}
+			if len(failedAccountIDs) == 0 {
+				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, modelName, requestModel, service.PlatformGemini)
+				if cls.ModelNotFound {
+					h.errorResponse(c, cls.Status, cls.ErrType, cls.Message)
+					return
+				}
 			}
 			markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 			h.errorResponse(c, http.StatusServiceUnavailable, "rate_limit_error", "No available Gemini accounts: "+err.Error())

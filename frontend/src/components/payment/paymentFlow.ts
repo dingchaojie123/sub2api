@@ -33,6 +33,7 @@ export type PaymentLaunchKind =
 export interface PaymentRecoverySnapshot {
   orderId: number
   amount: number
+  displayAmount?: number
   qrCode: string
   expiresAt: string
   paymentType: string
@@ -148,6 +149,7 @@ export function decidePaymentLaunch(
   const baseState = createPaymentRecoverySnapshot({
     orderId: result.order_id,
     amount: result.amount,
+    displayAmount: result.display_amount,
     qrCode: result.qr_code || '',
     expiresAt: result.expires_at || '',
     paymentType: visibleMethod,
@@ -296,6 +298,7 @@ export function readPaymentRecoverySnapshot(
     return {
       orderId: parsed.orderId,
       amount: parsed.amount,
+      displayAmount: typeof parsed.displayAmount === 'number' ? parsed.displayAmount : undefined,
       qrCode: parsed.qrCode,
       expiresAt: parsed.expiresAt,
       paymentType: parsed.paymentType,

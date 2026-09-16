@@ -86,6 +86,7 @@ export interface User {
   wechat_bound?: boolean
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
+  display_balance?: number // User-facing nominal balance
   frozen_balance?: number // Balance currently held by async batch jobs
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
@@ -527,7 +528,11 @@ export type GroupPlatform =
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
+  | 'minimax-speech'
+  | 'qwen-tts'
   | 'pixverse-v6'
+  | 'grok-imagine-video'
+  | 'kuaishou'
 
 export type SubscriptionType = 'standard' | 'subscription'
 
@@ -790,7 +795,11 @@ export type AccountPlatform =
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
+  | 'minimax-speech'
+  | 'qwen-tts'
   | 'pixverse-v6'
+  | 'grok-imagine-video'
+  | 'kuaishou'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
@@ -2212,7 +2221,7 @@ export interface UpdateScheduledTestPlanRequest {
 }
 
 // Payment types
-export type { SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
+export type { BalanceRechargeProduct, SubscriptionPlan, PaymentOrder, CheckoutInfoResponse } from './payment'
 
 export type {
   PlatformQuotaItem,

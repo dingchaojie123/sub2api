@@ -9,6 +9,8 @@ import {
   MINIMAX_HAILUO_23_FIXED_MODEL,
   MINIMAX_H3_FIXED_MODEL,
   PIXVERSE_V6_FIXED_MODEL,
+  GROK_IMAGINE_VIDEO_FIXED_MODEL,
+  KUAISHOU_FIXED_MODEL,
   WAN3_FIXED_MODELS,
   buildModelMappingObject,
   getModelsByPlatform,
@@ -39,7 +41,7 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('deepseek')).toContain('deepseek-reasoner')
   })
 
-  it('video platforms expose fixed ModelVerse models and sync the other PP platforms', () => {
+  it('video platforms expose fixed models where known and keep pending integrations empty', () => {
     for (const platform of [
       'kling',
       'happyhourse',
@@ -81,7 +83,29 @@ describe('useModelWhitelist', () => {
         to: PIXVERSE_V6_FIXED_MODEL
       })
     ])
+    expect(getModelsByPlatform('grok-imagine-video')).toEqual([GROK_IMAGINE_VIDEO_FIXED_MODEL])
+    expect(getPresetMappingsByPlatform('grok-imagine-video')).toEqual([
+      expect.objectContaining({
+        from: GROK_IMAGINE_VIDEO_FIXED_MODEL,
+        to: GROK_IMAGINE_VIDEO_FIXED_MODEL
+      })
+    ])
+    expect(getModelsByPlatform('kuaishou')).toEqual([KUAISHOU_FIXED_MODEL])
+    expect(getPresetMappingsByPlatform('kuaishou')).toEqual([
+      expect.objectContaining({
+        from: KUAISHOU_FIXED_MODEL,
+        to: KUAISHOU_FIXED_MODEL
+      })
+    ])
   })
+
+	it('MiniMax Speech uses upstream model synchronization instead of a local preset', () => {
+		expect(getModelsByPlatform('minimax-speech')).toEqual([])
+	})
+
+	it('Qwen TTS uses upstream model synchronization instead of a local preset', () => {
+		expect(getModelsByPlatform('qwen-tts')).toEqual([])
+	})
 
   it('openai 模型列表不再暴露已下线的 ChatGPT 登录 Codex 模型', () => {
     const models = getModelsByPlatform('openai')

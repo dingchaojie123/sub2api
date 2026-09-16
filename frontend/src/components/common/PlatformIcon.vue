@@ -61,13 +61,26 @@
     <path d="M12 2.5c1.3 2.42 2.05 4.45 2.05 6.05A2.05 2.05 0 1 1 9.95 8.55C9.95 6.95 10.7 4.92 12 2.5zm0 10.05a4.95 4.95 0 1 1 0 9.9 4.95 4.95 0 0 1 0-9.9zm0 2a2.95 2.95 0 1 0 0 5.9 2.95 2.95 0 0 0 0-5.9z" />
     <path d="M3.1 9.2c2.7-.5 4.85-.35 6.05.3l-1 1.72c-.73-.4-2.28-.52-4.68-.08L3.1 9.2zm17.8 0-.37 1.94c-2.4-.44-3.95-.32-4.68.08l-1-1.72c1.2-.65 3.35-.8 6.05-.3z" />
   </svg>
+  <!-- MiniMax Speech logo mark (speaker) -->
+  <svg v-else-if="platform === 'minimax-speech'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 9.5v5h3.2l4.3 3.6V5.9L7.2 9.5H4z" />
+    <path d="M15.2 8.2a1 1 0 0 1 1.4 0 5.4 5.4 0 0 1 0 7.6 1 1 0 1 1-1.4-1.4 3.4 3.4 0 0 0 0-4.8 1 1 0 0 1 0-1.4z" />
+    <path d="M18 5.4a1 1 0 0 1 1.4 0 9.4 9.4 0 0 1 0 13.2 1 1 0 1 1-1.4-1.4 7.4 7.4 0 0 0 0-10.4A1 1 0 0 1 18 5.4z" />
+  </svg>
+  <svg v-else-if="platform === 'qwen-tts'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 9.5v5h3.2l4.3 3.6V5.9L7.2 9.5H4z" />
+    <path d="M15 9.2a1 1 0 0 1 1.4 0 4 4 0 0 1 0 5.6 1 1 0 1 1-1.4-1.4 2 2 0 0 0 0-2.8 1 1 0 0 1 0-1.4z" />
+    <path d="M18 6.2a1 1 0 0 1 1.4 0 8.2 8.2 0 0 1 0 11.6 1 1 0 0 1-1.4-1.4 6.2 6.2 0 0 0 0-8.8 1 1 0 0 1 0-1.4z" />
+  </svg>
   <!-- Video platform logo mark (play button in a frame) -->
   <svg
     v-else-if="
       platform === 'bytedance' ||
       platform === 'wan3' ||
       platform === 'minimax-h3' ||
-      platform === 'pixverse-v6'
+      platform === 'pixverse-v6' ||
+      platform === 'grok-imagine-video' ||
+      platform === 'kuaishou'
     "
     :class="sizeClass"
     viewBox="0 0 24 24"

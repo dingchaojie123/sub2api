@@ -138,7 +138,7 @@ interface ModelPriceRow {
 interface ModelPriceGroup {
   id: string
   name: string
-  provider: 'openai' | 'anthropic'
+  provider: string
   multiplier?: string
   rows: ModelPriceRow[]
 }
@@ -146,85 +146,120 @@ interface ModelPriceGroup {
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const platformPrice = (value: number) => `¥${value} / 1M`
+const officialPrice = (value: number) => `$${value} / 1M`
+const priceRow = (
+  model: string,
+  platformInput: number,
+  platformOutput: number,
+  officialInput: number,
+  officialOutput: number,
+): ModelPriceRow => ({
+  model,
+  platformInput: platformPrice(platformInput),
+  platformOutput: platformPrice(platformOutput),
+  officialInput: officialPrice(officialInput),
+  officialOutput: officialPrice(officialOutput),
+})
+
 const defaultPricingGroups: ModelPriceGroup[] = [
   {
-    id: 'gpt-pro',
-    name: 'gpt pro',
+    id: 'chatgpt-special',
+    name: 'ChatGPT【特惠分组】',
     provider: 'openai',
+    multiplier: '0.2x',
     rows: [
-      { model: 'codex-auto-review', platformInput: '¥1.30 / 1M', platformOutput: '¥7.80 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.4', platformInput: '¥0.65 / 1M', platformOutput: '¥3.90 / 1M', officialInput: '$2.50 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'gpt-5.4-mini', platformInput: '¥0.195 / 1M', platformOutput: '¥1.17 / 1M', officialInput: '$0.75 / 1M', officialOutput: '$4.50 / 1M' },
-      { model: 'gpt-5.5', platformInput: '¥1.30 / 1M', platformOutput: '¥7.80 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.6-luna', platformInput: '¥0.26 / 1M', platformOutput: '¥1.56 / 1M', officialInput: '$1.00 / 1M', officialOutput: '$6.00 / 1M' },
-      { model: 'gpt-5.6-sol', platformInput: '¥1.30 / 1M', platformOutput: '¥7.80 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.6-terra', platformInput: '¥0.65 / 1M', platformOutput: '¥3.90 / 1M', officialInput: '$2.50 / 1M', officialOutput: '$15.00 / 1M' },
+      priceRow('codex-auto-review', 0.04, 0.24, 0.2, 1.2),
+      priceRow('gpt-5.4', 0.5, 3, 2.5, 15),
+      priceRow('gpt-5.5', 1, 6, 5, 30),
+      priceRow('gpt-5.6-sol', 1, 6, 5, 30),
+      priceRow('gpt-5.6-terra', 0.4, 2.4, 2, 12),
+      priceRow('gpt-image-2', 1, 2, 5, 10),
     ],
   },
   {
-    id: 'gpt-plus',
-    name: 'gpt plus',
+    id: 'chatgpt-cheap',
+    name: 'ChatGPT【便宜分组】',
     provider: 'openai',
-    rows: [
-      { model: 'codex-auto-review', platformInput: '¥0.6000 / 1M', platformOutput: '¥3.60 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.4', platformInput: '¥0.3000 / 1M', platformOutput: '¥1.80 / 1M', officialInput: '$2.50 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'gpt-5.4-mini', platformInput: '¥0.0900 / 1M', platformOutput: '¥0.5400 / 1M', officialInput: '$0.7500 / 1M', officialOutput: '$4.50 / 1M' },
-      { model: 'gpt-5.5', platformInput: '¥0.6000 / 1M', platformOutput: '¥3.60 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.6-luna', platformInput: '¥0.1200 / 1M', platformOutput: '¥0.7200 / 1M', officialInput: '$1.00 / 1M', officialOutput: '$6.00 / 1M' },
-      { model: 'gpt-5.6-sol', platformInput: '¥0.6000 / 1M', platformOutput: '¥3.60 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$30.00 / 1M' },
-      { model: 'gpt-5.6-terra', platformInput: '¥0.3000 / 1M', platformOutput: '¥1.80 / 1M', officialInput: '$2.50 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'gpt-image-2', platformInput: '¥0.6000 / 1M', platformOutput: '¥1.20 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$10.00 / 1M' },
-    ],
-  },
-  {
-    id: 'gpt-image-2',
-    name: 'gpt-image-2生图',
-    provider: 'openai',
-    multiplier: '2x',
-    rows: [
-      { model: 'gpt-image-2', platformInput: '¥10.00 / 1M', platformOutput: '¥20.00 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$10.00 / 1M' },
-    ],
-  },
-  {
-    id: 'claude-kiro',
-    name: 'Claude-kiro',
-    provider: 'anthropic',
     multiplier: '0.3x',
     rows: [
-      { model: 'claude-fable-5', platformInput: '¥3.00 / 1M', platformOutput: '¥15.00 / 1M', officialInput: '$10.00 / 1M', officialOutput: '$50.00 / 1M' },
-      { model: 'claude-haiku-4-5-20251001', platformInput: '¥0.3000 / 1M', platformOutput: '¥1.50 / 1M', officialInput: '$1.00 / 1M', officialOutput: '$5.00 / 1M' },
-      { model: 'claude-haiku-4.5', platformInput: '¥0.0750 / 1M', platformOutput: '¥0.3750 / 1M', officialInput: '$0.2500 / 1M', officialOutput: '$1.25 / 1M' },
-      { model: 'claude-opus-4-5-20251101', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-6', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-7', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-8', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4.5', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4.6', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4.7', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4.8', platformInput: '¥1.50 / 1M', platformOutput: '¥7.50 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-sonnet-4-5-20250929', platformInput: '¥0.9000 / 1M', platformOutput: '¥4.50 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-4-6', platformInput: '¥0.9000 / 1M', platformOutput: '¥4.50 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-4-8', platformInput: '¥0.9000 / 1M', platformOutput: '¥4.50 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-4.5', platformInput: '¥0.9000 / 1M', platformOutput: '¥4.50 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-4.6', platformInput: '¥0.9000 / 1M', platformOutput: '¥4.50 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-5', platformInput: '¥0.6000 / 1M', platformOutput: '¥3.00 / 1M', officialInput: '$2.00 / 1M', officialOutput: '$10.00 / 1M' },
+      priceRow('codex-auto-review', 0.06, 0.36, 0.2, 1.2),
+      priceRow('gpt-5.3-codex-spark', 0.525, 4.2, 1.75, 14),
+      priceRow('gpt-5.4', 0.75, 4.5, 2.5, 15),
+      priceRow('gpt-5.5', 1.5, 9, 5, 30),
+      priceRow('gpt-5.6-sol', 1.5, 9, 5, 30),
+      priceRow('gpt-5.6-terra', 0.6, 3.6, 2, 12),
+      priceRow('gpt-6-astra', 3, 15, 10, 50),
+      priceRow('gpt-image-2', 1.5, 3, 5, 10),
     ],
   },
   {
-    id: 'claude-max-1-1',
-    name: 'Claude-max-1.1',
-    provider: 'anthropic',
-    multiplier: '2.2x',
+    id: 'chatgpt-stable',
+    name: 'ChatGPT【稳定分组】',
+    provider: 'openai',
+    multiplier: '0.5x',
     rows: [
-      { model: 'claude-fable-5', platformInput: '¥22.00 / 1M', platformOutput: '¥110.00 / 1M', officialInput: '$10.00 / 1M', officialOutput: '$50.00 / 1M' },
-      { model: 'claude-haiku-4-5-20251001', platformInput: '¥2.20 / 1M', platformOutput: '¥11.00 / 1M', officialInput: '$1.00 / 1M', officialOutput: '$5.00 / 1M' },
-      { model: 'claude-opus-4-5-20251101', platformInput: '¥11.00 / 1M', platformOutput: '¥55.00 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-6', platformInput: '¥11.00 / 1M', platformOutput: '¥55.00 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-7', platformInput: '¥11.00 / 1M', platformOutput: '¥55.00 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-opus-4-8', platformInput: '¥11.00 / 1M', platformOutput: '¥55.00 / 1M', officialInput: '$5.00 / 1M', officialOutput: '$25.00 / 1M' },
-      { model: 'claude-sonnet-4-5-20250929', platformInput: '¥6.60 / 1M', platformOutput: '¥33.00 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-4-6', platformInput: '¥6.60 / 1M', platformOutput: '¥33.00 / 1M', officialInput: '$3.00 / 1M', officialOutput: '$15.00 / 1M' },
-      { model: 'claude-sonnet-5', platformInput: '¥4.40 / 1M', platformOutput: '¥22.00 / 1M', officialInput: '$2.00 / 1M', officialOutput: '$10.00 / 1M' },
+      priceRow('codex-auto-review', 0.1, 0.6, 0.2, 1.2),
+      priceRow('gpt-5.3-codex-spark', 0.875, 7, 1.75, 14),
+      priceRow('gpt-5.4', 1.25, 7.5, 2.5, 15),
+      priceRow('gpt-5.5', 2.5, 15, 5, 30),
+      priceRow('gpt-5.6-sol', 2.5, 15, 5, 30),
+      priceRow('gpt-5.6-terra', 1, 6, 2, 12),
+      priceRow('gpt-6-astra', 5, 25, 10, 50),
+      priceRow('gpt-image-2', 2.5, 5, 5, 10),
+    ],
+  },
+  {
+    id: 'chatgpt-enterprise',
+    name: 'ChatGPT【企业分组】',
+    provider: 'openai',
+    multiplier: '1.4x',
+    rows: [
+      priceRow('codex-auto-review', 0.2, 1.2, 0.28, 1.68),
+      priceRow('gpt-5.3-codex-spark', 1.75, 14, 2.44, 19.6),
+      priceRow('gpt-5.4', 2.5, 15, 3.5, 21),
+      priceRow('gpt-5.4-mini', 0.75, 4.5, 1.05, 6.3),
+      priceRow('gpt-5.5', 5, 30, 7, 42),
+      priceRow('gpt-5.6-sol', 5, 30, 7, 42),
+      priceRow('gpt-5.6-terra', 2, 12, 2.8, 16.8),
+      priceRow('gpt-6-astra', 10, 50, 14, 70),
+      priceRow('gpt-image-2', 5, 10, 7, 14),
+    ],
+  },
+  {
+    id: 'gemini',
+    name: 'gemini',
+    provider: 'gemini',
+    multiplier: '1.0x',
+    rows: [
+      priceRow('gemini-2.0-flash', 0.1, 0.4, 0.1, 0.4),
+      priceRow('gemini-2.5-flash', 0.3, 2.5, 0.3, 2.5),
+      priceRow('gemini-2.5-pro', 1.25, 10, 1.25, 10),
+      priceRow('gemini-3-flash-preview', 0.5, 3, 0.5, 3),
+      priceRow('gemini-3.1-flash-image', 0.5, 3, 0.5, 3),
+      priceRow('gemini-3.5-flash', 1.5, 9, 1.5, 9),
+    ],
+  },
+  {
+    id: 'glm-openai',
+    name: 'glm - 官key openai协议',
+    provider: 'openai',
+    multiplier: '0.9x',
+    rows: [
+      priceRow('glm-5-turbo', 1.08, 3.6, 1.2, 4),
+      priceRow('glm-5.1', 1.26, 3.96, 1.4, 4.4),
+      priceRow('glm-5.2', 1.26, 3.96, 1.4, 4.4),
+    ],
+  },
+  {
+    id: 'glm-anthropic',
+    name: 'glm - 官key claude协议',
+    provider: 'anthropic',
+    multiplier: '0.9x',
+    rows: [
+      priceRow('glm-5-turbo', 1.08, 3.6, 1.2, 4),
+      priceRow('glm-5.1', 1.26, 3.96, 1.4, 4.4),
+      priceRow('glm-5.2', 1.26, 3.96, 1.4, 4.4),
     ],
   },
 ]
@@ -286,7 +321,7 @@ function normalizePricingGroup(input: unknown): ModelPriceGroup | null {
   return {
     id: group.id,
     name: group.name,
-    provider: group.provider === 'anthropic' ? 'anthropic' : 'openai',
+    provider: group.provider?.trim() || 'openai',
     multiplier: group.multiplier?.trim() || undefined,
     rows,
   }

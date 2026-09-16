@@ -25,6 +25,37 @@ func TestJimengAPIKeyAccountIsOpenAICompatible(t *testing.T) {
 	require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityEmbeddings))
 }
 
+func TestMiniMaxSpeechAPIKeyAccountExposesBearerCredentials(t *testing.T) {
+	account := &Account{
+		Platform: PlatformMiniMaxSpeech,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": "https://api.modelverse.cn/v1",
+			"api_key":  "speech-secret",
+		},
+	}
+
+	require.False(t, account.IsOpenAICompatible())
+	require.Equal(t, "https://api.modelverse.cn/v1", account.GetOpenAIBaseURL())
+	require.Equal(t, "speech-secret", account.GetOpenAIApiKey())
+}
+
+func TestQwenTTSAPIKeyAccountExposesBearerCredentials(t *testing.T) {
+	account := &Account{
+		Platform: PlatformQwenTTS,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"base_url": "https://api.modelverse.cn/v1",
+			"api_key":  "qwen-tts-secret",
+		},
+	}
+
+	require.False(t, account.IsOpenAICompatible())
+	require.Equal(t, "https://api.modelverse.cn/v1", account.GetOpenAIBaseURL())
+	require.Equal(t, "qwen-tts-secret", account.GetOpenAIApiKey())
+	require.True(t, IsAudioPlatform(account.Platform))
+}
+
 func TestDoubaoAPIKeyAccountSupportsOpenAIImages(t *testing.T) {
 	account := &Account{
 		Platform: PlatformDoubao,

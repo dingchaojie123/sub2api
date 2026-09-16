@@ -92,7 +92,9 @@ describe('PlatformTypeBadge video account platforms', () => {
     ['bytedance', 'ByteDance', 'bg-violet-100'],
     ['wan3', 'Wan3.0', 'bg-fuchsia-100'],
     ['minimax-h3', 'MiniMax-H3', 'bg-pink-100'],
-    ['pixverse-v6', 'Pixverse-V6', 'bg-lime-100']
+    ['pixverse-v6', 'Pixverse-V6', 'bg-lime-100'],
+    ['grok-imagine-video', 'Grok Imagine Video', 'bg-cyan-100'],
+    ['kuaishou', 'Kuaishou', 'bg-sky-100']
   ])('renders %s with a distinct platform badge', (platform, label, colorClass) => {
     const wrapper = mount(PlatformTypeBadge, {
       props: {

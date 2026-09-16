@@ -1738,7 +1738,10 @@
       </div>
       <!-- 配额控制 (非 Anthropic apikey/bedrock) -->
       <div
-        v-else-if="(account?.type === 'apikey' || account?.type === 'bedrock') && !isVideoAccountPlatform(account?.platform)"
+        v-else-if="
+          (account?.type === 'apikey' || account?.type === 'bedrock') &&
+          !isVideoAccountPlatform(account?.platform)
+        "
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
         <div class="mb-3">
@@ -2615,8 +2618,10 @@ import { VERTEX_LOCATION_OPTIONS } from '@/constants/account'
 import {
   getPlatformMetadata,
   getVideoAccountPlatformMetadata,
+  getAudioAccountPlatformMetadata,
   isProviderPlatform,
-  isVideoAccountPlatform
+  isVideoAccountPlatform,
+  isAudioAccountPlatform
 } from '@/constants/platforms'
 import {
   OPENAI_WS_MODE_CTX_POOL,
@@ -2668,6 +2673,7 @@ const baseUrlHint = computed(() => {
   if (!props.account) return t('admin.accounts.baseUrlHint')
   if (props.account.platform === 'jimeng') return t('admin.accounts.jimeng.baseUrlHint')
   if (isVideoAccountPlatform(props.account.platform)) return t('admin.accounts.videoPlatform.baseUrlHint')
+  if (isAudioAccountPlatform(props.account.platform)) return t('admin.accounts.audioPlatform.baseUrlHint')
   if (isProviderPlatform(props.account.platform)) return t('admin.accounts.openaiCompatible.baseUrlHint')
   if (props.account.platform === 'openai') return t('admin.accounts.openai.baseUrlHint')
   if (props.account.platform === 'gemini') return t('admin.accounts.gemini.baseUrlHint')
@@ -2677,6 +2683,7 @@ const baseUrlHint = computed(() => {
 
 const platformDefaultBaseUrl = (platform: Account['platform']): string => {
   if (isVideoAccountPlatform(platform)) return getVideoAccountPlatformMetadata(platform).defaultBaseUrl
+  if (isAudioAccountPlatform(platform)) return getAudioAccountPlatformMetadata(platform).defaultBaseUrl
   if (isProviderPlatform(platform)) return getPlatformMetadata(platform).defaultBaseUrl
   if (platform === 'jimeng') return ''
   if (platform === 'openai') return 'https://api.openai.com'
@@ -2691,6 +2698,9 @@ const editBaseUrlPlaceholder = computed(() => {
   if (isVideoAccountPlatform(props.account.platform)) {
     return getVideoAccountPlatformMetadata(props.account.platform).baseUrlPlaceholder
   }
+  if (isAudioAccountPlatform(props.account.platform)) {
+    return getAudioAccountPlatformMetadata(props.account.platform).baseUrlPlaceholder
+  }
   return platformDefaultBaseUrl(props.account.platform)
 })
 
@@ -2698,6 +2708,9 @@ const editApiKeyPlaceholder = computed(() => {
   if (!props.account) return 'sk-ant-...'
   if (isVideoAccountPlatform(props.account.platform)) {
     return getVideoAccountPlatformMetadata(props.account.platform).apiKeyPlaceholder
+  }
+  if (isAudioAccountPlatform(props.account.platform)) {
+    return getAudioAccountPlatformMetadata(props.account.platform).apiKeyPlaceholder
   }
   if (isProviderPlatform(props.account.platform)) return getPlatformMetadata(props.account.platform).apiKeyPlaceholder
   if (props.account.platform === 'jimeng') return 'sk-...'
@@ -3373,7 +3386,10 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   }
 
   // Load quota limit for apikey/bedrock accounts (bedrock quota is also loaded in its own branch above)
-  if (!isVideoAccountPlatform(newAccount.platform) && (newAccount.type === 'apikey' || newAccount.type === 'bedrock')) {
+  if (
+    !isVideoAccountPlatform(newAccount.platform) &&
+    (newAccount.type === 'apikey' || newAccount.type === 'bedrock')
+  ) {
     const quotaVal = extra?.quota_limit as number | undefined
     editQuotaLimit.value = (quotaVal && quotaVal > 0) ? quotaVal : null
     const dailyVal = extra?.quota_daily_limit as number | undefined
@@ -3485,9 +3501,20 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         ? 'mapping'
         : 'whitelist'
     } else if (isProviderPlatform(newAccount.platform)) {
-      allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
-      modelRestrictionMode.value = 'whitelist'
+      // Keep saved upstream/custom models. Provider defaults are only a
+      // fallback for accounts that do not have a model mapping yet.
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
+        modelRestrictionMode.value = 'whitelist'
+      }
     } else if (isVideoAccountPlatform(newAccount.platform)) {
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform(newAccount.platform)]
+      }
+      modelRestrictionMode.value = modelMappings.value.length > 0 && allowedModels.value.length === 0
+        ? 'mapping'
+        : 'whitelist'
+    } else if (isAudioAccountPlatform(newAccount.platform)) {
       if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
         allowedModels.value = [...getModelsByPlatform(newAccount.platform)]
       }
@@ -3571,9 +3598,12 @@ const syncFormFromAccount = (newAccount: Account | null) => {
         ? 'mapping'
         : 'whitelist'
     } else if (isProviderPlatform(newAccount.platform)) {
-      allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
-      modelMappings.value = []
-      modelRestrictionMode.value = 'whitelist'
+      // Keep saved upstream/custom models. Provider defaults are only a
+      // fallback for accounts that do not have a model mapping yet.
+      if (allowedModels.value.length === 0 && modelMappings.value.length === 0) {
+        allowedModels.value = [...getModelsByPlatform(getPlatformMetadata(newAccount.platform).modelPlatform)]
+        modelRestrictionMode.value = 'whitelist'
+      }
     } else {
       modelRestrictionMode.value = 'whitelist'
       modelMappings.value = []
@@ -4090,7 +4120,12 @@ const handleSubmit = async () => {
     if (props.account.type === 'apikey') {
       const currentCredentials = (props.account.credentials as Record<string, unknown>) || {}
       const newBaseUrl = editBaseUrl.value.trim() || defaultBaseUrl.value
-      if ((props.account.platform === 'jimeng' || isVideoAccountPlatform(props.account.platform)) && !newBaseUrl) {
+      if (
+        (props.account.platform === 'jimeng' ||
+          isVideoAccountPlatform(props.account.platform) ||
+          isAudioAccountPlatform(props.account.platform)) &&
+        !newBaseUrl
+      ) {
         appStore.showError(t('admin.accounts.pleaseEnterBaseUrl'))
         return
       }
@@ -4103,6 +4138,9 @@ const handleSubmit = async () => {
       }
       if (isVideoAccountPlatform(props.account.platform)) {
         newCredentials.auth_mode = getVideoAccountPlatformMetadata(props.account.platform).authScheme
+      }
+      if (isAudioAccountPlatform(props.account.platform)) {
+        newCredentials.auth_mode = getAudioAccountPlatformMetadata(props.account.platform).authScheme
       }
 
       // Handle API key

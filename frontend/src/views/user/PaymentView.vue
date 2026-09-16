@@ -35,19 +35,50 @@
             <div class="card p-5">
               <p class="text-xs font-medium text-gray-400 dark:text-gray-500">{{ t('payment.rechargeAccount') }}</p>
               <p class="mt-1 text-base font-semibold text-gray-900 dark:text-white">{{ user?.username || '' }}</p>
-              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ user?.balance?.toFixed(2) || '0.00' }}</p>
+              <p class="mt-0.5 text-sm font-medium text-green-600 dark:text-green-400">{{ t('payment.currentBalance') }}: {{ formatBalanceAmount(userDisplayBalance(user)) }} {{ t('payment.balanceUnit') }}</p>
             </div>
             <div v-if="enabledMethods.length === 0" class="card py-16 text-center">
               <p class="text-gray-500 dark:text-gray-400">{{ t('payment.notAvailable') }}</p>
             </div>
             <template v-else>
             <div class="card p-6">
-              <AmountInput
-                v-model="amount"
-                :amounts="[10, 20, 50, 100, 200, 500, 1000, 2000, 5000]"
-                :min="globalMinAmount"
-                :max="globalMaxAmount"
-              />
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('payment.selectProduct') }}</p>
+                <p class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.realChargeHint') }}</p>
+              </div>
+              <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button
+                  v-for="product in balanceProducts"
+                  :key="product.id"
+                  type="button"
+                  class="flex min-h-28 items-center justify-between gap-4 rounded-lg border p-4 text-left transition-all"
+                  :class="[
+                    amount === product.pay_amount
+                      ? 'border-primary-500 bg-primary-50 shadow-sm dark:border-primary-400 dark:bg-primary-500/10'
+                      : 'border-gray-200 bg-white hover:border-primary-200 hover:bg-primary-50/50 dark:border-dark-700 dark:bg-dark-800 dark:hover:border-primary-500/40 dark:hover:bg-primary-500/5',
+                    !balanceProductFitsAnyMethod(product) ? 'cursor-not-allowed opacity-50' : '',
+                  ]"
+                  :disabled="!balanceProductFitsAnyMethod(product)"
+                  @click="selectBalanceProduct(product)"
+                >
+                  <span class="min-w-0">
+                    <span class="block text-lg font-bold text-gray-900 dark:text-white">
+                      {{ formatBalanceAmount(product.display_amount) }} {{ t('payment.balanceUnit') }}
+                    </span>
+                    <span v-if="product.lottery_chances > 0" class="mt-1 block text-xs font-medium text-amber-600 dark:text-amber-300">
+                      {{ t('payment.lotteryChances', { count: product.lottery_chances }) }}
+                    </span>
+                    <span v-else class="mt-1 block text-xs text-gray-400 dark:text-gray-500">
+                      {{ t('payment.noLotteryChances') }}
+                    </span>
+                  </span>
+                  <span class="shrink-0 text-right">
+                    <span class="block text-xl font-bold text-primary-600 dark:text-primary-400">¥{{ formatBalanceAmount(product.pay_amount) }}</span>
+                    <span v-if="product.original_amount && product.original_amount > product.pay_amount" class="block text-xs text-gray-400 line-through dark:text-gray-500">¥{{ formatBalanceAmount(product.original_amount) }}</span>
+                    <span v-if="product.stock_label" class="mt-2 inline-flex rounded-md bg-primary-50 px-2 py-1 text-xs font-semibold text-primary-600 dark:bg-primary-500/10 dark:text-primary-300">{{ product.stock_label }}</span>
+                  </span>
+                </button>
+              </div>
               <p v-if="amountError" class="mt-2 text-xs text-amber-600 dark:text-amber-300">{{ amountError }}</p>
             </div>
             <div v-if="enabledMethods.length >= 1" class="card p-6">
@@ -71,13 +102,10 @@
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
                   <span class="text-lg font-bold text-primary-600 dark:text-primary-400">{{ formatSelectedPaymentAmount(totalAmount) }}</span>
                 </div>
-                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
+                <div class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
-                  <span class="text-gray-900 dark:text-white">${{ creditedAmount.toFixed(2) }}</span>
+                  <span class="text-gray-900 dark:text-white">{{ formatBalanceAmount(creditedAmount) }} {{ t('payment.balanceUnit') }}</span>
                 </div>
-                <p v-if="balanceRechargeMultiplier !== 1" class="border-t border-gray-200 pt-2 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
-                  {{ t('payment.rechargeRatePreview', { usd: balanceRechargeMultiplier.toFixed(2) }) }}
-                </p>
               </div>
             </div>
             <button :class="['btn w-full py-3 text-base font-medium', paymentButtonClass]" :disabled="!canSubmit || submitting" @click="handleSubmitRecharge">
@@ -261,11 +289,11 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
+import { userDisplayBalance } from '@/utils/balance'
 import { isMobileDevice } from '@/utils/device'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel, type PeakRateFields } from '@/utils/peak-rate'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { BalanceRechargeProduct, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
 import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
@@ -346,6 +374,7 @@ function emptyPaymentState(): PaymentRecoverySnapshot {
   return {
     orderId: 0,
     amount: 0,
+    displayAmount: undefined,
     qrCode: '',
     expiresAt: '',
     paymentType: '',
@@ -495,6 +524,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
+  balance_products: [],
   plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
@@ -508,16 +538,26 @@ const tabs = computed(() => {
 const visibleMethods = computed(() => getVisibleMethods(checkout.value.methods))
 const enabledMethods = computed(() => Object.keys(visibleMethods.value))
 const validAmount = computed(() => amount.value ?? 0)
-const balanceRechargeMultiplier = computed(() => {
-  const multiplier = checkout.value.balance_recharge_multiplier
-  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1
-})
 // 订阅 CNY 换算汇率（1 USD = X CNY）。0 = 未配置，订阅保持 price 直付（与后端 opt-in 条件严格镜像）。
 const subscriptionUsdToCnyRate = computed(() => {
   const rate = checkout.value.subscription_usd_to_cny_rate
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
-const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+const defaultBalanceProducts: BalanceRechargeProduct[] = [
+  { id: 'balance_12', pay_amount: 12, display_amount: 18, original_amount: 18, lottery_chances: 0, stock_label: '库存一般' },
+  { id: 'balance_88', pay_amount: 88, display_amount: 128, original_amount: 128, lottery_chances: 1, stock_label: '库存充足' },
+  { id: 'balance_258', pay_amount: 258, display_amount: 388, original_amount: 388, lottery_chances: 3, stock_label: '库存一般' },
+  { id: 'balance_688', pay_amount: 688, display_amount: 1088, original_amount: 1088, lottery_chances: 14, stock_label: '库存一般' },
+  { id: 'balance_1288', pay_amount: 1288, display_amount: 2088, original_amount: 2088, lottery_chances: 30, stock_label: '库存一般' },
+]
+const balanceProducts = computed(() => {
+  const products = checkout.value.balance_products
+  return Array.isArray(products) && products.length > 0 ? products : defaultBalanceProducts
+})
+const selectedBalanceProduct = computed(() =>
+  balanceProducts.value.find(product => product.pay_amount === validAmount.value) ?? null
+)
+const creditedAmount = computed(() => selectedBalanceProduct.value?.display_amount ?? validAmount.value)
 
 // Adaptive grid: center single card, 2-col for 2 plans, 3-col for 3+
 const planGridClass = computed(() => {
@@ -535,20 +575,6 @@ function amountFitsMethod(amt: number, methodType: string): boolean {
   if (ml.single_max > 0 && amt > ml.single_max) return false
   return true
 }
-
-// Visible methods decide the amount range shown to users.
-const globalMinAmount = computed(() => {
-  const limits = Object.values(visibleMethods.value)
-  if (limits.length === 0) return 0
-  if (limits.some(limit => limit.single_min <= 0)) return 0
-  return Math.min(...limits.map(limit => limit.single_min))
-})
-const globalMaxAmount = computed(() => {
-  const limits = Object.values(visibleMethods.value)
-  if (limits.length === 0) return 0
-  if (limits.some(limit => limit.single_max <= 0)) return 0
-  return Math.max(...limits.map(limit => limit.single_max))
-})
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
@@ -595,8 +621,27 @@ function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
 }
 
+function formatBalanceAmount(value: number): string {
+  if (!Number.isFinite(value)) return '0.00'
+  return new Intl.NumberFormat(localeCode.value, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
 function formatSelectedSubscriptionPaymentAmount(value: number): string {
   return formatSelectedPaymentAmount(subscriptionPaymentAmountForCurrency(value, selectedCurrency.value))
+}
+
+function balanceProductFitsAnyMethod(product: BalanceRechargeProduct): boolean {
+  return enabledMethods.value.some(method => amountFitsMethod(product.pay_amount, method))
+}
+
+function selectBalanceProduct(product: BalanceRechargeProduct) {
+  if (!balanceProductFitsAnyMethod(product)) return
+  amount.value = product.pay_amount
+  errorMessage.value = ''
+  errorHintMessage.value = ''
 }
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
@@ -625,6 +670,7 @@ const totalAmount = computed(() =>
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
+  if (!selectedBalanceProduct.value) return t('payment.invalidProduct')
   // No method can handle this amount
   if (!enabledMethods.value.some((m) => amountFitsMethod(validAmount.value, m))) {
     return t('payment.amountNoMethod')
@@ -640,6 +686,7 @@ const amountError = computed(() => {
 
 const canSubmit = computed(() =>
   validAmount.value > 0
+    && selectedBalanceProduct.value !== null
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
 )
@@ -1099,6 +1146,10 @@ onMounted(async () => {
         return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
       })
       selectedMethod.value = sorted[0]
+    }
+    if (!checkout.value.balance_disabled && !amount.value && balanceProducts.value.length > 0) {
+      const defaultProduct = balanceProducts.value.find(balanceProductFitsAnyMethod) ?? balanceProducts.value[0]
+      amount.value = defaultProduct.pay_amount
     }
     if (typeof window !== 'undefined') {
       if (hasWechatResumeQuery(route.query)) {

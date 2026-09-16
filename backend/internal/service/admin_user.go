@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -499,14 +500,25 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	}
 
 	oldBalance := user.Balance
+	oldDisplayBalance := user.DisplayBalance
+	if oldDisplayBalance <= 0 && oldBalance > 0 {
+		oldDisplayBalance = oldBalance
+	}
 
 	switch operation {
 	case "set":
 		user.Balance = balance
+		user.DisplayBalance = balance
 	case "add":
 		user.Balance += balance
+		user.DisplayBalance = oldDisplayBalance + balance
 	case "subtract":
 		user.Balance -= balance
+		if oldBalance > 0 {
+			user.DisplayBalance = math.Max(oldDisplayBalance-(balance*oldDisplayBalance/oldBalance), 0)
+		} else {
+			user.DisplayBalance = math.Max(oldDisplayBalance-balance, 0)
+		}
 	}
 
 	if user.Balance < 0 {

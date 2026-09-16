@@ -934,6 +934,8 @@ export default {
         qwen: 'Qwen',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        'minimax-speech': 'MiniMax-Speech',
+        'qwen-tts': 'Qwen TTS',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",

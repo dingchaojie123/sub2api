@@ -193,7 +193,7 @@ async function fillProviderApiKeyAccount(
 
 async function fillVideoApiKeyAccount(
   wrapper: ReturnType<typeof mountModal>,
-  platform: 'kling' | 'happyhourse' | 'seedance' | 'bytedance' | 'wan3' | 'minimax-h3' | 'pixverse-v6'
+  platform: 'kling' | 'happyhourse' | 'seedance' | 'bytedance' | 'wan3' | 'minimax-h3' | 'pixverse-v6' | 'grok-imagine-video' | 'kuaishou'
 ) {
   await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
   await flushPromises()
@@ -201,6 +201,16 @@ async function fillVideoApiKeyAccount(
   await wrapper
     .get('form#create-account-form input[type="text"]:not([data-tour="account-form-name"])')
     .setValue(`https://${platform}.example.com/v1`)
+  await wrapper.get('form#create-account-form input[type="password"]').setValue(`${platform}-key`)
+}
+
+async function fillAudioApiKeyAccount(
+  wrapper: ReturnType<typeof mountModal>,
+  platform: 'minimax-speech' | 'qwen-tts'
+) {
+  await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
+  await flushPromises()
+  await wrapper.get('form#create-account-form input[data-tour="account-form-name"]').setValue(`${platform} account`)
   await wrapper.get('form#create-account-form input[type="password"]').setValue(`${platform}-key`)
 }
 
@@ -238,15 +248,15 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.openai_long_context_billing_enabled).toBe(false)
   })
 
-  it('keeps all platform options in one horizontally scrollable row', () => {
+  it('wraps all platform options so newly added platforms stay visible', () => {
     const wrapper = mountModal()
     const platformSelector = wrapper.get('[data-tour="account-form-platform"]')
     const platformButtons = platformSelector.findAll('button')
 
-    expect(platformSelector.classes()).toContain('flex-nowrap')
-    expect(platformSelector.classes()).not.toContain('flex-wrap')
-    expect(platformSelector.classes()).toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(17)
+    expect(platformSelector.classes()).toContain('flex-wrap')
+    expect(platformSelector.classes()).not.toContain('flex-nowrap')
+    expect(platformSelector.classes()).not.toContain('overflow-x-auto')
+    expect(platformButtons).toHaveLength(21)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')
       expect(button.classes()).not.toContain('flex-1')
@@ -440,6 +450,25 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     })
   })
 
+  it('creates Qwen TTS with ModelVerse bearer credentials', async () => {
+    const wrapper = mountModal()
+    await fillAudioApiKeyAccount(wrapper, 'qwen-tts')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({
+      platform: 'qwen-tts',
+      type: 'apikey',
+      credentials: {
+        base_url: 'https://api.modelverse.cn/v1',
+        api_key: 'qwen-tts-key',
+        auth_mode: 'bearer'
+      }
+    })
+  })
+
   it.each(['kling', 'happyhourse', 'seedance'] as const)(
     'creates %s as a Bearer API key video account',
     async (platform) => {
@@ -463,7 +492,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     }
   )
 
-  it.each(['bytedance', 'wan3', 'minimax-h3', 'pixverse-v6'] as const)(
+  it.each(['bytedance', 'wan3', 'minimax-h3', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'] as const)(
     'creates the new %s video platform as a Bearer API key account',
     async (platform) => {
       const wrapper = mountModal()
@@ -509,8 +538,18 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
             'pixverse-v6': 'pixverse-v6'
           }
         })
+      } else if (platform === 'grok-imagine-video') {
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'grok-imagine-video': 'grok-imagine-video'
+          }
+        })
       } else {
-        expect(credentials).not.toHaveProperty('model_mapping')
+        expect(credentials).toMatchObject({
+          model_mapping: {
+            'kling-v3': 'kling-v3'
+          }
+        })
       }
     }
   )

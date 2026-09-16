@@ -189,6 +189,24 @@ func TestFilterUpstreamModelsForPlatform(t *testing.T) {
 			want:     []string{PixverseV6VideoDefaultModel},
 		},
 		{
+			name:     "Grok Imagine Video keeps only the fixed ModelVerse model",
+			platform: PlatformGrokImagineVideo,
+			models:   []string{GrokImagineVideoDefaultModel, "grok-imagine-video-1.5", "gpt-5"},
+			want:     []string{GrokImagineVideoDefaultModel},
+		},
+		{
+			name:     "MiniMax Speech keeps only live speech models",
+			platform: PlatformMiniMaxSpeech,
+			models:   []string{"speech-2.8-hd", "MiniMax-Speech-3", "MiniMax-H3", "gpt-5"},
+			want:     []string{"speech-2.8-hd", "MiniMax-Speech-3"},
+		},
+		{
+			name:     "Qwen TTS keeps only live Qwen TTS models",
+			platform: PlatformQwenTTS,
+			models:   []string{"qwen3-tts-flash", "qwen-tts-pro", "qwen3", "IndexTTS-2"},
+			want:     []string{"qwen3-tts-flash", "qwen-tts-pro"},
+		},
+		{
 			name:     "non video platforms are unchanged",
 			platform: PlatformOpenAI,
 			models:   []string{"gpt-5", "qwen3"},
@@ -227,6 +245,58 @@ func TestFetchUpstreamSupportedModelsUsesByteDanceFixedModelWithoutHTTPProbe(t *
 	require.NoError(t, err)
 	require.Equal(t, []string{ByteDanceVideoDefaultModel}, models)
 	require.Empty(t, upstream.requests)
+}
+
+func TestFetchUpstreamSupportedModelsFetchesLiveAudioModels(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		platform string
+		body     string
+		want     []string
+	}{
+		{
+			name:     "MiniMax Speech",
+			platform: PlatformMiniMaxSpeech,
+			body:     `{"data":[{"id":"speech-2.9-hd"},{"id":"MiniMax-H3"},{"id":"speech-2.8-turbo"}]}`,
+			want:     []string{"speech-2.8-turbo", "speech-2.9-hd"},
+		},
+		{
+			name:     "Qwen TTS",
+			platform: PlatformQwenTTS,
+			body:     `{"data":[{"id":"qwen3-tts-flash"},{"id":"qwen-tts-pro"},{"id":"qwen3"}]}`,
+			want:     []string{"qwen-tts-pro", "qwen3-tts-flash"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{resp: &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(tt.body)),
+			}}
+			svc := &AccountTestService{httpUpstream: upstream, cfg: upstreamModelSyncTestConfig()}
+
+			models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+				ID:          99,
+				Platform:    tt.platform,
+				Type:        AccountTypeAPIKey,
+				Concurrency: 1,
+				Credentials: map[string]any{
+					"api_key":  "audio-key",
+					"base_url": "https://api.modelverse.cn/v1",
+				},
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.want, models)
+			require.NotNil(t, upstream.lastReq)
+			require.Equal(t, "https://api.modelverse.cn/v1/models", upstream.lastReq.URL.String())
+			require.Equal(t, "Bearer audio-key", upstream.lastReq.Header.Get("Authorization"))
+		})
+	}
 }
 
 func TestFetchUpstreamSupportedModelsUsesMiniMaxH3FixedModelWithoutHTTPProbe(t *testing.T) {
@@ -272,6 +342,29 @@ func TestFetchUpstreamSupportedModelsUsesPixverseV6FixedModelWithoutHTTPProbe(t 
 
 	require.NoError(t, err)
 	require.Equal(t, []string{PixverseV6VideoDefaultModel}, models)
+	require.Empty(t, upstream.requests)
+}
+
+func TestFetchUpstreamSupportedModelsUsesGrokImagineVideoFixedModelWithoutHTTPProbe(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg:          upstreamModelSyncTestConfig(),
+	}
+
+	models, err := svc.FetchUpstreamSupportedModels(context.Background(), &Account{
+		ID:       16,
+		Platform: PlatformGrokImagineVideo,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "grok-key",
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, []string{GrokImagineVideoDefaultModel}, models)
 	require.Empty(t, upstream.requests)
 }
 

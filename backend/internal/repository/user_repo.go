@@ -24,6 +24,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -100,6 +101,16 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		Save(txCtx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
+	}
+	displayBalance := userIn.DisplayBalance
+	if displayBalance <= 0 && userIn.Balance > 0 {
+		displayBalance = userIn.Balance
+	}
+	if displayBalance != 0 {
+		if err := setUserDisplayBalanceSnapshot(txCtx, txClient, created.ID, displayBalance); err != nil {
+			return err
+		}
+		created.DisplayBalance = displayBalance
 	}
 
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, created.ID, userIn.AllowedGroups); err != nil {
@@ -258,6 +269,13 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
 	}
+	displayBalance := userIn.DisplayBalance
+	if displayBalance <= 0 && userIn.Balance > 0 {
+		displayBalance = userIn.Balance
+	}
+	if err := setUserDisplayBalanceSnapshot(txCtx, txClient, updated.ID, displayBalance); err != nil {
+		return err
+	}
 
 	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
 		return err
@@ -273,6 +291,41 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 	}
 
 	userIn.UpdatedAt = updated.UpdatedAt
+	userIn.DisplayBalance = displayBalance
+	return nil
+}
+
+func setUserDisplayBalanceSnapshot(ctx context.Context, client *dbent.Client, userID int64, displayBalance float64) error {
+	nowExpr := userRepoCurrentTimestampExpr(client)
+	if userRepoDialect(client) == dialect.Postgres {
+		result, err := client.ExecContext(ctx, fmt.Sprintf(`
+UPDATE users
+SET display_balance = $1,
+    updated_at = %s
+WHERE id = $2 AND deleted_at IS NULL`, nowExpr), displayBalance, userID)
+		if err != nil {
+			return err
+		}
+		if affected, err := result.RowsAffected(); err != nil {
+			return err
+		} else if affected == 0 {
+			return service.ErrUserNotFound
+		}
+		return nil
+	}
+	result, err := client.ExecContext(ctx, fmt.Sprintf(`
+UPDATE users
+SET display_balance = ?,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL`, nowExpr), displayBalance, userID)
+	if err != nil {
+		return err
+	}
+	if affected, err := result.RowsAffected(); err != nil {
+		return err
+	} else if affected == 0 {
+		return service.ErrUserNotFound
+	}
 	return nil
 }
 
@@ -738,29 +791,25 @@ func (r *userRepository) filterUsersByAttributes(ctx context.Context, attrs map[
 
 func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount float64) error {
 	client := clientFromContext(ctx, r.client)
-	update := client.User.Update().Where(dbuser.IDEQ(id)).AddBalance(amount)
-	// Track cumulative recharge amount for percentage-based notifications
-	if amount > 0 {
-		update = update.AddTotalRecharged(amount)
-	}
-	n, err := update.Save(ctx)
+	query, args := buildUpdateBalanceSQL(client, id, amount)
+	result, err := client.ExecContext(ctx, query, args...)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
-	if n == 0 {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return service.ErrUserNotFound
 	}
 	return nil
 }
 
 func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error {
-	const updateSQL = `
-		UPDATE users
-		SET balance = GREATEST(balance + $1, 0), updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-	`
 	client := clientFromContext(ctx, r.client)
-	result, err := client.ExecContext(ctx, updateSQL, delta, id)
+	updateSQL, args := buildRedeemBalanceAdjustmentSQL(client, id, delta)
+	result, err := client.ExecContext(ctx, updateSQL, args...)
 	if err != nil {
 		return err
 	}
@@ -779,28 +828,166 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 // 中间件会阻止余额 <= 0 的用户发起后续请求
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().
-		Where(dbuser.IDEQ(id), dbuser.BalanceGTE(amount)).
-		AddBalance(-amount).
-		Save(ctx)
+	updateSQL, args := buildDeductBalanceSQL(client, id, amount, true)
+	result, err := client.ExecContext(ctx, updateSQL, args...)
 	if err != nil {
 		return err
 	}
-	if n > 0 {
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected > 0 {
 		return nil
 	}
 
-	n, err = client.User.Update().
-		Where(dbuser.IDEQ(id)).
-		AddBalance(-amount).
-		Save(ctx)
+	updateSQL, args = buildDeductBalanceSQL(client, id, amount, false)
+	result, err = client.ExecContext(ctx, updateSQL, args...)
 	if err != nil {
 		return err
 	}
-	if n == 0 {
+	affected, err = result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return service.ErrUserNotFound
 	}
 	return nil
+}
+
+func buildUpdateBalanceSQL(client *dbent.Client, userID int64, amount float64) (string, []any) {
+	nowExpr := userRepoCurrentTimestampExpr(client)
+	if amount >= 0 {
+		if userRepoDialect(client) == dialect.Postgres {
+			return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + $1,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + $1
+        ELSE balance + $1
+    END,
+    total_recharged = total_recharged + $1,
+    updated_at = %s
+WHERE id = $2 AND deleted_at IS NULL`, nowExpr), []any{amount, userID}
+		}
+		return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + ?,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + ?
+        ELSE balance + ?
+    END,
+    total_recharged = total_recharged + ?,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL`, nowExpr), []any{amount, amount, amount, amount, userID}
+	}
+	return buildDeductBalanceSQL(client, userID, -amount, false)
+}
+
+func buildDeductBalanceSQL(client *dbent.Client, userID int64, amount float64, requireSufficientBalance bool) (string, []any) {
+	nowExpr := userRepoCurrentTimestampExpr(client)
+	whereBalance := ""
+	if requireSufficientBalance {
+		whereBalance = " AND balance >= $1"
+	}
+	if userRepoDialect(client) == dialect.Postgres {
+		return fmt.Sprintf(`
+UPDATE users
+SET balance = balance - $1,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+            THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+        ELSE 0
+    END,
+    updated_at = %s
+WHERE id = $2 AND deleted_at IS NULL%s`, nowExpr, whereBalance), []any{amount, userID}
+	}
+	whereBalance = ""
+	if requireSufficientBalance {
+		whereBalance = " AND balance >= ?"
+	}
+	return fmt.Sprintf(`
+UPDATE users
+SET balance = balance - ?,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) - (? * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+            THEN COALESCE(display_balance, 0) - (? * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+        ELSE 0
+    END,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL%s`, nowExpr, whereBalance), append([]any{amount, amount, amount, userID}, optionalDeductBalanceArg(amount, requireSufficientBalance)...)
+}
+
+func buildRedeemBalanceAdjustmentSQL(client *dbent.Client, userID int64, delta float64) (string, []any) {
+	nowExpr := userRepoCurrentTimestampExpr(client)
+	if delta >= 0 {
+		if userRepoDialect(client) == dialect.Postgres {
+			return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + $1,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + $1
+        ELSE balance + $1
+    END,
+    updated_at = %s
+WHERE id = $2 AND deleted_at IS NULL`, nowExpr), []any{delta, userID}
+		}
+		return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + ?,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + ?
+        ELSE balance + ?
+    END,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL`, nowExpr), []any{delta, delta, delta, userID}
+	}
+
+	amount := -delta
+	if userRepoDialect(client) == dialect.Postgres {
+		return fmt.Sprintf(`
+UPDATE users
+SET balance = CASE WHEN balance - $1 > 0 THEN balance - $1 ELSE 0 END,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+            THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+        ELSE 0
+    END,
+    updated_at = %s
+WHERE id = $2 AND deleted_at IS NULL`, nowExpr), []any{amount, userID}
+	}
+	return fmt.Sprintf(`
+UPDATE users
+SET balance = CASE WHEN balance - ? > 0 THEN balance - ? ELSE 0 END,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) - (? * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+            THEN COALESCE(display_balance, 0) - (? * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+        ELSE 0
+    END,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL`, nowExpr), []any{amount, amount, amount, amount, userID}
+}
+
+func optionalDeductBalanceArg(amount float64, include bool) []any {
+	if !include {
+		return nil
+	}
+	return []any{amount}
+}
+
+func userRepoCurrentTimestampExpr(client *dbent.Client) string {
+	if userRepoDialect(client) == dialect.Postgres {
+		return "NOW()"
+	}
+	return "CURRENT_TIMESTAMP"
+}
+
+func userRepoDialect(client *dbent.Client) string {
+	if client == nil || client.Driver() == nil {
+		return ""
+	}
+	return client.Driver().Dialect()
 }
 
 func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
@@ -1097,11 +1284,19 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 		return
 	}
 	dst.ID = src.ID
+	dst.DisplayBalance = displayBalanceOrBalance(src.DisplayBalance, src.Balance)
 	dst.SignupSource = src.SignupSource
 	dst.LastLoginAt = src.LastLoginAt
 	dst.LastActiveAt = src.LastActiveAt
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+}
+
+func displayBalanceOrBalance(displayBalance, balance float64) float64 {
+	if displayBalance > 0 || balance <= 0 {
+		return displayBalance
+	}
+	return balance
 }
 
 func userSignupSourceOrDefault(signupSource string) string {

@@ -63,6 +63,10 @@ const (
 	FieldTotalRecharged = "total_recharged"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
+	// FieldDisplayBalance holds the string denoting the display_balance field in the database.
+	FieldDisplayBalance = "display_balance"
+	// FieldFrozenDisplayBalance holds the string denoting the frozen_display_balance field in the database.
+	FieldFrozenDisplayBalance = "frozen_display_balance"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -218,6 +222,8 @@ var Columns = []string{
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
 	FieldRpmLimit,
+	FieldDisplayBalance,
+	FieldFrozenDisplayBalance,
 }
 
 var (

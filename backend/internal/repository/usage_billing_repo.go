@@ -245,6 +245,11 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
 		SET balance = balance - $1,
+			display_balance = CASE
+				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+				ELSE 0
+			END,
 			updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
 		RETURNING balance
@@ -259,6 +264,11 @@ func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, am
 	err = tx.QueryRowContext(ctx, `
 		UPDATE users
 		SET balance = balance - $1,
+			display_balance = CASE
+				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+				ELSE 0
+			END,
 			updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL
 		RETURNING balance
@@ -280,7 +290,13 @@ func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
 		SET balance = balance - $1,
+			display_balance = CASE
+				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+				ELSE 0
+			END,
 			frozen_balance = COALESCE(frozen_balance, 0) + $1,
+			frozen_display_balance = COALESCE(frozen_display_balance, 0) + ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END),
 			updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
 		RETURNING balance, frozen_balance
@@ -324,7 +340,23 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 		SET balance = balance
 				+ CASE WHEN $1 > $2 THEN $1 - $2 ELSE 0 END
 				- CASE WHEN $2 > $1 THEN $2 - $1 ELSE 0 END,
+			display_balance = CASE
+				WHEN $1 > $2 THEN COALESCE(display_balance, 0)
+					+ (CASE WHEN $1 > 0 THEN ($1 - $2) / $1 ELSE 0 END)
+						* (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
+				WHEN $2 > $1 THEN CASE
+					WHEN COALESCE(display_balance, 0) - (($2 - $1) * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
+						THEN COALESCE(display_balance, 0) - (($2 - $1) * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
+					ELSE 0
+				END
+				ELSE COALESCE(display_balance, 0)
+			END,
 			frozen_balance = COALESCE(frozen_balance, 0) - $1,
+			frozen_display_balance = CASE
+				WHEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END) > 0
+					THEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
+				ELSE 0
+			END,
 			updated_at = NOW()
 		WHERE id = $3 AND deleted_at IS NULL AND COALESCE(frozen_balance, 0) >= $1
 		RETURNING balance, frozen_balance
@@ -365,7 +397,14 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	err := tx.QueryRowContext(ctx, `
 		UPDATE users
 		SET balance = balance + $1,
+			display_balance = COALESCE(display_balance, 0)
+				+ (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE $1 END),
 			frozen_balance = COALESCE(frozen_balance, 0) - $1,
+			frozen_display_balance = CASE
+				WHEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END) > 0
+					THEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
+				ELSE 0
+			END,
 			updated_at = NOW()
 		WHERE id = $2 AND deleted_at IS NULL AND COALESCE(frozen_balance, 0) >= $1
 		RETURNING balance, frozen_balance

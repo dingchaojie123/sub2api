@@ -101,7 +101,11 @@ const platformLabel = computed(() => {
   if (props.platform === 'bytedance') return 'ByteDance'
   if (props.platform === 'wan3') return 'Wan3.0'
   if (props.platform === 'minimax-h3') return 'MiniMax-H3'
+  if (props.platform === 'minimax-speech') return 'MiniMax-Speech'
+  if (props.platform === 'qwen-tts') return 'Qwen TTS'
   if (props.platform === 'pixverse-v6') return 'Pixverse-V6'
+  if (props.platform === 'grok-imagine-video') return 'Grok Imagine Video'
+  if (props.platform === 'kuaishou') return 'Kuaishou'
   return 'Gemini'
 })
 
@@ -220,8 +224,20 @@ const platformClass = computed(() => {
   if (props.platform === 'minimax-h3') {
     return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
   }
+  if (props.platform === 'minimax-speech') {
+    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+  }
+  if (props.platform === 'qwen-tts') {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+  }
   if (props.platform === 'pixverse-v6') {
     return 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300'
+  }
+  if (props.platform === 'grok-imagine-video') {
+    return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
+  }
+  if (props.platform === 'kuaishou') {
+    return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
   }
   return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
 })
@@ -272,8 +288,20 @@ const typeClass = computed(() => {
   if (props.platform === 'minimax-h3') {
     return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'
   }
+  if (props.platform === 'minimax-speech') {
+    return 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'
+  }
+  if (props.platform === 'qwen-tts') {
+    return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
+  }
   if (props.platform === 'pixverse-v6') {
     return 'bg-lime-100 text-lime-600 dark:bg-lime-900/30 dark:text-lime-300'
+  }
+  if (props.platform === 'grok-imagine-video') {
+    return 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300'
+  }
+  if (props.platform === 'kuaishou') {
+    return 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
   }
   return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
 })

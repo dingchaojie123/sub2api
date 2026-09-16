@@ -80,7 +80,7 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	if account == nil {
 		return nil, newUpstreamModelSyncConfigError("Account is required", nil)
 	}
-	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		fixedModels := []string{ByteDanceVideoDefaultModel}
 		if account.Platform == PlatformWan3 {
@@ -92,6 +92,12 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 		} else if account.Platform == PlatformPixverseV6 {
 			platformLabel = "Pixverse-V6"
 			fixedModels = []string{PixverseV6VideoDefaultModel}
+		} else if account.Platform == PlatformGrokImagineVideo {
+			platformLabel = "Grok Imagine Video"
+			fixedModels = []string{GrokImagineVideoDefaultModel}
+		} else if account.Platform == PlatformKuaishou {
+			platformLabel = "Kuaishou"
+			fixedModels = []string{KuaishouVideoDefaultModel}
 		}
 		if account.Type != AccountTypeAPIKey {
 			return nil, newUpstreamModelSyncUnsupportedError(
@@ -156,6 +162,8 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 
 func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
 	switch {
+	case IsAudioPlatform(account.Platform):
+		return s.buildAudioUpstreamModelsRequest(ctx, account)
 	case account.Platform == PlatformAntigravity:
 		return s.buildAntigravityAPIKeyModelsRequest(ctx, account)
 	case account.IsGrok():
@@ -175,6 +183,34 @@ func (s *AccountTestService) buildUpstreamModelsRequest(ctx context.Context, acc
 			fmt.Sprintf("Unsupported platform for upstream model sync: %s", account.Platform), nil,
 		)
 	}
+}
+
+func (s *AccountTestService) buildAudioUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
+	if account.Type != AccountTypeAPIKey {
+		return nil, newUpstreamModelSyncUnsupportedError(
+			fmt.Sprintf("Unsupported audio account type for upstream model sync: %s", account.Type), nil,
+		)
+	}
+	apiKey := strings.TrimSpace(account.GetOpenAIApiKey())
+	if apiKey == "" {
+		return nil, newUpstreamModelSyncConfigError("No audio API key is available", nil)
+	}
+	baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
+	if baseURL == "" {
+		baseURL = AudioDefaultBaseURL
+	}
+	normalizedBaseURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid audio base URL", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, buildOpenAIModelsURL(normalizedBaseURL), nil)
+	if err != nil {
+		return nil, newUpstreamModelSyncConfigError("Invalid audio model list URL", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	account.ApplyHeaderOverrides(req.Header)
+	return req, nil
 }
 
 func (s *AccountTestService) buildGrokUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
@@ -238,7 +274,7 @@ func (s *AccountTestService) buildJimengUpstreamModelsRequest(ctx context.Contex
 }
 
 func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
-	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		if account.Platform == PlatformWan3 {
 			platformLabel = "Wan3.0"
@@ -246,6 +282,10 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 			platformLabel = "MiniMax-H3"
 		} else if account.Platform == PlatformPixverseV6 {
 			platformLabel = "Pixverse-V6"
+		} else if account.Platform == PlatformGrokImagineVideo {
+			platformLabel = "Grok Imagine Video"
+		} else if account.Platform == PlatformKuaishou {
+			platformLabel = "Kuaishou"
 		}
 		return nil, newUpstreamModelSyncUnsupportedError(
 			platformLabel+" ModelVerse does not expose a model-list endpoint; its fixed model is configured locally",
@@ -616,7 +656,7 @@ func dedupeAndSortModelIDs(models []string) []string {
 }
 
 func filterUpstreamModelsForPlatform(platform string, models []string) []string {
-	if !IsPPVideoPlatform(platform) {
+	if !IsPPVideoPlatform(platform) && !IsAudioPlatform(platform) {
 		return models
 	}
 
@@ -624,6 +664,15 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 	for _, model := range models {
 		normalized := strings.ToLower(strings.TrimSpace(model))
 		switch platform {
+		case PlatformMiniMaxSpeech:
+			if strings.HasPrefix(normalized, "speech-") ||
+				(strings.Contains(normalized, "minimax") && strings.Contains(normalized, "speech")) {
+				filtered = append(filtered, model)
+			}
+		case PlatformQwenTTS:
+			if strings.HasPrefix(normalized, "qwen") && strings.Contains(normalized, "tts") {
+				filtered = append(filtered, model)
+			}
 		case PlatformKling:
 			if strings.HasPrefix(normalized, "kling-") {
 				filtered = append(filtered, model)
@@ -651,6 +700,14 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 			}
 		case PlatformPixverseV6:
 			if strings.EqualFold(strings.TrimSpace(model), PixverseV6VideoDefaultModel) {
+				filtered = append(filtered, model)
+			}
+		case PlatformGrokImagineVideo:
+			if strings.EqualFold(strings.TrimSpace(model), GrokImagineVideoDefaultModel) {
+				filtered = append(filtered, model)
+			}
+		case PlatformKuaishou:
+			if strings.EqualFold(strings.TrimSpace(model), KuaishouVideoDefaultModel) {
 				filtered = append(filtered, model)
 			}
 		}

@@ -35,7 +35,7 @@
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order?.amount?.toFixed(2) }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ formattedOrderAmount }}</span>
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -70,7 +70,7 @@
           </div>
           <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-700">
             <div class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.orderAmount') }}</div>
-            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order?.amount?.toFixed(2) }}</div>
+            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ formattedOrderAmount }}</div>
           </div>
         </div>
 
@@ -95,7 +95,7 @@
       <div>
         <label class="input-label">{{ t('payment.admin.refundAmount') }}</label>
         <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ creditedAmountSymbol }}</span>
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ paymentAmountSymbol }}</span>
           <input
             v-model.number="form.amount"
             type="number"
@@ -107,7 +107,7 @@
           />
         </div>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('payment.admin.maxRefundable') }}: {{ creditedAmountSymbol }}{{ maxRefundable.toFixed(2) }}
+          {{ t('payment.admin.maxRefundable') }}: {{ paymentAmountSymbol }}{{ maxRefundable.toFixed(2) }}
         </p>
       </div>
 
@@ -188,8 +188,19 @@ const emit = defineEmits<{
 }>()
 
 const creditedAmountSymbol = currencySymbol('USD')
-
 const paymentAmountSymbol = computed(() => currencySymbol(props.order?.currency))
+
+const formattedOrderAmount = computed(() => {
+  const order = props.order
+  if (!order) return ''
+  if (order.order_type === 'balance') {
+    const displayAmount = typeof order.display_amount === 'number' && Number.isFinite(order.display_amount)
+      ? order.display_amount
+      : order.amount
+    return `${displayAmount.toFixed(Number.isInteger(displayAmount) ? 0 : 2)} ${t('payment.balanceUnit')}`
+  }
+  return `${creditedAmountSymbol}${order.amount.toFixed(2)}`
+})
 
 const form = reactive({
   amount: 0,

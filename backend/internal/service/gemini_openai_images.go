@@ -3,8 +3,10 @@ package service
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -15,9 +17,6 @@ import (
 func BuildGeminiImageRequestBody(req *OpenAIImagesRequest) ([]byte, error) {
 	if req == nil {
 		return nil, fmt.Errorf("parsed images request is required")
-	}
-	if req.IsEdits() {
-		return nil, fmt.Errorf("Gemini image groups support /images/generations only")
 	}
 	if strings.TrimSpace(req.Prompt) == "" {
 		return nil, fmt.Errorf("prompt is required")
@@ -42,13 +41,30 @@ func BuildGeminiImageRequestBody(req *OpenAIImagesRequest) ([]byte, error) {
 		generationConfig["imageConfig"] = imageConfig
 	}
 
+	parts := []map[string]any{
+		{"text": strings.TrimSpace(req.Prompt)},
+	}
+	for _, upload := range req.Uploads {
+		if len(upload.Data) == 0 {
+			continue
+		}
+		mimeType := strings.TrimSpace(upload.ContentType)
+		if mimeType == "" {
+			mimeType = http.DetectContentType(upload.Data)
+		}
+		parts = append(parts, map[string]any{
+			"inlineData": map[string]any{
+				"mimeType": mimeType,
+				"data":     base64.StdEncoding.EncodeToString(upload.Data),
+			},
+		})
+	}
+
 	payload := map[string]any{
 		"contents": []map[string]any{
 			{
-				"role": "user",
-				"parts": []map[string]any{
-					{"text": strings.TrimSpace(req.Prompt)},
-				},
+				"role":  "user",
+				"parts": parts,
 			},
 		},
 		"generationConfig": generationConfig,

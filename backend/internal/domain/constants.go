@@ -33,8 +33,12 @@ const (
 	PlatformSeedance    = "seedance"
 	PlatformByteDance   = "bytedance"
 	PlatformWan3        = "wan3"
-	PlatformMiniMaxH3   = "minimax-h3"
-	PlatformPixverseV6  = "pixverse-v6"
+	PlatformMiniMaxH3       = "minimax-h3"
+	PlatformMiniMaxSpeech   = "minimax-speech"
+	PlatformQwenTTS         = "qwen-tts"
+	PlatformPixverseV6      = "pixverse-v6"
+	PlatformGrokImagineVideo = "grok-imagine-video"
+	PlatformKuaishou        = "kuaishou"
 )
 
 // Account type constants

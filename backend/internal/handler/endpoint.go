@@ -23,6 +23,7 @@ const (
 	EndpointResponsesCompact  = "/v1/responses/compact"
 	EndpointImagesGenerations = "/v1/images/generations"
 	EndpointImagesEdits       = "/v1/images/edits"
+	EndpointAudioSpeech       = "/v1/audio/speech"
 	EndpointImageTasks        = "/v1/images/tasks"
 	EndpointVideosGenerations = "/v1/videos/generations"
 	EndpointVideoGenerations  = "/v1/video/generations"
@@ -78,6 +79,8 @@ const (
 func NormalizeInboundEndpoint(path string) string {
 	path = strings.TrimSpace(path)
 	switch {
+	case strings.Contains(path, EndpointAudioSpeech) || strings.Contains(path, "/audio/speech"):
+		return EndpointAudioSpeech
 	case strings.Contains(path, EndpointEmbeddings):
 		return EndpointEmbeddings
 	case strings.Contains(path, EndpointAlphaSearch) || isBareOrSubpathOf(strings.TrimRight(path, "/"), "/alpha/search") || isBareOrSubpathOf(strings.TrimRight(path, "/"), "/backend-api/codex/alpha/search"):
@@ -186,7 +189,7 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng,
 		service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek,
 		service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance,
-		service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6:
+		service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 		if inbound == EndpointEmbeddings || inbound == EndpointAlphaSearch || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideosEdits || inbound == EndpointVideosExtensions || inbound == EndpointVideos {
 			return inbound
 		}
@@ -206,6 +209,9 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 			return EndpointResponsesCompact
 		}
 		return EndpointResponses
+
+	case service.PlatformQwenTTS:
+		return EndpointAudioSpeech
 
 	case service.PlatformAnthropic:
 		return EndpointMessages

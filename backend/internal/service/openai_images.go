@@ -80,6 +80,7 @@ type OpenAIImagesRequest struct {
 	Style              string
 	OutputCompression  *int
 	PartialImages      *int
+	Watermark          *bool
 	HasMask            bool
 	HasNativeOptions   bool
 	RequiredCapability OpenAIImagesCapability
@@ -274,6 +275,13 @@ func parseOpenAIImagesJSONRequest(body []byte, req *OpenAIImagesRequest) error {
 		v := int(partialImages.Int())
 		req.PartialImages = &v
 	}
+	if watermark := gjson.GetBytes(body, "watermark"); watermark.Exists() {
+		if watermark.Type != gjson.True && watermark.Type != gjson.False {
+			return fmt.Errorf("invalid watermark field type")
+		}
+		v := watermark.Bool()
+		req.Watermark = &v
+	}
 	if req.IsEdits() {
 		images := gjson.GetBytes(body, "images")
 		if images.Exists() {
@@ -424,6 +432,13 @@ func parseOpenAIImagesMultipartRequest(body []byte, contentType string, req *Ope
 			}
 			req.PartialImages = &n
 			req.HasNativeOptions = true
+		case "watermark":
+			parsed, err := strconv.ParseBool(value)
+			if err != nil {
+				return fmt.Errorf("invalid watermark field value")
+			}
+			req.Watermark = &parsed
+			req.HasNativeOptions = true
 		default:
 			if isOpenAINativeImageOption(name) && value != "" {
 				req.HasNativeOptions = true
@@ -535,6 +550,7 @@ func hasOpenAINativeImageOptions(exists func(path string) bool) bool {
 		"moderation",
 		"input_fidelity",
 		"partial_images",
+		"watermark",
 	} {
 		if exists(path) {
 			return true
@@ -545,7 +561,7 @@ func hasOpenAINativeImageOptions(exists func(path string) bool) bool {
 
 func isOpenAINativeImageOption(name string) bool {
 	switch strings.TrimSpace(strings.ToLower(name)) {
-	case "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images":
+	case "background", "quality", "style", "output_format", "output_compression", "moderation", "input_fidelity", "partial_images", "watermark":
 		return true
 	default:
 		return false
@@ -856,8 +872,12 @@ func buildDoubaoImagesRequestBody(parsed *OpenAIImagesRequest, model string) ([]
 	}
 
 	payload := map[string]any{
-		"model":  strings.TrimSpace(model),
-		"prompt": parsed.Prompt,
+		"model":     strings.TrimSpace(model),
+		"prompt":    parsed.Prompt,
+		"watermark": false,
+	}
+	if parsed.Watermark != nil {
+		payload["watermark"] = *parsed.Watermark
 	}
 	if size := normalizeDoubaoImagesSize(parsed.Size); size != "" {
 		payload["size"] = size

@@ -347,6 +347,7 @@ func TestForwardPPVideoBufferedUsesPixverseV6ModelVerseContract(t *testing.T) {
 	require.Equal(t, PixverseV6VideoDefaultModel, gjson.GetBytes(upstream.bodies[0], "model").String())
 	require.Equal(t, "360p", gjson.GetBytes(upstream.bodies[0], "parameters.resolution").String())
 	require.Equal(t, "16:9", gjson.GetBytes(upstream.bodies[0], "parameters.aspect_ratio").String())
+	require.Equal(t, int64(1), gjson.GetBytes(upstream.bodies[0], "parameters.generate_audio").Int())
 
 	statusRecorder := httptest.NewRecorder()
 	statusContext, _ := gin.CreateTestContext(statusRecorder)
@@ -367,6 +368,69 @@ func TestForwardPPVideoBufferedUsesPixverseV6ModelVerseContract(t *testing.T) {
 	require.Equal(t, VideoBillingResolution480P, status.VideoResolution)
 	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=pix-task-1", upstream.requests[1].URL.String())
 	require.Contains(t, string(status.ResponseBody), `"video_url":"https://cdn.example.com/pixverse-v6.mp4"`)
+}
+
+func TestForwardPPVideoBufferedUsesGrokImagineVideoModelVerseContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(bytes.NewReader([]byte(
+					`{"output":{"task_id":"grok-task-1"},"request_id":"req-grok-1"}`,
+				))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(bytes.NewReader([]byte(
+					`{"output":{"task_id":"grok-task-1","task_status":"Success","urls":["https://cdn.example.com/grok.mp4"]},"usage":{"duration":8,"output_video_duration":7.5}}`,
+				))),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          14,
+		Platform:    PlatformGrokImagineVideo,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "grok-token"},
+	}
+	requestBody := []byte(`{"model":"video-v1","input":{"prompt":"a cinematic mountain sunrise","img_url":"https://example.com/input.png"},"parameters":{"duration":8,"resolution":"720p","aspect_ratio":"16:9"}}`)
+	preparedBody, public, err := PreparePPVideoRequestBody(
+		PlatformGrokImagineVideo,
+		PPVideoOperationGeneric,
+		requestBody,
+	)
+	require.NoError(t, err)
+
+	submissionRecorder := httptest.NewRecorder()
+	submissionContext, _ := gin.CreateTestContext(submissionRecorder)
+	submissionContext.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(preparedBody))
+	submission, err := svc.ForwardPPVideoBuffered(
+		context.Background(), submissionContext, account, PPVideoOperationGeneric, "", preparedBody, public,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "grok-task-1", submission.ResponseID)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[0].URL.String())
+	require.Equal(t, http.MethodPost, upstream.requests[0].Method)
+	require.Equal(t, "Bearer grok-token", upstream.requests[0].Header.Get("Authorization"))
+	require.Equal(t, GrokImagineVideoDefaultModel, gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "https://example.com/input.png", gjson.GetBytes(upstream.bodies[0], "input.img_url").String())
+
+	statusRecorder := httptest.NewRecorder()
+	statusContext, _ := gin.CreateTestContext(statusRecorder)
+	statusContext.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/generations/grok-task-1", nil)
+	status, err := svc.ForwardPPVideoBuffered(
+		context.Background(), statusContext, account, PPVideoOperationGeneric, "grok-task-1", nil, public,
+	)
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusSucceeded, status.TaskStatus)
+	require.Equal(t, int64(7500), status.VideoDurationMilliseconds)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=grok-task-1", upstream.requests[1].URL.String())
+	require.Contains(t, string(status.ResponseBody), `"video_url":"https://cdn.example.com/grok.mp4"`)
 }
 
 func TestForwardPPVideoBufferedMarksUpstreamErrorResponseCommitted(t *testing.T) {

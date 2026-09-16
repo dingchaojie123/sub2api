@@ -6,7 +6,7 @@ describe('channel video billing configuration', () => {
   it('exposes video billing mode and all PP video platforms', () => {
     expect(BILLING_MODE_VIDEO).toBe('video')
     expect(CHANNEL_PRICING_PLATFORMS).toEqual(
-      expect.arrayContaining(['kling', 'happyhourse', 'seedance', 'bytedance', 'wan3', 'minimax-h3', 'pixverse-v6'])
+      expect.arrayContaining(['kling', 'happyhourse', 'seedance', 'bytedance', 'wan3', 'minimax-h3', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'])
     )
   })
 })

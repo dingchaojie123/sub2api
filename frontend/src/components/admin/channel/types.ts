@@ -36,14 +36,20 @@ export function billingModesForPlatform(
   const normalizedPlatform = platform?.trim().toLowerCase()
   let modes: BillingMode[]
 
-  if (
+  if (normalizedPlatform === 'minimax-speech' || normalizedPlatform === 'qwen-tts') {
+    // Audio providers return consumed text characters; expose only token
+    // billing so each platform uses one consistent channel price unit.
+    modes = ['token']
+  } else if (
     normalizedPlatform === 'kling' ||
     normalizedPlatform === 'happyhourse' ||
     normalizedPlatform === 'seedance' ||
     normalizedPlatform === 'bytedance' ||
     normalizedPlatform === 'wan3' ||
     normalizedPlatform === 'minimax-h3' ||
-    normalizedPlatform === 'pixverse-v6'
+    normalizedPlatform === 'pixverse-v6' ||
+    normalizedPlatform === 'grok-imagine-video' ||
+    normalizedPlatform === 'kuaishou'
   ) {
     // These providers use the group-level video price card, not a channel
     // model's video-per-second price.

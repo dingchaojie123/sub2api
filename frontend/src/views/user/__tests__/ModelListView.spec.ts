@@ -58,28 +58,47 @@ describe('ModelListView', () => {
     mockFetchPublicSettings.mockReset()
   })
 
-  it('renders gpt pro pricing by default', () => {
+  it('renders the special ChatGPT pricing by default', () => {
     const wrapper = renderView()
 
     expect(wrapper.text()).toContain('模型与价格')
-    expect(wrapper.text()).toContain('gpt pro')
+    expect(wrapper.text()).toContain('ChatGPT【特惠分组】')
     expect(wrapper.text()).toContain('openai 分组模型价格')
     expect(wrapper.text()).toContain('codex-auto-review')
-    expect(wrapper.text()).toContain('¥1.30 / 1M')
-    expect(wrapper.text()).toContain('$30.00 / 1M')
+    expect(wrapper.text()).toContain('¥0.04 / 1M')
+    expect(wrapper.text()).toContain('$30 / 1M')
+    expect(wrapper.findAll('[data-testid^="model-group-"]')).toHaveLength(7)
+    expect(wrapper.text()).toContain('glm - 官key openai协议')
+    expect(wrapper.text()).toContain('glm - 官key claude协议')
   })
 
-  it('switches groups and renders Claude-kiro pricing', async () => {
+  it('switches groups and renders Gemini pricing', async () => {
     const wrapper = renderView()
 
-    await wrapper.get('[data-testid="model-group-Claude-kiro"]').trigger('click')
+    await wrapper.get('[data-testid="model-group-gemini"]').trigger('click')
 
-    expect(wrapper.text()).toContain('Claude-kiro')
-    expect(wrapper.text()).toContain('anthropic 分组模型价格')
-    expect(wrapper.text()).toContain('0.3x')
-    expect(wrapper.text()).toContain('claude-haiku-4.5')
-    expect(wrapper.text()).toContain('¥0.0750 / 1M')
-    expect(wrapper.text()).toContain('$1.25 / 1M')
+    expect(wrapper.text()).toContain('gemini')
+    expect(wrapper.text()).toContain('gemini 分组模型价格')
+    expect(wrapper.text()).toContain('1.0x')
+    expect(wrapper.text()).toContain('gemini-2.5-pro')
+    expect(wrapper.text()).toContain('¥1.25 / 1M')
+    expect(wrapper.text()).toContain('$10 / 1M')
+  })
+
+  it('renders ChatGPT enterprise pricing in the corrected column order', async () => {
+    const wrapper = renderView()
+
+    await wrapper.get('[data-testid="model-group-ChatGPT【企业分组】"]').trigger('click')
+
+    const row = wrapper.findAll('tbody tr').find((item) => item.text().includes('gpt-5.4'))
+    expect(row).toBeTruthy()
+    expect(row?.findAll('td').map((cell) => cell.text())).toEqual([
+      'gpt-5.4',
+      '¥2.5 / 1M',
+      '¥15 / 1M',
+      '$3.5 / 1M',
+      '$21 / 1M',
+    ])
   })
 
   it('renders all expected pricing columns', () => {
@@ -95,12 +114,12 @@ describe('ModelListView', () => {
   it('resets to the default group when refresh is clicked', async () => {
     const wrapper = renderView()
 
-    await wrapper.get('[data-testid="model-group-Claude-max-1.1"]').trigger('click')
-    expect(wrapper.text()).toContain('Claude-max-1.1')
+    await wrapper.get('[data-testid="model-group-ChatGPT【企业分组】"]').trigger('click')
+    expect(wrapper.text()).toContain('ChatGPT【企业分组】')
 
     await wrapper.get('[data-testid="model-list-refresh"]').trigger('click')
-    expect(wrapper.text()).toContain('gpt pro')
-    expect(wrapper.text()).toContain('¥1.30 / 1M')
+    expect(wrapper.text()).toContain('ChatGPT【特惠分组】')
+    expect(wrapper.text()).toContain('¥0.04 / 1M')
   })
 
   it('uses model pricing page data supplied by public settings', () => {

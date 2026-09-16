@@ -115,7 +115,11 @@ export default {
         bytedance: 'ByteDance',
         wan3: 'Wan3.0',
         'minimax-h3': 'MiniMax-H3',
+        'minimax-speech': 'MiniMax-Speech',
+        'qwen-tts': 'Qwen TTS',
         'pixverse-v6': 'Pixverse-V6',
+        'grok-imagine-video': 'Grok Imagine Video',
+        kuaishou: 'Kuaishou',
       },
       types: {
         oauth: 'OAuth',
@@ -554,6 +558,10 @@ export default {
       },
       videoPlatform: {
         baseUrlHint: 'Enter the Base URL for this video platform or its proxy.',
+        apiKeyHint: 'The API key is stored for Bearer authentication.'
+      },
+      audioPlatform: {
+        baseUrlHint: 'Enter the Base URL for the MiniMax Speech API or its proxy.',
         apiKeyHint: 'The API key is stored for Bearer authentication.'
       },
       openaiCompatible: {

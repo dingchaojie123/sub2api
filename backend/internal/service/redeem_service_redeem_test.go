@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
@@ -48,6 +49,62 @@ func TestRedeemServiceLotteryGrantFailureFailsRedeemStep(t *testing.T) {
 	err := svc.grantLotteryChancesForRedeem(context.Background(), 11, &RedeemCode{ID: 21, Type: RedeemTypeBalance, Value: 888})
 	require.ErrorContains(t, err, "grant lottery chances")
 	require.Len(t, granter.calls, 1)
+}
+
+func TestRedeemServiceApplyBalanceDisplayBonusForFixedTier(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+
+	user, err := client.User.Create().
+		SetEmail("redeem-display-bonus@example.com").
+		SetPasswordHash("hash").
+		SetUsername("redeem-display-bonus").
+		SetBalance(12).
+		SetDisplayBalance(12).
+		Save(ctx)
+	require.NoError(t, err)
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	txCtx := dbent.NewTxContext(ctx, tx)
+	defer func() { _ = tx.Rollback() }()
+
+	svc := &RedeemService{}
+	require.NoError(t, svc.applyRedeemBalanceDisplayBonus(txCtx, tx.Client(), user.ID, 12))
+	require.NoError(t, tx.Commit())
+
+	reloaded, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, 12.0, reloaded.Balance)
+	require.Equal(t, 18.0, reloaded.DisplayBalance)
+}
+
+func TestRedeemServiceApplyBalanceDisplayBonusCanBeSkipped(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+
+	user, err := client.User.Create().
+		SetEmail("redeem-display-skip@example.com").
+		SetPasswordHash("hash").
+		SetUsername("redeem-display-skip").
+		SetBalance(12).
+		SetDisplayBalance(12).
+		Save(ctx)
+	require.NoError(t, err)
+
+	tx, err := client.Tx(ctx)
+	require.NoError(t, err)
+	txCtx := dbent.NewTxContext(ContextSkipRedeemBalanceDisplayBonus(ctx), tx)
+	defer func() { _ = tx.Rollback() }()
+
+	svc := &RedeemService{}
+	require.NoError(t, svc.applyRedeemBalanceDisplayBonus(txCtx, tx.Client(), user.ID, 12))
+	require.NoError(t, tx.Commit())
+
+	reloaded, err := client.User.Get(ctx, user.ID)
+	require.NoError(t, err)
+	require.Equal(t, 12.0, reloaded.Balance)
+	require.Equal(t, 12.0, reloaded.DisplayBalance)
 }
 
 type lotteryChanceGrantCall struct {

@@ -189,6 +189,22 @@ function buildJimengAccount() {
   } as any
 }
 
+function buildProviderAccount(platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek') {
+  return {
+    ...buildAccount(),
+    id: 8,
+    name: `${platform} Key`,
+    platform,
+    credentials: {
+      api_key: 'provider-key',
+      base_url: 'https://provider.example.com/v1',
+      model_mapping: {
+        [`${platform}-live-model`]: `${platform}-live-model`
+      }
+    }
+  } as any
+}
+
 function buildOpenAISparkShadowAccount() {
   const account = buildAccount()
   return {
@@ -409,6 +425,32 @@ describe('EditAccountModal', () => {
       account.credentials.model_mapping
     )
   })
+
+  it.each(['doubao', 'qwen', 'kimi', 'deepseek'] as const)(
+    'preserves synced upstream models for %s accounts when reopening the edit modal',
+    async (platform) => {
+      const account = buildProviderAccount(platform)
+      updateAccountMock.mockReset()
+      updateAccountMock.mockResolvedValue(account)
+
+      const wrapper = mountModal(account)
+      const expectedModel = `${platform}-live-model`
+
+      expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe(expectedModel)
+
+      await wrapper.setProps({ show: false })
+      await wrapper.setProps({ show: true })
+
+      expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe(expectedModel)
+
+      await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+      expect(updateAccountMock).toHaveBeenCalledTimes(1)
+      expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+        [expectedModel]: expectedModel
+      })
+    }
+  )
 
   it('preserves model mappings when editing the whitelist', async () => {
     const account = buildAccount()

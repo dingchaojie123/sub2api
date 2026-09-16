@@ -55,9 +55,9 @@
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
               <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && order.amount !== order.pay_amount" class="flex justify-between">
+            <div v-if="hasAmountFields(order) && shouldShowCreditedAmount(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatCreditedAmount(order) }}</span>
             </div>
             <div v-if="hasPaymentType(order)" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -190,6 +190,34 @@ function normalizedOrderPaymentType(paymentType: string): string {
 
 function formatGatewayAmount(value: number): string {
   return formatPaymentAmount(value, currency.value, localeCode.value)
+}
+
+function formatBalanceAmount(value: number): string {
+  if (!Number.isFinite(value)) return '0.00'
+  return new Intl.NumberFormat(localeCode.value, {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+}
+
+function creditedAmountForOrder(nextOrder: PaymentOrder): number {
+  return typeof nextOrder.display_amount === 'number' && Number.isFinite(nextOrder.display_amount)
+    ? nextOrder.display_amount
+    : nextOrder.amount
+}
+
+function shouldShowCreditedAmount(nextOrder: PaymentOrder): boolean {
+  if (nextOrder.order_type === 'balance') {
+    return Math.abs(creditedAmountForOrder(nextOrder) - baseAmount.value) > 0.000001
+  }
+  return Math.abs(nextOrder.amount - nextOrder.pay_amount) > 0.000001
+}
+
+function formatCreditedAmount(nextOrder: PaymentOrder): string {
+  if (nextOrder.order_type === 'balance') {
+    return `${formatBalanceAmount(creditedAmountForOrder(nextOrder))} ${t('payment.balanceUnit')}`
+  }
+  return formatPaymentAmount(nextOrder.amount, 'USD', localeCode.value)
 }
 
 function setResolvedOrder(nextOrder: ResolvedOrder | null): void {

@@ -194,6 +194,9 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 	if IsPPVideoPlatform(account.Platform) {
 		return s.testPPVideoAccountConnection(c, account)
 	}
+	if IsAudioPlatform(account.Platform) {
+		return s.testAudioAccountConnection(c, account)
+	}
 	if account.IsGemini() {
 		return s.testGeminiAccountConnection(c, account, modelID, prompt)
 	}
@@ -715,6 +718,27 @@ func (s *AccountTestService) testJimengAccountConnection(c *gin.Context, account
 	return nil
 }
 
+func (s *AccountTestService) testAudioAccountConnection(c *gin.Context, account *Account) error {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: account.Platform})
+	models, err := s.FetchUpstreamSupportedModels(c.Request.Context(), account)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+	s.sendEvent(c, TestEvent{
+		Type: "content",
+		Text: fmt.Sprintf("Audio ModelVerse API key probe succeeded; %d upstream models available", len(models)),
+		Data: map[string]any{"models": models},
+	})
+	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	return nil
+}
+
 func (s *AccountTestService) ValidateJimengAPIKey(ctx context.Context, account *Account) error {
 	if s == nil {
 		return fmt.Errorf("account test service is not configured")
@@ -758,7 +782,7 @@ func (s *AccountTestService) testPPVideoAccountConnection(c *gin.Context, accoun
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: account.Platform})
 
-	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 {
+	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		fixedModels := []string{ByteDanceVideoDefaultModel}
 		if account.Platform == PlatformWan3 {
@@ -770,6 +794,12 @@ func (s *AccountTestService) testPPVideoAccountConnection(c *gin.Context, accoun
 		} else if account.Platform == PlatformPixverseV6 {
 			platformLabel = "Pixverse-V6"
 			fixedModels = []string{PixverseV6VideoDefaultModel}
+		} else if account.Platform == PlatformGrokImagineVideo {
+			platformLabel = "Grok Imagine Video"
+			fixedModels = []string{GrokImagineVideoDefaultModel}
+		} else if account.Platform == PlatformKuaishou {
+			platformLabel = "Kuaishou"
+			fixedModels = []string{KuaishouVideoDefaultModel}
 		}
 		if strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
 			return s.sendErrorAndEnd(c, "No "+platformLabel+" API key is available")

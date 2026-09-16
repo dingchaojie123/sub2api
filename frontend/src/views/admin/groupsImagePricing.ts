@@ -17,6 +17,8 @@ export const ppVideoPricingPlatforms = new Set([
   "wan3",
   "minimax-h3",
   "pixverse-v6",
+  "grok-imagine-video",
+  "kuaishou",
 ]);
 
 export const supportsVideoPricingPlatform = (platform: string): boolean =>
@@ -26,7 +28,7 @@ export const isPPVideoPricingPlatform = (platform: string): boolean =>
   ppVideoPricingPlatforms.has(platform);
 
 export const usesGroupVideoPriceConfig = (platform: string): boolean =>
-  ["grok", "kling", "happyhourse", "seedance", "bytedance", "wan3", "minimax-h3", "pixverse-v6"].includes(platform);
+  ["grok", "kling", "happyhourse", "seedance", "bytedance", "wan3", "minimax-h3", "pixverse-v6", "grok-imagine-video", "kuaishou"].includes(platform);
 
 export const imagePricingI18nKey = (_platform: string, key: string): string =>
   `admin.groups.imagePricing.${key}`;
@@ -66,6 +68,11 @@ const defaultVideoPricePlaceholders: Record<
     video_price_480p: "0.05",
     video_price_720p: "0.07",
     video_price_1080p: "0.25",
+  },
+  "grok-imagine-video": {
+    video_price_480p: "0.05",
+    video_price_720p: "0.07",
+    video_price_1080p: "",
   },
 };
 

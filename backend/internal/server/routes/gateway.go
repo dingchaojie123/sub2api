@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -103,7 +103,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -212,6 +212,7 @@ func RegisterGatewayRoutes(
 				return
 			}
 		})
+		gateway.POST("/audio/speech", textBodyLimit, h.OpenAIGateway.AudioSpeech)
 		gateway.POST("/images/generations", imagesHandler)
 		gateway.POST("/images/edits", imagesHandler)
 		gateway.POST("/images/generations/async", h.AsyncImage.Submit)
@@ -305,6 +306,7 @@ func RegisterGatewayRoutes(
 		h.OpenAIGateway.Embeddings(c)
 	})
 	r.POST("/images/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, imagesHandler)
+	r.POST("/audio/speech", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.AudioSpeech)
 	r.POST("/images/edits", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, imagesHandler)
 	r.POST("/images/generations/async", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.AsyncImage.Submit)
 	r.POST("/images/edits/async", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.AsyncImage.Submit)

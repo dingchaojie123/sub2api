@@ -60,11 +60,21 @@ export interface MethodLimitsResponse {
   global_max: number  // widest max across all methods; 0 = no maximum
 }
 
+export interface BalanceRechargeProduct {
+  id: string
+  pay_amount: number
+  display_amount: number
+  original_amount?: number
+  lottery_chances: number
+  stock_label?: string
+}
+
 /** Response from /payment/checkout-info API — single call for the payment page */
 export interface CheckoutInfoResponse {
   methods: Record<string, MethodLimit>
   global_min: number
   global_max: number
+  balance_products: BalanceRechargeProduct[]
   plans: SubscriptionPlan[]
   balance_disabled: boolean
   balance_recharge_multiplier: number
@@ -84,6 +94,7 @@ export interface PaymentOrder {
   id: number
   user_id: number
   amount: number
+  display_amount?: number
   pay_amount: number
   currency?: string
   fee_rate: number
@@ -199,6 +210,7 @@ export interface WechatJSAPIPayload {
 export interface CreateOrderResult {
   order_id: number
   amount: number
+  display_amount?: number
   pay_url?: string
   qr_code?: string
   client_secret?: string

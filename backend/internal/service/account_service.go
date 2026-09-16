@@ -494,6 +494,9 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek:
 		// OpenAI-compatible provider credentials are validated on the request path.
 		return nil
+	case PlatformMiniMaxSpeech, PlatformQwenTTS:
+		// Audio credentials are validated on the audio request path.
+		return nil
 	default:
 		return fmt.Errorf("unsupported platform: %s", account.Platform)
 	}

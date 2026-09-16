@@ -1303,7 +1303,7 @@ func (a *Account) GetOpenAIBaseURL() string {
 	if a == nil {
 		return ""
 	}
-	if IsPPVideoPlatform(a.Platform) {
+	if IsPPVideoPlatform(a.Platform) || IsAudioPlatform(a.Platform) {
 		if a.Type != AccountTypeAPIKey {
 			return ""
 		}
@@ -1412,7 +1412,10 @@ func (a *Account) GetOpenAIApiKey() string {
 	if a == nil || a.Type != AccountTypeAPIKey {
 		return ""
 	}
-	if !a.IsOpenAI() && !a.IsOpenAICompatible() && !IsPPVideoPlatform(a.Platform) {
+	if !a.IsOpenAI() &&
+		!a.IsOpenAICompatible() &&
+		!IsPPVideoPlatform(a.Platform) &&
+		!IsAudioPlatform(a.Platform) {
 		return ""
 	}
 	return a.GetCredential("api_key")

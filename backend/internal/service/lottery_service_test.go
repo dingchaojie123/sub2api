@@ -16,14 +16,13 @@ func TestLotteryChanceGrantForBalanceValue(t *testing.T) {
 		value float64
 		want  int
 	}{
+		{name: "12 grants no chance", value: 12, want: 0},
 		{name: "88 grants one chance", value: 88, want: 1},
-		{name: "168 grants two chances", value: 168, want: 2},
 		{name: "258 grants three chances", value: 258, want: 3},
-		{name: "358 grants five chances", value: 358, want: 5},
-		{name: "458 grants seven chances", value: 458, want: 7},
-		{name: "688 grants nine chances", value: 688, want: 9},
-		{name: "888 grants twelve chances", value: 888, want: 12},
-		{name: "1288 grants fifteen chances", value: 1288, want: 15},
+		{name: "688 grants fourteen chances", value: 688, want: 14},
+		{name: "1288 grants thirty chances", value: 1288, want: 30},
+		{name: "old 168 tier no longer grants chances", value: 168, want: 0},
+		{name: "old 888 tier no longer grants chances", value: 888, want: 0},
 		{name: "old lower tier no longer grants chances", value: 1688, want: 0},
 		{name: "lower non-tier value grants none", value: 87.99, want: 0},
 		{name: "fractional value that rounds to a tier grants none", value: 87.995, want: 0},

@@ -34,6 +34,8 @@ describe("groups image pricing platform support", () => {
     expect(supportsVideoPricingPlatform("wan3")).toBe(true);
     expect(supportsVideoPricingPlatform("minimax-h3")).toBe(true);
     expect(supportsVideoPricingPlatform("pixverse-v6")).toBe(true);
+    expect(supportsVideoPricingPlatform("grok-imagine-video")).toBe(true);
+    expect(supportsVideoPricingPlatform("kuaishou")).toBe(true);
     expect(supportsVideoPricingPlatform("openai")).toBe(false);
   });
 
@@ -45,6 +47,8 @@ describe("groups image pricing platform support", () => {
     expect(isPPVideoPricingPlatform("wan3")).toBe(true);
     expect(isPPVideoPricingPlatform("minimax-h3")).toBe(true);
     expect(isPPVideoPricingPlatform("pixverse-v6")).toBe(true);
+    expect(isPPVideoPricingPlatform("grok-imagine-video")).toBe(true);
+    expect(isPPVideoPricingPlatform("kuaishou")).toBe(true);
     expect(isPPVideoPricingPlatform("grok")).toBe(false);
     expect(usesGroupVideoPriceConfig("kling")).toBe(true);
     expect(usesGroupVideoPriceConfig("happyhourse")).toBe(true);
@@ -53,6 +57,8 @@ describe("groups image pricing platform support", () => {
     expect(usesGroupVideoPriceConfig("wan3")).toBe(true);
     expect(usesGroupVideoPriceConfig("minimax-h3")).toBe(true);
     expect(usesGroupVideoPriceConfig("pixverse-v6")).toBe(true);
+    expect(usesGroupVideoPriceConfig("grok-imagine-video")).toBe(true);
+    expect(usesGroupVideoPriceConfig("kuaishou")).toBe(true);
   });
 
   it("keeps non-media group platforms out of the image pricing controls", () => {

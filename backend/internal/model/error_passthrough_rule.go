@@ -47,8 +47,12 @@ const (
 	PlatformSeedance    = "seedance"
 	PlatformByteDance   = "bytedance"
 	PlatformWan3        = "wan3"
-	PlatformMiniMaxH3   = "minimax-h3"
-	PlatformPixverseV6  = "pixverse-v6"
+	PlatformMiniMaxH3         = "minimax-h3"
+	PlatformMiniMaxSpeech     = "minimax-speech"
+	PlatformQwenTTS           = "qwen-tts"
+	PlatformPixverseV6         = "pixverse-v6"
+	PlatformGrokImagineVideo  = "grok-imagine-video"
+	PlatformKuaishou          = "kuaishou"
 )
 
 // AllPlatforms 返回所有支持的平台列表
@@ -70,7 +74,11 @@ func AllPlatforms() []string {
 		PlatformByteDance,
 		PlatformWan3,
 		PlatformMiniMaxH3,
+		PlatformMiniMaxSpeech,
+		PlatformQwenTTS,
 		PlatformPixverseV6,
+		PlatformGrokImagineVideo,
+		PlatformKuaishou,
 	}
 }
 

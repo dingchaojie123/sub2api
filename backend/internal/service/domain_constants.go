@@ -53,8 +53,12 @@ const (
 	PlatformSeedance    = domain.PlatformSeedance
 	PlatformByteDance   = domain.PlatformByteDance
 	PlatformWan3        = domain.PlatformWan3
-	PlatformMiniMaxH3   = domain.PlatformMiniMaxH3
-	PlatformPixverseV6  = domain.PlatformPixverseV6
+	PlatformMiniMaxH3         = domain.PlatformMiniMaxH3
+	PlatformMiniMaxSpeech     = domain.PlatformMiniMaxSpeech
+	PlatformQwenTTS           = domain.PlatformQwenTTS
+	PlatformPixverseV6         = domain.PlatformPixverseV6
+	PlatformGrokImagineVideo  = domain.PlatformGrokImagineVideo
+	PlatformKuaishou          = domain.PlatformKuaishou
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -77,7 +81,11 @@ var AllowedQuotaPlatforms = []string{
 	PlatformByteDance,
 	PlatformWan3,
 	PlatformMiniMaxH3,
+	PlatformMiniMaxSpeech,
+	PlatformQwenTTS,
 	PlatformPixverseV6,
+	PlatformGrokImagineVideo,
+	PlatformKuaishou,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。

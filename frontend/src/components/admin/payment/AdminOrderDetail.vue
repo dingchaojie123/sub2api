@@ -29,9 +29,9 @@
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p>
           <p class="text-sm font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ order.pay_amount.toFixed(2) }}</p>
         </div>
-        <div v-if="order.amount !== order.pay_amount">
+        <div v-if="shouldShowCreditedAmount">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ order.amount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formattedCreditedAmount }}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p>
@@ -129,7 +129,6 @@ const props = defineProps<{
 }>()
 
 const creditedAmountSymbol = currencySymbol('USD')
-
 const paymentAmountSymbol = computed(() => currencySymbol(props.order?.currency))
 
 /** 充值金额 (base amount before fee) = pay_amount - fee = pay_amount / (1 + fee_rate/100) */
@@ -146,6 +145,32 @@ const feeAmount = computed(() => {
   const feeRate = Number(props.order.fee_rate) || 0
   if (feeRate <= 0) return 0
   return props.order.pay_amount - baseAmount.value
+})
+
+const displayAmount = computed(() => {
+  const order = props.order
+  if (!order) return 0
+  return typeof order.display_amount === 'number' && Number.isFinite(order.display_amount)
+    ? order.display_amount
+    : order.amount
+})
+
+const shouldShowCreditedAmount = computed(() => {
+  const order = props.order
+  if (!order) return false
+  if (order.order_type === 'balance') {
+    return Math.abs(displayAmount.value - order.pay_amount) > 0.000001
+  }
+  return Math.abs(order.amount - order.pay_amount) > 0.000001
+})
+
+const formattedCreditedAmount = computed(() => {
+  const order = props.order
+  if (!order) return ''
+  if (order.order_type === 'balance') {
+    return `${displayAmount.value.toFixed(2)} ${t('payment.balanceUnit')}`
+  }
+  return `${creditedAmountSymbol}${order.amount.toFixed(2)}`
 })
 
 const emit = defineEmits<{

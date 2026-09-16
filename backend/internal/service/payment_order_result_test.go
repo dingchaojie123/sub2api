@@ -224,17 +224,36 @@ func TestCalculateCreateOrderPayAmountForBalanceIgnoresSubscriptionRate(t *testi
 	}
 }
 
-func TestCalculateCreditedBalanceStillUsesRechargeMultiplier(t *testing.T) {
+func TestBalanceRechargeProductsUseFixedDisplayAmounts(t *testing.T) {
 	t.Parallel()
 
-	got := calculateCreditedBalance(10, 0.14)
-	if got != 1.4 {
-		t.Fatalf("credited balance = %v, want 1.4", got)
+	tests := []struct {
+		payAmount     float64
+		displayAmount float64
+		chances       int
+	}{
+		{payAmount: 12, displayAmount: 18, chances: 0},
+		{payAmount: 88, displayAmount: 128, chances: 1},
+		{payAmount: 258, displayAmount: 388, chances: 3},
+		{payAmount: 688, displayAmount: 1088, chances: 14},
+		{payAmount: 1288, displayAmount: 2088, chances: 30},
 	}
 
-	got = calculateCreditedBalance(5, 10)
-	if got != 50 {
-		t.Fatalf("credited balance = %v, want 50", got)
+	for _, tt := range tests {
+		product, ok := ResolveBalanceRechargeProduct(tt.payAmount)
+		if !ok {
+			t.Fatalf("pay amount %.2f should resolve to a recharge product", tt.payAmount)
+		}
+		if product.DisplayAmount != tt.displayAmount {
+			t.Fatalf("pay amount %.2f display amount = %.2f, want %.2f", tt.payAmount, product.DisplayAmount, tt.displayAmount)
+		}
+		if product.LotteryChances != tt.chances {
+			t.Fatalf("pay amount %.2f lottery chances = %d, want %d", tt.payAmount, product.LotteryChances, tt.chances)
+		}
+	}
+
+	if _, ok := ResolveBalanceRechargeProduct(168); ok {
+		t.Fatal("legacy pay amount 168 should not resolve to a recharge product")
 	}
 }
 
@@ -332,7 +351,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponse(t *testing.T) {
 		IsWeChatBrowser: true,
 		SrcURL:          "https://merchant.example/payment?from=wechat",
 		OrderType:       payment.OrderTypeBalance,
-	}, 12.5, 12.88, 0.03)
+	}, 12.5, 12.5, 12.88, 0.03)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -370,7 +389,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponseRequiresMPConfigInWeChat(t *testin
 		IsWeChatBrowser: true,
 		SrcURL:          "https://merchant.example/payment?from=wechat",
 		OrderType:       payment.OrderTypeBalance,
-	}, 12.5, 12.88, 0.03)
+	}, 12.5, 12.5, 12.88, 0.03)
 	if resp != nil {
 		t.Fatalf("expected nil response, got %+v", resp)
 	}
@@ -409,7 +428,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponseRequiresResumeSigningKey(t *testin
 		IsWeChatBrowser: true,
 		SrcURL:          "https://merchant.example/payment?from=wechat",
 		OrderType:       payment.OrderTypeBalance,
-	}, 12.5, 12.88, 0.03)
+	}, 12.5, 12.5, 12.88, 0.03)
 	if resp != nil {
 		t.Fatalf("expected nil response, got %+v", resp)
 	}
@@ -446,7 +465,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponseFallsBackToConfiguredLegacySigning
 		IsWeChatBrowser: true,
 		SrcURL:          "https://merchant.example/payment?from=wechat",
 		OrderType:       payment.OrderTypeBalance,
-	}, 12.5, 12.88, 0.03)
+	}, 12.5, 12.5, 12.88, 0.03)
 	if err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
@@ -477,7 +496,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponseForSelectionSkipsEasyPayProvider(t
 		PaymentType:     payment.TypeWxpay,
 		IsWeChatBrowser: true,
 		OrderType:       payment.OrderTypeBalance,
-	}, 12.5, 12.88, 0.03, &payment.InstanceSelection{
+	}, 12.5, 12.5, 12.88, 0.03, &payment.InstanceSelection{
 		ProviderKey: payment.TypeEasyPay,
 	})
 	if err != nil {

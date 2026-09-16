@@ -29,6 +29,8 @@ func TestVideoPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
 		PlatformWan3,
 		PlatformMiniMaxH3,
 		PlatformPixverseV6,
+		PlatformGrokImagineVideo,
+		PlatformKuaishou,
 	}
 
 	for _, platform := range platforms {
@@ -37,6 +39,17 @@ func TestVideoPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
 		}
 		if IsOpenAICompatiblePlatform(platform) {
 			t.Errorf("video platform %q must not be OpenAI-compatible", platform)
+		}
+	}
+}
+
+func TestAudioPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
+	for _, platform := range []string{PlatformMiniMaxSpeech, PlatformQwenTTS} {
+		if !IsAllowedQuotaPlatform(platform) {
+			t.Fatalf("audio platform %q must be allowed for user quotas", platform)
+		}
+		if IsOpenAICompatiblePlatform(platform) {
+			t.Fatalf("audio platform %q must not be classified as OpenAI-compatible", platform)
 		}
 	}
 }

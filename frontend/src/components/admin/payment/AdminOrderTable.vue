@@ -57,8 +57,8 @@
           <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
             ({{ row.fee_rate }}%)
           </span>
-          <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
-            {{ t('payment.orders.creditedAmount') }}: {{ creditedAmountSymbol }}{{ row.amount.toFixed(2) }}
+          <div v-if="shouldShowCreditedAmount(row)" class="text-xs text-gray-500">
+            {{ t('payment.orders.creditedAmount') }}: {{ formatCreditedAmount(row) }}
           </div>
         </div>
       </template>
@@ -168,10 +168,28 @@ const emit = defineEmits<{
 
 const searchQuery = ref('')
 const filters = reactive({ status: '', payment_type: '', order_type: '' })
-const creditedAmountSymbol = currencySymbol('USD')
-
 function paymentAmountSymbol(order: PaymentOrder): string {
   return currencySymbol(order.currency)
+}
+
+function balanceAmountForOrder(order: PaymentOrder): number {
+  return typeof order.display_amount === 'number' && Number.isFinite(order.display_amount)
+    ? order.display_amount
+    : order.amount
+}
+
+function shouldShowCreditedAmount(order: PaymentOrder): boolean {
+  if (order.order_type === 'balance') {
+    return Math.abs(balanceAmountForOrder(order) - order.pay_amount) > 0.000001
+  }
+  return Math.abs(order.amount - order.pay_amount) > 0.000001
+}
+
+function formatCreditedAmount(order: PaymentOrder): string {
+  if (order.order_type === 'balance') {
+    return `${balanceAmountForOrder(order).toFixed(2)} ${t('payment.balanceUnit')}`
+  }
+  return `${currencySymbol('USD')}${order.amount.toFixed(2)}`
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null

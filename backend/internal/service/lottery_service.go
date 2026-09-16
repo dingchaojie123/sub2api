@@ -40,13 +40,9 @@ var LotteryPrizes = []LotteryPrize{
 
 var lotteryChanceTiersByCents = map[int64]int{
 	8800:   1,
-	16800:  2,
 	25800:  3,
-	35800:  5,
-	45800:  7,
-	68800:  9,
-	88800:  12,
-	128800: 15,
+	68800:  14,
+	128800: 30,
 }
 
 // LotteryDrawRecord is a completed lottery draw with its assigned balance code.

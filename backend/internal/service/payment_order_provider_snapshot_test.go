@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/stretchr/testify/require"
 )
@@ -109,6 +110,56 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	require.NotContains(t, order.ProviderSnapshot, "secretKey")
 	require.NotContains(t, order.ProviderSnapshot, "supported_types")
 	require.NotContains(t, order.ProviderSnapshot, "instance_name")
+}
+
+func TestBuildPaymentOrderProviderSnapshot_IncludesBalanceRechargeProduct(t *testing.T) {
+	t.Parallel()
+
+	snapshot := buildPaymentOrderProviderSnapshot(&payment.InstanceSelection{
+		InstanceID:  "12",
+		ProviderKey: payment.TypeWxpay,
+		Config: map[string]string{
+			"appId": "wx-app-id",
+		},
+	}, CreateOrderRequest{Amount: 88, OrderType: payment.OrderTypeBalance})
+
+	require.Equal(t, "balance_88", snapshot[balanceRechargeSnapshotProductID])
+	require.Equal(t, 88.0, snapshot[balanceRechargeSnapshotPayAmount])
+	require.Equal(t, 128.0, snapshot[balanceRechargeSnapshotDisplayAmount])
+	require.Equal(t, 1, snapshot[balanceRechargeSnapshotLotteryChances])
+	require.Equal(t, 128.0, PaymentOrderDisplayAmount(&dbent.PaymentOrder{
+		Amount:           88,
+		OrderType:        payment.OrderTypeBalance,
+		ProviderSnapshot: snapshot,
+	}))
+	require.Equal(t, 88.0, PaymentOrderRealBalanceAmount(&dbent.PaymentOrder{
+		Amount:           88,
+		OrderType:        payment.OrderTypeBalance,
+		ProviderSnapshot: snapshot,
+	}))
+}
+
+func TestPaymentOrderDisplayAmountFallsBackToOrderAmount(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, 88.0, PaymentOrderDisplayAmount(&dbent.PaymentOrder{
+		Amount:    88,
+		OrderType: payment.OrderTypeBalance,
+	}))
+}
+
+func TestPaymentOrderAmountsRecoverLegacyFirstTierOrder(t *testing.T) {
+	t.Parallel()
+
+	order := &dbent.PaymentOrder{
+		Amount:    10,
+		PayAmount: 12,
+		FeeRate:   0,
+		OrderType: payment.OrderTypeBalance,
+	}
+
+	require.Equal(t, 12.0, PaymentOrderRealBalanceAmount(order))
+	require.Equal(t, 18.0, PaymentOrderDisplayAmount(order))
 }
 
 func TestBuildPaymentOrderProviderSnapshot_UsesWxpayJSAPIAppIDForOpenIDOrders(t *testing.T) {

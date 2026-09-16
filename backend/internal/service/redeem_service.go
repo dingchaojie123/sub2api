@@ -31,12 +31,20 @@ const (
 )
 
 type ctxKeySkipRedeemAffiliate struct{}
+type ctxKeySkipRedeemBalanceDisplayBonus struct{}
 
 // ContextSkipRedeemAffiliate returns a context that suppresses the redeem-level
 // affiliate rebate. Used by payment fulfillment which handles rebate separately
 // via applyAffiliateRebateForOrder (with audit-log deduplication).
 func ContextSkipRedeemAffiliate(ctx context.Context) context.Context {
 	return context.WithValue(ctx, ctxKeySkipRedeemAffiliate{}, true)
+}
+
+// ContextSkipRedeemBalanceDisplayBonus suppresses redeem-level display-balance
+// bonuses. Payment fulfillment applies product display credit from the order
+// snapshot, so it uses this to avoid double-crediting the bonus.
+func ContextSkipRedeemBalanceDisplayBonus(ctx context.Context) context.Context {
+	return context.WithValue(ctx, ctxKeySkipRedeemBalanceDisplayBonus{}, true)
 }
 
 // RedeemCache defines cache operations for redeem service
@@ -476,6 +484,8 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 			}
 		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
+		} else if err := s.applyRedeemBalanceDisplayBonus(txCtx, tx.Client(), userID, amount); err != nil {
+			return nil, err
 		}
 
 	case RedeemTypeConcurrency:
@@ -542,6 +552,26 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	return redeemCode, nil
+}
+
+func (s *RedeemService) applyRedeemBalanceDisplayBonus(ctx context.Context, client *dbent.Client, userID int64, realAmount float64) error {
+	if ctx.Value(ctxKeySkipRedeemBalanceDisplayBonus{}) != nil {
+		return nil
+	}
+	displayAmount := balanceRechargeDisplayAmount(realAmount)
+	delta := roundBalanceDisplayAmount(displayAmount - realAmount)
+	if delta <= 0 {
+		return nil
+	}
+	query, args := buildDisplayBalanceCreditSQL(client, delta, userID)
+	result, err := client.ExecContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("credit redeem display balance: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return infraerrors.NotFound("USER_NOT_FOUND", "user not found")
+	}
+	return nil
 }
 
 func (s *RedeemService) grantLotteryChancesForRedeem(ctx context.Context, userID int64, redeemCode *RedeemCode) error {

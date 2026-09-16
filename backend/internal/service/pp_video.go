@@ -32,6 +32,8 @@ const (
 	MiniMaxH3VideoDefaultModel           = "MiniMax-H3"
 	MiniMaxHailuo23VideoModel            = "MiniMax-Hailuo-2.3"
 	PixverseV6VideoDefaultModel          = "pixverse-v6"
+	GrokImagineVideoDefaultModel         = "grok-imagine-video"
+	KuaishouVideoDefaultModel            = "kling-v3"
 
 	ppVideoLegacySiteModel             = "video-v1"
 	ppVideoSeedanceDefaultModel        = ByteDanceVideoDefaultModel
@@ -95,7 +97,7 @@ type PPVideoPublicRequest struct {
 
 func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -234,6 +236,36 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		if err != nil {
 			return nil, PPVideoPublicRequest{}, err
 		}
+	case PlatformGrokImagineVideo:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoGrokImagineVideoModelAllowed(public.Model) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		payload, err = normalizePPVideoGrokImaginePayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformKuaishou:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if public.HasExplicitModel && !ppVideoKuaishouModelAllowed(public.Model) {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf(
+				"model %q is not supported by platform %q",
+				public.Model,
+				platform,
+			)
+		}
+		payload, err = normalizePPVideoKuaishouPayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 	}
 
 	prepared, err := json.Marshal(payload)
@@ -293,8 +325,8 @@ func normalizePPVideoByteDancePayload(payload map[string]any, body []byte, publi
 	}
 
 	result := map[string]any{
-		"model": ByteDanceVideoDefaultModel,
-		"input": map[string]any{"content": content},
+		"model":      ByteDanceVideoDefaultModel,
+		"input":      map[string]any{"content": content},
 		"parameters": parameters,
 	}
 	return result, nil
@@ -335,7 +367,7 @@ func normalizePPVideoByteDanceContent(body []byte, public *PPVideoPublicRequest)
 	}
 	if startFrame := ppVideoJSONText(body, "start_frame_url", "input.start_frame_url", "data.start_frame_url"); startFrame != "" {
 		content = append(content, map[string]any{
-			"type": "image_url",
+			"type":      "image_url",
 			"image_url": map[string]any{"url": startFrame},
 			"role":      "first_frame",
 		})
@@ -343,7 +375,7 @@ func normalizePPVideoByteDanceContent(body []byte, public *PPVideoPublicRequest)
 	}
 	if endFrame := ppVideoJSONText(body, "end_frame_url", "input.end_frame_url", "data.end_frame_url"); endFrame != "" {
 		content = append(content, map[string]any{
-			"type": "image_url",
+			"type":      "image_url",
 			"image_url": map[string]any{"url": endFrame},
 			"role":      "last_frame",
 		})
@@ -799,8 +831,9 @@ func normalizePPVideoPixverseV6Payload(payload map[string]any, body []byte, publ
 	public.HasImage = firstFrame != "" || image != ""
 
 	parameters := map[string]any{
-		"resolution": resolution,
-		"duration":   int(durationSeconds),
+		"resolution":     resolution,
+		"duration":       int(durationSeconds),
+		"generate_audio": 1,
 	}
 	aspectRatio, hasAspectRatio, err := pixverseV6AspectRatioFromRequest(body)
 	if err != nil {
@@ -839,6 +872,343 @@ func normalizePPVideoPixverseV6Payload(payload map[string]any, body []byte, publ
 		"input":      input,
 		"parameters": parameters,
 	}, nil
+}
+
+func normalizePPVideoGrokImaginePayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("Grok Imagine Video request body is required")
+	}
+
+	durationMilliseconds, durationFound := extractPPVideoDurationMillisecondsWithPresence(
+		body,
+		"parameters.duration",
+		"duration",
+		"data.duration",
+	)
+	if !durationFound {
+		durationMilliseconds = 8000
+	}
+	if durationMilliseconds <= 0 || durationMilliseconds%1000 != 0 || durationMilliseconds < 1000 || durationMilliseconds > 15000 {
+		return nil, fmt.Errorf("Grok Imagine Video duration must be an integer number of seconds from 1 to 15")
+	}
+
+	prompt := ppVideoJSONText(body, "input.prompt", "prompt", "data.prompt", "parameters.prompt")
+	if prompt == "" {
+		return nil, fmt.Errorf("Grok Imagine Video input.prompt is required")
+	}
+
+	resolution := "480p"
+	if resolutionSource := ppVideoJSONText(body, "parameters.resolution", "resolution", "data.resolution"); resolutionSource != "" {
+		switch strings.ToLower(strings.TrimSpace(resolutionSource)) {
+		case "480", "480p":
+			resolution = "480p"
+		case "720", "720p":
+			resolution = "720p"
+		default:
+			return nil, fmt.Errorf("Grok Imagine Video resolution must be 480p or 720p")
+		}
+	}
+
+	aspectRatio := "16:9"
+	if aspectRatioSource := ppVideoJSONText(body, "parameters.aspect_ratio", "aspect_ratio", "data.aspect_ratio"); aspectRatioSource != "" {
+		switch strings.TrimSpace(aspectRatioSource) {
+		case "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3":
+			aspectRatio = strings.TrimSpace(aspectRatioSource)
+		default:
+			return nil, fmt.Errorf("Grok Imagine Video aspect_ratio is invalid")
+		}
+	}
+
+	imageURL := ppVideoJSONText(body,
+		"input.img_url",
+		"img_url",
+		"data.img_url",
+	)
+	if imageURL != "" && !grokImagineVideoURLAllowed(imageURL) {
+		return nil, fmt.Errorf("Grok Imagine Video input.img_url must be an HTTP(S) URL")
+	}
+	referenceURLs, referencesFound, err := grokImagineVideoReferenceURLs(body)
+	if err != nil {
+		return nil, err
+	}
+	if imageURL != "" && len(referenceURLs) > 0 {
+		return nil, fmt.Errorf("Grok Imagine Video input.img_url and input.reference_urls are mutually exclusive")
+	}
+	if referencesFound && len(referenceURLs) == 0 {
+		return nil, fmt.Errorf("Grok Imagine Video input.reference_urls must contain at least one URL")
+	}
+	if imageURL == "" && len(referenceURLs) == 0 {
+		return nil, fmt.Errorf("Grok Imagine Video requires input.img_url or input.reference_urls; text-to-video is not supported")
+	}
+
+	public.Prompt = prompt
+	public.DurationMilliseconds = durationMilliseconds
+	public.VideoCount = 1
+	public.Resolution = normalizePPVideoResolution(resolution)
+	public.HasImage = imageURL != "" || len(referenceURLs) > 0
+	public.UpstreamModel = GrokImagineVideoDefaultModel
+
+	input := map[string]any{"prompt": prompt}
+	if imageURL != "" {
+		input["img_url"] = imageURL
+	} else if len(referenceURLs) > 0 {
+		input["reference_urls"] = referenceURLs
+	}
+	return map[string]any{
+		"model": GrokImagineVideoDefaultModel,
+		"input": input,
+		"parameters": map[string]any{
+			"resolution":   resolution,
+			"aspect_ratio": aspectRatio,
+			"duration":     int(durationMilliseconds / 1000),
+		},
+	}, nil
+}
+
+func grokImagineVideoReferenceURLs(body []byte) ([]string, bool, error) {
+	for _, path := range []string{"input.reference_urls", "reference_urls", "data.reference_urls"} {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() || value.Type == gjson.Null {
+			continue
+		}
+		if !value.IsArray() {
+			return nil, true, fmt.Errorf("Grok Imagine Video input.reference_urls must be an array")
+		}
+		urls := make([]string, 0, len(value.Array()))
+		for _, item := range value.Array() {
+			candidate := strings.TrimSpace(item.String())
+			if candidate == "" || !grokImagineVideoURLAllowed(candidate) {
+				return nil, true, fmt.Errorf("Grok Imagine Video input.reference_urls must contain only HTTP(S) URLs")
+			}
+			urls = append(urls, candidate)
+		}
+		return urls, true, nil
+	}
+	return nil, false, nil
+}
+
+func grokImagineVideoURLAllowed(raw string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && parsed != nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
+}
+
+func normalizePPVideoKuaishouPayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("Kuaishou request body is required")
+	}
+
+	durationMilliseconds, durationFound := extractPPVideoDurationMillisecondsWithPresence(
+		body,
+		"parameters.duration",
+		"duration",
+		"data.duration",
+	)
+	if !durationFound {
+		durationMilliseconds = SiteVideoDefaultDurationMilliseconds
+	}
+	if durationMilliseconds <= 0 || durationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("Kuaishou duration must be an integer number of seconds from 3 to 15")
+	}
+	durationSeconds := durationMilliseconds / 1000
+	if durationSeconds < 3 || durationSeconds > 15 {
+		return nil, fmt.Errorf("Kuaishou duration must be an integer number of seconds from 3 to 15")
+	}
+
+	input, err := normalizePPVideoKuaishouInput(body, public)
+	if err != nil {
+		return nil, err
+	}
+
+	parameters := map[string]any{
+		"duration": int(durationSeconds),
+		"mode":     "std",
+	}
+	if modeSource := ppVideoJSONText(body, "parameters.mode", "mode", "data.mode"); modeSource != "" {
+		mode, ok := normalizePPVideoKlingMode(modeSource)
+		if !ok {
+			return nil, fmt.Errorf("Kuaishou mode must be std, pro, or 4k")
+		}
+		parameters["mode"] = mode
+	}
+	if ratio := ppVideoJSONText(body, "parameters.aspect_ratio", "aspect_ratio", "data.aspect_ratio"); ratio != "" {
+		ratio = strings.TrimSpace(ratio)
+		if !kuaishouAspectRatioAllowed(ratio) {
+			return nil, fmt.Errorf("Kuaishou aspect_ratio must be 16:9, 9:16, or 1:1")
+		}
+		parameters["aspect_ratio"] = ratio
+	} else {
+		parameters["aspect_ratio"] = "16:9"
+	}
+	if value, ok := ppVideoJSONValue(body, "parameters.watermark_enabled", "watermark_enabled", "data.watermark_enabled"); ok {
+		parsed, ok := value.(bool)
+		if !ok {
+			return nil, fmt.Errorf("Kuaishou watermark_enabled must be boolean")
+		}
+		parameters["watermark_enabled"] = parsed
+	}
+	if externalTaskID := ppVideoJSONText(body, "parameters.external_task_id", "external_task_id", "data.external_task_id"); externalTaskID != "" {
+		parameters["external_task_id"] = externalTaskID
+	}
+	if sound, ok, err := ppVideoKlingSoundFromRequest(body); err != nil {
+		return nil, fmt.Errorf("Kuaishou sound must be on or off")
+	} else if ok {
+		parameters["sound"] = sound
+	}
+	if keepOriginalSound := ppVideoJSONText(body, "parameters.keep_original_sound", "keep_original_sound", "data.keep_original_sound"); keepOriginalSound != "" {
+		keepOriginalSound = strings.ToLower(strings.TrimSpace(keepOriginalSound))
+		if keepOriginalSound != "yes" && keepOriginalSound != "no" {
+			return nil, fmt.Errorf("Kuaishou keep_original_sound must be yes or no")
+		}
+		parameters["keep_original_sound"] = keepOriginalSound
+	}
+	if orientation := ppVideoJSONText(body, "parameters.character_orientation", "character_orientation", "data.character_orientation"); orientation != "" {
+		orientation = strings.ToLower(strings.TrimSpace(orientation))
+		if orientation != "image" && orientation != "video" {
+			return nil, fmt.Errorf("Kuaishou character_orientation must be image or video")
+		}
+		parameters["character_orientation"] = orientation
+	}
+	if image := ppVideoKlingRequestImage(body); image != "" {
+		parameters["image"] = image
+	}
+	if imageTail := ppVideoKlingRequestImageTail(body); imageTail != "" {
+		if _, hasImage := parameters["image"]; !hasImage {
+			return nil, fmt.Errorf("Kuaishou image_tail requires image")
+		}
+		parameters["image_tail"] = imageTail
+	}
+	if multiShot, ok, err := kuaishouBooleanParameter(body, "multi_shot", false); err != nil {
+		return nil, err
+	} else if ok {
+		parameters["multi_shot"] = multiShot
+	}
+	if shotType := ppVideoJSONText(body, "parameters.shot_type", "shot_type", "data.shot_type"); shotType != "" {
+		if strings.TrimSpace(shotType) != "customize" {
+			return nil, fmt.Errorf("Kuaishou shot_type must be customize")
+		}
+		parameters["shot_type"] = "customize"
+	}
+	if multiPrompt, ok := ppVideoJSONValue(body, "parameters.multi_prompt", "multi_prompt", "data.multi_prompt"); ok {
+		if _, ok := multiPrompt.([]any); !ok {
+			return nil, fmt.Errorf("Kuaishou multi_prompt must be an array")
+		}
+		parameters["multi_prompt"] = multiPrompt
+	}
+
+	klingType := strings.TrimSpace(ppVideoJSONText(body, "parameters.kling_v3_type", "kling_v3_type", "data.kling_v3_type"))
+	if klingType == "" {
+		switch {
+		case ppVideoJSONText(body, "input.video_url", "video_url", "videos.0", "data.video_url") != "":
+			klingType = "motion_control"
+		case public.HasImage || parameters["image"] != nil:
+			klingType = "i2v"
+		default:
+			klingType = "t2v"
+		}
+	}
+	if !kuaishouTypeAllowed(klingType) {
+		return nil, fmt.Errorf("Kuaishou kling_v3_type must be t2v, i2v, or motion_control")
+	}
+	parameters["kling_v3_type"] = klingType
+	if klingType == "motion_control" {
+		if ppVideoJSONText(body, "input.img_url", "img_url", "data.img_url") == "" || ppVideoJSONText(body, "input.video_url", "video_url", "videos.0", "data.video_url") == "" {
+			return nil, fmt.Errorf("Kuaishou motion_control requires input.img_url and input.video_url")
+		}
+		if _, ok := parameters["character_orientation"]; !ok {
+			parameters["character_orientation"] = "image"
+		}
+	}
+
+	public.DurationMilliseconds = durationMilliseconds
+	public.VideoCount = 1
+	public.Resolution = kuaishouBillingResolution(fmt.Sprint(parameters["mode"]))
+	public.UpstreamModel = KuaishouVideoDefaultModel
+
+	return map[string]any{
+		"model":      KuaishouVideoDefaultModel,
+		"input":      input,
+		"parameters": parameters,
+	}, nil
+}
+
+func normalizePPVideoKuaishouInput(body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	prompt := strings.TrimSpace(ppVideoJSONText(body, "input.prompt", "prompt", "data.prompt", "parameters.prompt"))
+	negativePrompt := strings.TrimSpace(ppVideoJSONText(body, "input.negative_prompt", "negative_prompt", "data.negative_prompt", "parameters.negative_prompt"))
+	if err := validateVideoPromptFieldLength("Kuaishou", "prompt", prompt, ppVideoKlingPromptMaxRunes); err != nil {
+		return nil, err
+	}
+	if err := validateVideoPromptFieldLength("Kuaishou", "negative_prompt", negativePrompt, ppVideoKlingPromptMaxRunes); err != nil {
+		return nil, err
+	}
+
+	input := map[string]any{}
+	if prompt != "" {
+		input["prompt"] = prompt
+		public.Prompt = prompt
+	}
+	if negativePrompt != "" {
+		input["negative_prompt"] = negativePrompt
+	}
+	if imgURL := ppVideoJSONText(body, "input.img_url", "img_url", "data.img_url"); imgURL != "" {
+		input["img_url"] = imgURL
+		public.HasImage = true
+	}
+	if videoURL := ppVideoJSONText(body, "input.video_url", "video_url", "videos.0", "data.video_url"); videoURL != "" {
+		input["video_url"] = videoURL
+	}
+	if firstFrame := ppVideoJSONText(body, "input.first_frame_url", "first_frame_url", "start_frame_url", "data.first_frame_url", "data.start_frame_url"); firstFrame != "" {
+		input["first_frame_url"] = firstFrame
+		public.HasImage = true
+	}
+	if images, ok := ppVideoJSONValue(body, "input.images", "images", "data.images"); ok {
+		if _, ok := images.([]any); !ok {
+			return nil, fmt.Errorf("Kuaishou images must be an array")
+		}
+		input["images"] = images
+		public.HasImage = true
+	}
+	return input, nil
+}
+
+func kuaishouBooleanParameter(body []byte, field string, defaultValue bool) (bool, bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters."+field, field, "data."+field)
+	if !ok {
+		return defaultValue, false, nil
+	}
+	parsed, ok := value.(bool)
+	if !ok {
+		return false, true, fmt.Errorf("Kuaishou %s must be boolean", field)
+	}
+	return parsed, true, nil
+}
+
+func kuaishouAspectRatioAllowed(ratio string) bool {
+	switch strings.TrimSpace(ratio) {
+	case "16:9", "9:16", "1:1":
+		return true
+	default:
+		return false
+	}
+}
+
+func kuaishouTypeAllowed(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "t2v", "i2v", "motion_control":
+		return true
+	default:
+		return false
+	}
+}
+
+func kuaishouBillingResolution(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "pro", "2x_pro", "2x-pro":
+		return VideoBillingResolution1080P
+	case "4k":
+		return VideoBillingResolution1080P
+	default:
+		return VideoBillingResolution720P
+	}
 }
 
 func pixverseV6Resolution(resolution string) string {
@@ -1518,7 +1888,7 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
-	case PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6:
+	case PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		switch operation {
 		case PPVideoOperationGeneric:
 			path = "/v1/tasks/submit"
@@ -1552,7 +1922,7 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 	if taskID == "" {
 		return path, nil
 	}
-	if platform == PlatformByteDance || platform == PlatformWan3 || platform == PlatformMiniMaxH3 || platform == PlatformPixverseV6 {
+	if platform == PlatformByteDance || platform == PlatformWan3 || platform == PlatformMiniMaxH3 || platform == PlatformPixverseV6 || platform == PlatformGrokImagineVideo || platform == PlatformKuaishou {
 		return "/v1/tasks/status?task_id=" + url.QueryEscape(taskID), nil
 	}
 	return path + "/" + url.PathEscape(taskID), nil
@@ -2154,6 +2524,10 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 		return MiniMaxH3VideoDefaultModel
 	case PlatformPixverseV6:
 		return PixverseV6VideoDefaultModel
+	case PlatformGrokImagineVideo:
+		return GrokImagineVideoDefaultModel
+	case PlatformKuaishou:
+		return KuaishouVideoDefaultModel
 	case PlatformKling:
 		if ppVideoIsPublicDefaultAlias(model) {
 			return ppVideoKlingDefaultModel
@@ -2204,6 +2578,12 @@ func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest
 	}
 	if platform == PlatformPixverseV6 {
 		return PixverseV6VideoDefaultModel
+	}
+	if platform == PlatformGrokImagineVideo {
+		return GrokImagineVideoDefaultModel
+	}
+	if platform == PlatformKuaishou {
+		return KuaishouVideoDefaultModel
 	}
 	if account != nil {
 		if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
@@ -2277,6 +2657,10 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsMiniMaxModel(model)
 	case PlatformPixverseV6:
 		return ppVideoIsPixverseV6Model(model)
+	case PlatformGrokImagineVideo:
+		return ppVideoIsGrokImagineVideoModel(model)
+	case PlatformKuaishou:
+		return ppVideoIsKuaishouModel(model)
 	default:
 		return false
 	}
@@ -2293,7 +2677,7 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if ppVideoModelBelongsToPlatform(platform, model) {
 		return false
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6} {
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		if candidate == platform {
 			continue
 		}
@@ -2315,7 +2699,9 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 			(platform == PlatformWan3 && ppVideoWan30ModelAllowed(model)) ||
 			(platform == PlatformMiniMaxH3 && ppVideoMiniMaxH3ModelAllowed(model)) ||
 			(platform == PlatformPixverseV6 && ppVideoPixverseV6ModelAllowed(model)) ||
-			(platform != PlatformByteDance && platform != PlatformWan3 && platform != PlatformMiniMaxH3 && platform != PlatformPixverseV6 &&
+			(platform == PlatformGrokImagineVideo && ppVideoGrokImagineVideoModelAllowed(model)) ||
+			(platform == PlatformKuaishou && ppVideoKuaishouModelAllowed(model)) ||
+			(platform != PlatformByteDance && platform != PlatformWan3 && platform != PlatformMiniMaxH3 && platform != PlatformPixverseV6 && platform != PlatformGrokImagineVideo && platform != PlatformKuaishou &&
 				(ppVideoIsPublicDefaultAlias(model) || ppVideoModelBelongsToPlatform(platform, model))) {
 			filtered = append(filtered, model)
 		}
@@ -2401,6 +2787,24 @@ func ppVideoIsPixverseV6Model(model string) bool {
 func ppVideoPixverseV6ModelAllowed(model string) bool {
 	model = strings.TrimSpace(model)
 	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsPixverseV6Model(model)
+}
+
+func ppVideoIsGrokImagineVideoModel(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), GrokImagineVideoDefaultModel)
+}
+
+func ppVideoGrokImagineVideoModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsGrokImagineVideoModel(model)
+}
+
+func ppVideoIsKuaishouModel(model string) bool {
+	return strings.EqualFold(strings.TrimSpace(model), KuaishouVideoDefaultModel)
+}
+
+func ppVideoKuaishouModelAllowed(model string) bool {
+	model = strings.TrimSpace(model)
+	return ppVideoIsPublicDefaultAlias(model) || ppVideoIsKuaishouModel(model)
 }
 
 func ppVideoIsJimengModel(model string) bool {

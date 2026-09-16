@@ -78,7 +78,7 @@ ON CONFLICT (user_id, provider_type, grant_reason) DO NOTHING`,
 	}
 
 	if providerDefaults.Balance != 0 {
-		if err := client.User.UpdateOneID(userID).AddBalance(providerDefaults.Balance).Exec(ctx); err != nil {
+		if err := applyFirstBindBalanceDefault(ctx, client, userID, providerDefaults.Balance); err != nil {
 			return fmt.Errorf("apply first bind balance default: %w", err)
 		}
 	}
@@ -100,5 +100,32 @@ ON CONFLICT (user_id, provider_type, grant_reason) DO NOTHING`,
 		}
 	}
 
+	return nil
+}
+
+func applyFirstBindBalanceDefault(ctx context.Context, client *dbent.Client, userID int64, amount float64) error {
+	var result entsql.Result
+	if err := client.Driver().Exec(
+		ctx,
+		`UPDATE users
+SET balance = balance + $1,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + $1
+        ELSE balance + $1
+    END,
+    updated_at = NOW()
+WHERE id = $2 AND deleted_at IS NULL`,
+		[]any{amount, userID},
+		&result,
+	); err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return ErrUserNotFound
+	}
 	return nil
 }

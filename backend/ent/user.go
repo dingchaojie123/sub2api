@@ -31,8 +31,12 @@ type User struct {
 	Role string `json:"role,omitempty"`
 	// Balance holds the value of the "balance" field.
 	Balance float64 `json:"balance,omitempty"`
+	// DisplayBalance holds the value of the "display_balance" field.
+	DisplayBalance float64 `json:"display_balance,omitempty"`
 	// FrozenBalance holds the value of the "frozen_balance" field.
 	FrozenBalance float64 `json:"frozen_balance,omitempty"`
+	// FrozenDisplayBalance holds the value of the "frozen_display_balance" field.
+	FrozenDisplayBalance float64 `json:"frozen_display_balance,omitempty"`
 	// Concurrency holds the value of the "concurrency" field.
 	Concurrency int `json:"concurrency,omitempty"`
 	// Status holds the value of the "status" field.
@@ -239,7 +243,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldBalance, user.FieldFrozenBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
+		case user.FieldBalance, user.FieldDisplayBalance, user.FieldFrozenBalance, user.FieldFrozenDisplayBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
 			values[i] = new(sql.NullFloat64)
 		case user.FieldID, user.FieldConcurrency, user.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
@@ -311,11 +315,23 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Balance = value.Float64
 			}
+		case user.FieldDisplayBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field display_balance", values[i])
+			} else if value.Valid {
+				_m.DisplayBalance = value.Float64
+			}
 		case user.FieldFrozenBalance:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field frozen_balance", values[i])
 			} else if value.Valid {
 				_m.FrozenBalance = value.Float64
+			}
+		case user.FieldFrozenDisplayBalance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field frozen_display_balance", values[i])
+			} else if value.Valid {
+				_m.FrozenDisplayBalance = value.Float64
 			}
 		case user.FieldConcurrency:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -547,8 +563,14 @@ func (_m *User) String() string {
 	builder.WriteString("balance=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Balance))
 	builder.WriteString(", ")
+	builder.WriteString("display_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.DisplayBalance))
+	builder.WriteString(", ")
 	builder.WriteString("frozen_balance=")
 	builder.WriteString(fmt.Sprintf("%v", _m.FrozenBalance))
+	builder.WriteString(", ")
+	builder.WriteString("frozen_display_balance=")
+	builder.WriteString(fmt.Sprintf("%v", _m.FrozenDisplayBalance))
 	builder.WriteString(", ")
 	builder.WriteString("concurrency=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Concurrency))

@@ -55,11 +55,13 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	}
 	orderAmount := req.Amount
 	limitAmount := req.Amount
+	displayAmount := req.Amount
 	if plan != nil {
 		orderAmount = plan.Price
 		limitAmount = plan.Price
+		displayAmount = plan.Price
 	} else if req.OrderType == payment.OrderTypeBalance {
-		orderAmount = calculateCreditedBalance(req.Amount, cfg.BalanceRechargeMultiplier)
+		displayAmount = balanceRechargeDisplayAmount(req.Amount)
 	}
 	feeRate := cfg.RechargeFeeRate
 	methodCurrency := payment.DefaultPaymentCurrency
@@ -93,7 +95,7 @@ func (s *PaymentService) CreateOrder(ctx context.Context, req CreateOrderRequest
 	if err := validateSelectedCreateOrderAmountCurrency(payAmountStr, sel); err != nil {
 		return nil, err
 	}
-	oauthResp, err := s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, limitAmount, payAmount, feeRate, sel)
+	oauthResp, err := s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, limitAmount, displayAmount, payAmount, feeRate, sel)
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +125,11 @@ func (s *PaymentService) validateOrderInput(ctx context.Context, req CreateOrder
 	}
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) || req.Amount <= 0 {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount must be a positive number")
+	}
+	if req.OrderType == payment.OrderTypeBalance {
+		if _, ok := ResolveBalanceRechargeProduct(req.Amount); !ok {
+			return nil, infraerrors.BadRequest("INVALID_RECHARGE_PRODUCT", "invalid balance recharge product")
+		}
 	}
 	if (cfg.MinAmount > 0 && req.Amount < cfg.MinAmount) || (cfg.MaxAmount > 0 && req.Amount > cfg.MaxAmount) {
 		return nil, infraerrors.BadRequest("INVALID_AMOUNT", "amount out of range").
@@ -255,58 +262,57 @@ func (s *PaymentService) checkPendingLimit(ctx context.Context, tx *dbent.Tx, us
 }
 
 func buildPaymentOrderProviderSnapshot(sel *payment.InstanceSelection, req CreateOrderRequest) map[string]any {
-	if sel == nil {
-		return nil
-	}
-
 	snapshot := map[string]any{}
-	snapshot["schema_version"] = 2
+	if sel != nil {
+		snapshot["schema_version"] = 2
 
-	instanceID := strings.TrimSpace(sel.InstanceID)
-	if instanceID != "" {
-		snapshot["provider_instance_id"] = instanceID
+		instanceID := strings.TrimSpace(sel.InstanceID)
+		if instanceID != "" {
+			snapshot["provider_instance_id"] = instanceID
+		}
+
+		providerKey := strings.TrimSpace(sel.ProviderKey)
+		if providerKey != "" {
+			snapshot["provider_key"] = providerKey
+		}
+
+		paymentMode := strings.TrimSpace(sel.PaymentMode)
+		if paymentMode != "" {
+			snapshot["payment_mode"] = paymentMode
+		}
+
+		if providerKey == payment.TypeWxpay {
+			if merchantAppID := paymentOrderSnapshotWxpayAppID(sel, req); merchantAppID != "" {
+				snapshot["merchant_app_id"] = merchantAppID
+			}
+			if merchantID := strings.TrimSpace(sel.Config["mchId"]); merchantID != "" {
+				snapshot["merchant_id"] = merchantID
+			}
+			snapshot["currency"] = payment.DefaultPaymentCurrency
+		}
+		if providerKey == payment.TypeAlipay {
+			if merchantAppID := strings.TrimSpace(sel.Config["appId"]); merchantAppID != "" {
+				snapshot["merchant_app_id"] = merchantAppID
+			}
+		}
+		if providerKey == payment.TypeEasyPay {
+			if merchantID := strings.TrimSpace(sel.Config["pid"]); merchantID != "" {
+				snapshot["merchant_id"] = merchantID
+			}
+		}
+		if providerKey == payment.TypeStripe {
+			snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
+		}
+		if providerKey == payment.TypeAirwallex {
+			if accountID := strings.TrimSpace(sel.Config["accountId"]); accountID != "" {
+				snapshot["merchant_id"] = accountID
+			}
+			snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
+		}
 	}
 
-	providerKey := strings.TrimSpace(sel.ProviderKey)
-	if providerKey != "" {
-		snapshot["provider_key"] = providerKey
-	}
-
-	paymentMode := strings.TrimSpace(sel.PaymentMode)
-	if paymentMode != "" {
-		snapshot["payment_mode"] = paymentMode
-	}
-
-	if providerKey == payment.TypeWxpay {
-		if merchantAppID := paymentOrderSnapshotWxpayAppID(sel, req); merchantAppID != "" {
-			snapshot["merchant_app_id"] = merchantAppID
-		}
-		if merchantID := strings.TrimSpace(sel.Config["mchId"]); merchantID != "" {
-			snapshot["merchant_id"] = merchantID
-		}
-		snapshot["currency"] = payment.DefaultPaymentCurrency
-	}
-	if providerKey == payment.TypeAlipay {
-		if merchantAppID := strings.TrimSpace(sel.Config["appId"]); merchantAppID != "" {
-			snapshot["merchant_app_id"] = merchantAppID
-		}
-	}
-	if providerKey == payment.TypeEasyPay {
-		if merchantID := strings.TrimSpace(sel.Config["pid"]); merchantID != "" {
-			snapshot["merchant_id"] = merchantID
-		}
-	}
-	if providerKey == payment.TypeStripe {
-		snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
-	}
-	if providerKey == payment.TypeAirwallex {
-		if accountID := strings.TrimSpace(sel.Config["accountId"]); accountID != "" {
-			snapshot["merchant_id"] = accountID
-		}
-		snapshot["currency"] = paymentProviderConfigCurrency(providerKey, sel.Config)
-	}
-
-	if len(snapshot) == 1 {
+	snapshot = appendBalanceRechargeProductSnapshot(snapshot, req)
+	if len(snapshot) == 0 || (len(snapshot) == 1 && snapshot["schema_version"] != nil) {
 		return nil
 	}
 	return snapshot
@@ -470,6 +476,7 @@ func (s *PaymentService) invokeProvider(ctx context.Context, order *dbent.Paymen
 	s.writeAuditLog(ctx, order.ID, "ORDER_CREATED", fmt.Sprintf("user:%d", req.UserID), map[string]any{
 		"paymentAmount":  req.Amount,
 		"creditedAmount": order.Amount,
+		"displayAmount":  PaymentOrderDisplayAmount(order),
 		"payAmount":      order.PayAmount,
 		"paymentType":    req.PaymentType,
 		"orderType":      req.OrderType,
@@ -558,21 +565,21 @@ func applyPaymentProductNameAffix(productName string, cfg *PaymentConfig) string
 	return strings.TrimSpace(pf + " " + productName + " " + sf)
 }
 
-func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
-	return s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, amount, payAmount, feeRate, nil)
+func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, displayAmount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
+	return s.maybeBuildWeChatOAuthRequiredResponseForSelection(ctx, req, amount, displayAmount, payAmount, feeRate, nil)
 }
 
-func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponseForSelection(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64, sel *payment.InstanceSelection) (*CreateOrderResponse, error) {
+func (s *PaymentService) maybeBuildWeChatOAuthRequiredResponseForSelection(ctx context.Context, req CreateOrderRequest, amount, displayAmount, payAmount, feeRate float64, sel *payment.InstanceSelection) (*CreateOrderResponse, error) {
 	if sel != nil && sel.ProviderKey != "" && sel.ProviderKey != payment.TypeWxpay {
 		return nil, nil
 	}
 	if strings.TrimSpace(req.OpenID) != "" || !req.IsWeChatBrowser || payment.GetBasePaymentType(req.PaymentType) != payment.TypeWxpay {
 		return nil, nil
 	}
-	return s.buildWeChatOAuthRequiredResponse(ctx, req, amount, payAmount, feeRate)
+	return s.buildWeChatOAuthRequiredResponse(ctx, req, amount, displayAmount, payAmount, feeRate)
 }
 
-func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
+func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, req CreateOrderRequest, amount, displayAmount, payAmount, feeRate float64) (*CreateOrderResponse, error) {
 	appID, _, err := s.getWeChatPaymentOAuthCredential(ctx)
 	if err != nil {
 		return nil, err
@@ -587,11 +594,12 @@ func (s *PaymentService) buildWeChatOAuthRequiredResponse(ctx context.Context, r
 	}
 
 	return &CreateOrderResponse{
-		Amount:      amount,
-		PayAmount:   payAmount,
-		FeeRate:     feeRate,
-		ResultType:  payment.CreatePaymentResultOAuthRequired,
-		PaymentType: req.PaymentType,
+		Amount:        amount,
+		DisplayAmount: displayAmount,
+		PayAmount:     payAmount,
+		FeeRate:       feeRate,
+		ResultType:    payment.CreatePaymentResultOAuthRequired,
+		PaymentType:   req.PaymentType,
 		OAuth: &payment.WechatOAuthInfo{
 			AuthorizeURL: authorizeURL,
 			AppID:        appID,
@@ -721,26 +729,27 @@ func classifyCreatePaymentError(req CreateOrderRequest, providerKey string, err 
 
 func buildCreateOrderResponse(order *dbent.PaymentOrder, req CreateOrderRequest, payAmount float64, sel *payment.InstanceSelection, pr *payment.CreatePaymentResponse, resultType payment.CreatePaymentResultType) *CreateOrderResponse {
 	return &CreateOrderResponse{
-		OrderID:      order.ID,
-		Amount:       order.Amount,
-		PayAmount:    payAmount,
-		FeeRate:      order.FeeRate,
-		Status:       OrderStatusPending,
-		ResultType:   resultType,
-		PaymentType:  req.PaymentType,
-		OutTradeNo:   order.OutTradeNo,
-		PayURL:       pr.PayURL,
-		QRCode:       pr.QRCode,
-		ClientSecret: pr.ClientSecret,
-		IntentID:     pr.IntentID,
-		Currency:     pr.Currency,
-		CountryCode:  pr.CountryCode,
-		PaymentEnv:   pr.PaymentEnv,
-		OAuth:        pr.OAuth,
-		JSAPI:        pr.JSAPI,
-		JSAPIPayload: pr.JSAPI,
-		ExpiresAt:    order.ExpiresAt,
-		PaymentMode:  sel.PaymentMode,
+		OrderID:       order.ID,
+		Amount:        order.Amount,
+		DisplayAmount: PaymentOrderDisplayAmount(order),
+		PayAmount:     payAmount,
+		FeeRate:       order.FeeRate,
+		Status:        OrderStatusPending,
+		ResultType:    resultType,
+		PaymentType:   req.PaymentType,
+		OutTradeNo:    order.OutTradeNo,
+		PayURL:        pr.PayURL,
+		QRCode:        pr.QRCode,
+		ClientSecret:  pr.ClientSecret,
+		IntentID:      pr.IntentID,
+		Currency:      pr.Currency,
+		CountryCode:   pr.CountryCode,
+		PaymentEnv:    pr.PaymentEnv,
+		OAuth:         pr.OAuth,
+		JSAPI:         pr.JSAPI,
+		JSAPIPayload:  pr.JSAPI,
+		ExpiresAt:     order.ExpiresAt,
+		PaymentMode:   sel.PaymentMode,
 	}
 }
 

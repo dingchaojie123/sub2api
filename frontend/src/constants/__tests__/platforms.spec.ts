@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AUDIO_ACCOUNT_PLATFORMS,
   PROVIDER_PLATFORMS,
   VIDEO_ACCOUNT_PLATFORMS,
   getPlatformMetadata,
@@ -33,20 +34,35 @@ describe('video account platform metadata', () => {
       'bytedance',
       'wan3',
       'minimax-h3',
-      'pixverse-v6'
+      'pixverse-v6',
+      'grok-imagine-video',
+      'kuaishou'
     ])
 
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      expect(metadata.defaultBaseUrl).toBe(
-        platform === 'bytedance' || platform === 'wan3' || platform === 'minimax-h3' || platform === 'pixverse-v6'
+      const expectedBaseUrl =
+        platform === 'bytedance' ||
+        platform === 'wan3' ||
+        platform === 'minimax-h3' ||
+        platform === 'pixverse-v6' ||
+        platform === 'grok-imagine-video' ||
+        platform === 'kuaishou'
           ? 'https://api.modelverse.cn/v1'
           : 'https://app.ppapi.ai/v1'
-      )
+
+      expect(metadata.defaultBaseUrl).toBe(expectedBaseUrl)
+      expect(metadata.baseUrlPlaceholder).toBe(expectedBaseUrl)
       expect(metadata.authScheme).toBe('bearer')
       expect(metadata.accountType).toBe('apikey')
       expect(isVideoAccountPlatform(platform)).toBe(true)
     }
+  })
+})
+
+describe('audio account platform metadata', () => {
+  it('defines audio platforms with ModelVerse defaults and Bearer auth', () => {
+    expect(AUDIO_ACCOUNT_PLATFORMS).toEqual(['minimax-speech', 'qwen-tts'])
   })
 })

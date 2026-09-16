@@ -200,7 +200,11 @@ const upstreamSyncPlatforms = new Set([
   'bytedance',
   'wan3',
   'minimax-h3',
+  'minimax-speech',
+  'qwen-tts',
   'pixverse-v6',
+  'grok-imagine-video',
+  'kuaishou',
 ])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {

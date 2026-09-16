@@ -102,6 +102,10 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     },
     global_min: 0,
     global_max: 0,
+    balance_products: [
+      { id: 'balance_12', pay_amount: 12, display_amount: 18, original_amount: 18, lottery_chances: 0, stock_label: '库存一般' },
+      { id: 'balance_88', pay_amount: 88, display_amount: 128, original_amount: 128, lottery_chances: 1, stock_label: '库存充足' },
+    ],
     plans: [],
     balance_disabled: false,
     balance_recharge_multiplier: 1,
@@ -163,6 +167,7 @@ function jsapiOrderFixture(resumeToken: string) {
   return {
     order_id: 123,
     amount: 88,
+    display_amount: 128,
     pay_amount: 88,
     fee_rate: 0,
     expires_at: '2099-01-01T00:10:00.000Z',
@@ -185,6 +190,7 @@ function oauthOrderFixture() {
   return {
     order_id: 456,
     amount: 128,
+    display_amount: 128,
     pay_amount: 128,
     fee_rate: 0,
     expires_at: '2099-01-01T00:10:00.000Z',
@@ -364,6 +370,7 @@ describe('PaymentView payment recovery', () => {
     window.localStorage.setItem(PAYMENT_RECOVERY_STORAGE_KEY, JSON.stringify({
       orderId: 888,
       amount: 66,
+      displayAmount: 66,
       qrCode: 'ldc-qr',
       expiresAt: '2099-01-01T00:10:00.000Z',
       paymentType: 'ldc',
@@ -515,6 +522,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     window.localStorage.setItem(PAYMENT_RECOVERY_STORAGE_KEY, JSON.stringify({
       orderId: 999,
       amount: 66,
+      displayAmount: 66,
       qrCode: 'stale-qr',
       expiresAt: '2099-01-01T00:10:00.000Z',
       paymentType: 'alipay',
@@ -610,6 +618,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       .mockResolvedValueOnce({
         order_id: 778,
         amount: 88,
+        display_amount: 128,
         pay_amount: 88,
         fee_rate: 0,
         expires_at: '2099-01-01T00:10:00.000Z',

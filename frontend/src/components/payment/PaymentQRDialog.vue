@@ -45,7 +45,7 @@
           </div>
           <div class="flex justify-between">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ paidOrder.amount.toFixed(2) }}</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(paidOrder) }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -141,6 +141,21 @@ const scanHint = computed(() => {
 
 function paymentAmountSymbol(order: PaymentOrder): string {
   return currencySymbol(order.currency)
+}
+
+function formatBalanceAmount(value: number): string {
+  if (!Number.isFinite(value)) return '0.00'
+  return value.toFixed(Number.isInteger(value) ? 0 : 2)
+}
+
+function formatOrderAmount(order: PaymentOrder): string {
+  if (order.order_type === 'balance') {
+    const displayAmount = typeof order.display_amount === 'number' && Number.isFinite(order.display_amount)
+      ? order.display_amount
+      : order.amount
+    return `${formatBalanceAmount(displayAmount)} ${t('payment.balanceUnit')}`
+  }
+  return `${creditedAmountSymbol}${order.amount.toFixed(2)}`
 }
 
 const countdownDisplay = computed(() => {

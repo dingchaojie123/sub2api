@@ -23,7 +23,7 @@
               </div>
               <div v-if="amount > 0" class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountLabel }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -85,6 +85,7 @@ const props = defineProps<{
   orderType?: 'balance' | 'subscription'
   publishableKey: string
   payAmount: number
+  displayAmount?: number
   currency?: string
 }>()
 
@@ -103,8 +104,21 @@ const cancelling = ref(false)
 const success = ref(false)
 const ready = ref(false)
 const selectedType = ref('')
-const creditedAmountSymbol = currencySymbol('USD')
 const paymentAmountSymbol = computed(() => currencySymbol(props.currency))
+const creditedAmountLabel = computed(() => {
+  if (props.orderType === 'balance') {
+    const amount = typeof props.displayAmount === 'number' && Number.isFinite(props.displayAmount)
+      ? props.displayAmount
+      : props.amount
+    return `${formatBalanceAmount(amount)} ${t('payment.balanceUnit')}`
+  }
+  return `${paymentAmountSymbol.value}${props.amount.toFixed(2)}`
+})
+
+function formatBalanceAmount(value: number): string {
+  if (!Number.isFinite(value)) return '0.00'
+  return value.toFixed(Number.isInteger(value) ? 0 : 2)
+}
 
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null

@@ -29,6 +29,36 @@ func TestBuildGeminiImageRequestBody(t *testing.T) {
 	}`, string(body))
 }
 
+func TestBuildGeminiImageRequestBody_IncludesMultipartUploads(t *testing.T) {
+	req := &OpenAIImagesRequest{
+		Endpoint: openAIImagesEditsEndpoint,
+		Model:    "gemini-3.1-flash-image",
+		Prompt:   "use this reference",
+		N:        1,
+		Uploads: []OpenAIImagesUpload{
+			{
+				FieldName:   "image[]",
+				FileName:    "reference.png",
+				ContentType: "image/png",
+				Data:        []byte("png"),
+			},
+		},
+	}
+
+	body, err := BuildGeminiImageRequestBody(req)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"contents":[{"role":"user","parts":[
+			{"text":"use this reference"},
+			{"inlineData":{"mimeType":"image/png","data":"cG5n"}}
+		]}],
+		"generationConfig":{
+			"responseModalities":["TEXT","IMAGE"],
+			"imageConfig":{"aspectRatio":"1:1"}
+		}
+	}`, string(body))
+}
+
 func TestValidateOpenAIImagesModelAcceptsGeminiImageModel(t *testing.T) {
 	require.NoError(t, validateOpenAIImagesModel("gemini-3.1-flash-image"))
 	require.NoError(t, validateOpenAIImagesModel("models/gemini-3.1-flash-image"))
@@ -36,14 +66,7 @@ func TestValidateOpenAIImagesModelAcceptsGeminiImageModel(t *testing.T) {
 }
 
 func TestBuildGeminiImageRequestBodyRejectsUnsupportedShape(t *testing.T) {
-	_, err := BuildGeminiImageRequestBody(&OpenAIImagesRequest{
-		Prompt: "edit this",
-		N:      1,
-		Endpoint: openAIImagesEditsEndpoint,
-	})
-	require.EqualError(t, err, "Gemini image groups support /images/generations only")
-
-	_, err = BuildGeminiImageRequestBody(&OpenAIImagesRequest{Prompt: "two images", N: 2})
+	_, err := BuildGeminiImageRequestBody(&OpenAIImagesRequest{Prompt: "two images", N: 2})
 	require.EqualError(t, err, "Gemini image groups support n=1 only")
 }
 

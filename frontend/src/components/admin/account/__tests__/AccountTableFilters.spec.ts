@@ -12,7 +12,11 @@ vi.mock('vue-i18n', async () => {
     'admin.accounts.platforms.bytedance': 'ByteDance',
     'admin.accounts.platforms.wan3': 'Wan3.0',
     'admin.accounts.platforms.minimax-h3': 'MiniMax-H3',
-    'admin.accounts.platforms.pixverse-v6': 'Pixverse-V6'
+    'admin.accounts.platforms.minimax-speech': 'MiniMax-Speech',
+    'admin.accounts.platforms.qwen-tts': 'Qwen TTS',
+    'admin.accounts.platforms.pixverse-v6': 'Pixverse-V6',
+    'admin.accounts.platforms.grok-imagine-video': 'Grok Imagine Video',
+    'admin.accounts.platforms.kuaishou': 'Kuaishou'
   }
 
   return {
@@ -48,5 +52,9 @@ describe('AccountTableFilters', () => {
     expect(wrapper.text()).toContain('Wan3.0')
     expect(wrapper.text()).toContain('MiniMax-H3')
     expect(wrapper.text()).toContain('Pixverse-V6')
+    expect(wrapper.text()).toContain('Grok Imagine Video')
+    expect(wrapper.text()).toContain('Kuaishou')
+    expect(wrapper.text()).toContain('MiniMax-Speech')
+    expect(wrapper.text()).toContain('Qwen TTS')
   })
 })

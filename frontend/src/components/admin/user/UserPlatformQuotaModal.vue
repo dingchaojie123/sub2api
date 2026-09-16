@@ -138,7 +138,8 @@ const PLATFORMS: PlatformQuotaPlatform[] = [
   'doubao',
   'qwen',
   'kimi',
-  'deepseek'
+  'deepseek',
+  'qwen-tts'
 ]
 
 interface QuotaRow {
