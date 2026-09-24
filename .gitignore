@@ -139,6 +139,7 @@ docs/*
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/ASYNC_IMAGE_TASKS.md
 !docs/PP_VIDEO_GENERATION_API.md
+!docs/ENTERPRISE_SHARED_QUOTA_TECHNICAL_DESIGN.md
 !docs/legal/
 !docs/legal/*.md
 .serena/

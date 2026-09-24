@@ -105,7 +105,7 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 
 | 平台 | 模型 ID | 输入能力 | 时长 | 输出分辨率 |
 | --- | --- | --- | --- | --- |
-| ByteDance | `doubao-seedance-2-0-260128` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `480p`、`720p`、`1080p`、`4K` |
+| ByteDance | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` |
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
 | MiniMax-H3 | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
 | MiniMax-H3 | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
@@ -163,14 +163,14 @@ POST /v1/video/generations
 
 #### ByteDance
 
-模型 ID 固定为 `doubao-seedance-2-0-260128`。`input.content` 至少包含一个内容项，可使用 `text`、`image_url`、`video_url`、`audio_url` 四种类型：
+模型 ID 可为 `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628` 或 `doubao-seedance-2-5-260628-global`。`input.content` 至少包含一个内容项，可使用 `text`、`image_url`、`video_url`、`audio_url` 四种类型：
 
 - `text`：`{"type":"text","text":"提示词"}`。
-- `image_url`：`{"type":"image_url","image_url":{"url":"https://..."}, "role":"first_frame|last_frame|reference_image"}`。
+- `image_url`：`{"type":"image_url","image_url":{"url":"https://..."}, "role":"first_frame|last_frame|reference_image"}`；`role` 为 `reference_image` 的公开图片 URL 会在提交前自动登记到火山方舟 `AIGC` 私域素材组，等 `Image` 素材状态为 `Active` 后再用 `asset://Asset-...` 提交给上游，避免真人/仿真人图片被当普通公开图片触发隐私检测。简化写法可使用 `reference_image_url`；高级调用方也可直接传 `{"image_url":{"asset_id":"Asset-..."}, "role":"reference_image"}`。
 - `video_url`：`{"type":"video_url","video_url":{"url":"https://..."}, "role":"reference_video"}`。
 - `audio_url`：`{"type":"audio_url","audio_url":{"url":"https://..."}, "role":"reference_audio"}`。
 
-`parameters.duration` 必须是 `4` 到 `15` 的整数；`parameters.resolution` 可为 `480p`、`720p`、`1080p` 或 `4K`；`parameters.ratio` 可省略，省略时为 `adaptive`。可选参数包括 `generate_audio`（boolean）、`seed`、`camera_fixed`、`watermark`、`callback_url`、`execution_expires_after` 和 `seedance_tools`。
+`parameters.duration` 必须是整数：`doubao-seedance-2-0-260128` 支持 `4` 到 `15` 秒，`doubao-seedance-2-5-260628` 和 `doubao-seedance-2-5-260628-global` 支持 `4` 到 `30` 秒。`parameters.resolution` 可为 `480p`、`720p` 或 `1080p`；旧版 `doubao-seedance-2-0-260128` 还兼容 `4K`。`parameters.ratio` 可省略，省略时为 `adaptive`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9` 或 `adaptive`。可选参数包括 `generate_audio`（boolean，默认 `true`，传 `false` 可关闭音频）、`seed`、`camera_fixed`、`watermark`、`callback_url`、`execution_expires_after`、`seedance_tools` 和 2.5 系列的 `omni_reference_task_type`。
 
 ```json
 {
@@ -189,7 +189,35 @@ POST /v1/video/generations
     "duration": 5,
     "resolution": "720p",
     "ratio": "16:9",
-    "generate_audio": false
+    "generate_audio": true
+  }
+}
+```
+
+真人/仿真人参考图可用简化字段提交，本站会自动创建并等待火山私域素材可用：
+
+```json
+{
+  "model": "doubao-seedance-2-0-260128",
+  "prompt": "让素材中的人物微笑挥手",
+  "reference_image_url": "https://example.com/person.jpg",
+  "parameters": {
+    "duration": 5,
+    "resolution": "720p"
+  }
+}
+```
+
+如果调用方已经有可用的火山私域素材 ID，也可以直接传 `image_asset_id`：
+
+```json
+{
+  "model": "doubao-seedance-2-0-260128",
+  "prompt": "让素材中的人物微笑挥手",
+  "image_asset_id": "Asset-20260331150000-xxxxx",
+  "parameters": {
+    "duration": 5,
+    "resolution": "720p"
   }
 }
 ```
@@ -204,7 +232,7 @@ POST /v1/video/generations
 
 首帧和尾帧各最多一张；参考图最多 10 张，参考视频和参考音频各最多 5 个；`file` 和 `link` 最多二选一。`first_frame`/`last_frame` 不能与参考媒体、`file` 或 `link` 混用。图片类媒体支持公开 URL 或 `data:image/...;base64,...`，其余媒体使用可访问的 URL。
 
-`parameters.duration` 必须是 `2` 到 `30` 的整数；`parameters.resolution` 可为 `480P`、`720P` 或 `1080P`，默认 `1080P`；`parameters.ratio` 可为 `adaptive`、`16:9`、`9:16`、`1:1`、`4:3` 或 `3:4`。可选参数包括 `audio`、`prompt_extend`、`watermark` 和 `seed`（`0` 至 `2147483647` 的整数）。
+`parameters.duration` 必须是 `2` 到 `30` 的整数；`parameters.resolution` 可为 `480P`、`720P` 或 `1080P`，默认 `1080P`；`parameters.ratio` 可为 `adaptive`、`16:9`、`9:16`、`1:1`、`4:3` 或 `3:4`。可选参数包括 `audio`（boolean，默认 `true`，传 `false` 可关闭音频）、`prompt_extend`、`watermark` 和 `seed`（`0` 至 `2147483647` 的整数）。
 
 ```json
 {
@@ -317,7 +345,7 @@ POST /v1/video/generations
 - `input.img_url`：参考图，支持公开图片 URL 或 `data:image/...;base64,...`。
 - `input.video_url`：视频延长输入，仅支持公开 HTTP/HTTPS URL。
 
-`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。`generate_audio` 为整数音频开关，默认 `1`（with_audio，有声音），传 `0` 可关闭声音；`seed` 可选，取值范围为 `0` 至 `2147483647`。
+`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。`generate_audio` 为 boolean 音频开关，默认 `true`（with_audio，有声音），传 `false` 可关闭声音；`seed` 可选，取值范围为 `0` 至 `2147483647`。
 
 ```json
 {
@@ -329,7 +357,7 @@ POST /v1/video/generations
   "parameters": {
     "duration": 5,
     "resolution": "720p",
-    "generate_audio": 1
+    "generate_audio": true
   }
 }
 ```

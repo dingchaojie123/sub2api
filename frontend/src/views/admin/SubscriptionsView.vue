@@ -995,7 +995,8 @@ const platformFilterOptions = computed(() => [
   { value: 'doubao', label: '豆包' },
   { value: 'qwen', label: '千问' },
   { value: 'kimi', label: 'Kimi' },
-  { value: 'deepseek', label: 'DeepSeek' }
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'midjourney', label: 'Midjourney' }
 ])
 
 // Group options for assign (only subscription type groups)

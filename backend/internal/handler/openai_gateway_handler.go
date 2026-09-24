@@ -154,7 +154,7 @@ func allowOpenAICompatibleMessagesDispatch(apiKey *service.APIKey) bool {
 		return true
 	}
 	switch apiKey.Group.Platform {
-	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
+	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek, service.PlatformMidjourney:
 		return true
 	}
 	return apiKey.Group.AllowMessagesDispatch

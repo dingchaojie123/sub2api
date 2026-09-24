@@ -495,7 +495,8 @@ const platformOptions = [
   { value: 'doubao', label: '豆包' },
   { value: 'qwen', label: '千问' },
   { value: 'kimi', label: 'Kimi' },
-  { value: 'deepseek', label: 'DeepSeek' }
+  { value: 'deepseek', label: 'DeepSeek' },
+  { value: 'midjourney', label: 'Midjourney' }
 ]
 
 // Load rules when dialog opens

@@ -42,17 +42,18 @@ const (
 	PlatformQwen        = "qwen"
 	PlatformKimi        = "kimi"
 	PlatformDeepSeek    = "deepseek"
+	PlatformMidjourney  = "midjourney"
 	PlatformKling       = "kling"
 	PlatformHappyHourse = "happyhourse"
 	PlatformSeedance    = "seedance"
 	PlatformByteDance   = "bytedance"
 	PlatformWan3        = "wan3"
-	PlatformMiniMaxH3         = "minimax-h3"
-	PlatformMiniMaxSpeech     = "minimax-speech"
-	PlatformQwenTTS           = "qwen-tts"
-	PlatformPixverseV6         = "pixverse-v6"
+	PlatformMiniMaxH3        = "minimax-h3"
+	PlatformMiniMaxSpeech    = "minimax-speech"
+	PlatformQwenTTS          = "qwen-tts"
+	PlatformPixverseV6       = "pixverse-v6"
 	PlatformGrokImagineVideo  = "grok-imagine-video"
-	PlatformKuaishou          = "kuaishou"
+	PlatformKuaishou         = "kuaishou"
 )
 
 // AllPlatforms 返回所有支持的平台列表
@@ -68,6 +69,7 @@ func AllPlatforms() []string {
 		PlatformQwen,
 		PlatformKimi,
 		PlatformDeepSeek,
+		PlatformMidjourney,
 		PlatformKling,
 		PlatformHappyHourse,
 		PlatformSeedance,

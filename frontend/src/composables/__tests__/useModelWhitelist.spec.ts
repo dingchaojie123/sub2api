@@ -5,7 +5,7 @@ vi.mock('@/api/admin/accounts', () => ({
 }))
 
 import {
-  BYTEDANCE_FIXED_MODEL,
+  BYTEDANCE_FIXED_MODELS,
   MINIMAX_HAILUO_23_FIXED_MODEL,
   MINIMAX_H3_FIXED_MODEL,
   PIXVERSE_V6_FIXED_MODEL,
@@ -51,12 +51,9 @@ describe('useModelWhitelist', () => {
       expect(getPresetMappingsByPlatform(platform)).toEqual([])
     }
 
-    expect(getModelsByPlatform('bytedance')).toEqual([BYTEDANCE_FIXED_MODEL])
+    expect(getModelsByPlatform('bytedance')).toEqual(BYTEDANCE_FIXED_MODELS)
     expect(getPresetMappingsByPlatform('bytedance')).toEqual([
-      expect.objectContaining({
-        from: BYTEDANCE_FIXED_MODEL,
-        to: BYTEDANCE_FIXED_MODEL
-      })
+      ...BYTEDANCE_FIXED_MODELS.map(model => expect.objectContaining({ from: model, to: model }))
     ])
     expect(getModelsByPlatform('wan3')).toEqual(WAN3_FIXED_MODELS)
     expect(getPresetMappingsByPlatform('wan3')).toEqual(

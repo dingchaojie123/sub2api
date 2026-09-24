@@ -92,6 +92,201 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEdit(t *testing.T
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
+func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MidjourneyModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"midjourney","prompt":"draw a cat"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	svc := &OpenAIGatewayService{}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	require.Equal(t, "midjourney", parsed.Model)
+	require.Equal(t, "draw a cat", parsed.Prompt)
+}
+
+func TestOpenAIGatewayServiceForwardImages_MidjourneyUsesTasks(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"midjourney-fast-imagine","prompt":"draw a cat","n":2,"size":"1024x1024","response_format":"url"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"X-Request-Id": []string{"req_midjourney_submit"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"output":{"task_id":"mj-task-1"},"request_id":"req_submit"}`)),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+				"X-Request-Id": []string{"req_midjourney_status"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{
+				"output":{
+					"task_id":"mj-task-1",
+					"task_status":"Success",
+					"urls":["https://cdn.example/mj-grid.png"]
+				},
+				"usage":{"prompt_tokens":12,"completion_tokens":4,"total_tokens":16}
+			}`)),
+		},
+	}}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{
+		ID:          102,
+		Name:        "midjourney-apikey",
+		Platform:    PlatformMidjourney,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.modelverse.cn/v1",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+	require.Equal(t, 12, result.Usage.InputTokens)
+	require.Equal(t, 4, result.Usage.OutputTokens)
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[0].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=mj-task-1", upstream.requests[1].URL.String())
+	require.Equal(t, "https://cdn.example/mj-grid.png", gjson.Get(rec.Body.String(), "data.0.url").String())
+	require.Equal(t, "midjourney-fast-imagine", gjson.GetBytes(upstream.bodies[0], "model").String())
+	require.Equal(t, "draw a cat", gjson.GetBytes(upstream.bodies[0], "input.prompt").String())
+}
+
+func TestOpenAIGatewayServiceForwardImages_MidjourneyRejectsNonImaginePromptOnlyModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"midjourney-fast-variation","prompt":"draw a cat","size":"1024x1536"}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	upstream := &httpUpstreamRecorder{}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{
+		ID:          103,
+		Name:        "midjourney-apikey",
+		Platform:    PlatformMidjourney,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.modelverse.cn/v1",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.Error(t, err)
+	require.Nil(t, result)
+	require.Nil(t, upstream.lastReq)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Body.String(), "mj_task_id")
+}
+
+func TestOpenAIGatewayServiceForwardImages_MidjourneyActionModelUsesTaskParameters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := []byte(`{"model":"midjourney-fast-variation","parameters":{"mj_task_id":"task-prev","mj_custom_id":"MJ::JOB::variation::1"}}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = req
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"output":{"task_id":"task-next"}}`)),
+		},
+		{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{"output":{"task_status":"Success","urls":["https://cdn.example/variation.png"]}}`)),
+		},
+	}}
+	svc := &OpenAIGatewayService{
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{
+					Enabled:           false,
+					AllowInsecureHTTP: true,
+				},
+			},
+		},
+		httpUpstream: upstream,
+	}
+	parsed, err := svc.ParseOpenAIImagesRequest(c, body)
+	require.NoError(t, err)
+	account := &Account{
+		ID:          104,
+		Name:        "midjourney-apikey",
+		Platform:    PlatformMidjourney,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-test",
+			"base_url": "https://api.modelverse.cn/v1/tasks/submit",
+		},
+	}
+
+	result, err := svc.ForwardImages(context.Background(), c, account, body, parsed, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 1, result.ImageCount)
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[0].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=task-next", upstream.requests[1].URL.String())
+	require.Equal(t, "task-prev", gjson.GetBytes(upstream.bodies[0], "parameters.mj_task_id").String())
+	require.Equal(t, "MJ::JOB::variation::1", gjson.GetBytes(upstream.bodies[0], "parameters.mj_custom_id").String())
+	require.True(t, gjson.GetBytes(upstream.bodies[0], "input").IsObject())
+	require.Equal(t, "https://cdn.example/variation.png", gjson.Get(rec.Body.String(), "data.0.url").String())
+}
+
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_MultipartEditImageArrayField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var body bytes.Buffer

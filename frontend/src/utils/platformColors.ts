@@ -16,6 +16,7 @@ export type Platform =
   | 'qwen'
   | 'kimi'
   | 'deepseek'
+  | 'midjourney'
   | 'kling'
   | 'happyhourse'
   | 'seedance'
@@ -40,6 +41,7 @@ const BADGE: Record<Platform, string> = {
   qwen: 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300',
   kimi: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300',
   deepseek: 'bg-slate-700/10 text-slate-700 border-slate-700/30 dark:text-slate-200',
+  midjourney: 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
   kling: 'bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
@@ -66,6 +68,7 @@ const BADGE_LIGHT: Record<Platform, string> = {
   qwen: 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
   kimi: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
   deepseek: 'bg-slate-700/10 text-slate-700 dark:bg-slate-500/10 dark:text-slate-200',
+  midjourney: 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
   kling: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
@@ -91,6 +94,7 @@ const BORDER: Record<Platform, string> = {
   qwen: 'border-amber-500/20 dark:border-amber-500/20',
   kimi: 'border-indigo-500/20 dark:border-indigo-500/20',
   deepseek: 'border-slate-700/20 dark:border-slate-500/20',
+  midjourney: 'border-pink-500/20 dark:border-pink-500/20',
   kling: 'border-sky-500/20 dark:border-sky-500/20',
   happyhourse: 'border-emerald-500/20 dark:border-emerald-500/20',
   seedance: 'border-teal-500/20 dark:border-teal-500/20',
@@ -117,6 +121,7 @@ const ACCENT_BAR: Record<Platform, string> = {
   qwen: 'bg-gradient-to-r from-amber-400 to-orange-500',
   kimi: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
   deepseek: 'bg-gradient-to-r from-slate-600 to-slate-800',
+  midjourney: 'bg-gradient-to-r from-pink-400 to-fuchsia-600',
   kling: 'bg-gradient-to-r from-sky-400 to-sky-600',
   happyhourse: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
   seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
@@ -143,6 +148,7 @@ const TEXT: Record<Platform, string> = {
   qwen: 'text-amber-700 dark:text-amber-300',
   kimi: 'text-indigo-700 dark:text-indigo-300',
   deepseek: 'text-slate-700 dark:text-slate-200',
+  midjourney: 'text-pink-700 dark:text-pink-300',
   kling: 'text-sky-700 dark:text-sky-300',
   happyhourse: 'text-emerald-700 dark:text-emerald-300',
   seedance: 'text-teal-700 dark:text-teal-300',
@@ -169,6 +175,7 @@ const ICON: Record<Platform, string> = {
   qwen: 'text-amber-500 dark:text-amber-300',
   kimi: 'text-indigo-500 dark:text-indigo-300',
   deepseek: 'text-slate-600 dark:text-slate-200',
+  midjourney: 'text-pink-500 dark:text-pink-300',
   kling: 'text-sky-500 dark:text-sky-300',
   happyhourse: 'text-emerald-500 dark:text-emerald-300',
   seedance: 'text-teal-500 dark:text-teal-300',
@@ -195,6 +202,7 @@ const BUTTON: Record<Platform, string> = {
   qwen: 'bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 dark:bg-amber-500/80 dark:hover:bg-amber-500',
   kimi: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600/80 dark:hover:bg-indigo-600',
   deepseek: 'bg-slate-700 text-white hover:bg-slate-800 active:bg-slate-900 dark:bg-slate-600 dark:hover:bg-slate-500',
+  midjourney: 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
   kling: 'bg-sky-600 text-white hover:bg-sky-700 active:bg-sky-800 dark:bg-sky-600/80 dark:hover:bg-sky-600',
   happyhourse: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
   seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
@@ -221,6 +229,7 @@ const DISCOUNT: Record<Platform, string> = {
   qwen: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   kimi: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
   deepseek: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  midjourney: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   kling: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   happyhourse: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
@@ -247,6 +256,7 @@ const GRADIENT: Record<Platform, string> = {
   qwen: 'from-amber-500 to-orange-600',
   kimi: 'from-indigo-500 to-indigo-600',
   deepseek: 'from-slate-700 to-slate-900',
+  midjourney: 'from-pink-500 to-fuchsia-600',
   kling: 'from-sky-500 to-sky-600',
   happyhourse: 'from-emerald-500 to-emerald-600',
   seedance: 'from-teal-500 to-teal-600',
@@ -273,6 +283,7 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   qwen: 'text-amber-100',
   kimi: 'text-indigo-100',
   deepseek: 'text-slate-100',
+  midjourney: 'text-pink-100',
   kling: 'text-sky-100',
   happyhourse: 'text-emerald-100',
   seedance: 'text-teal-100',
@@ -298,6 +309,7 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   qwen: 'text-amber-200',
   kimi: 'text-indigo-200',
   deepseek: 'text-slate-300',
+  midjourney: 'text-pink-200',
   kling: 'text-sky-200',
   happyhourse: 'text-emerald-200',
   seedance: 'text-teal-200',
@@ -315,7 +327,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
+  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -374,6 +386,7 @@ export function platformLabel(p: string): string {
     case 'qwen': return '千问'
     case 'kimi': return 'Kimi'
     case 'deepseek': return 'DeepSeek'
+    case 'midjourney': return 'Midjourney'
     case 'kling': return 'K-Ling'
     case 'happyhourse': return 'Happy-Hourse'
     case 'seedance': return 'Seedance'

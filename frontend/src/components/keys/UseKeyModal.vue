@@ -248,6 +248,7 @@ const defaultClientTab = computed(() => {
     case 'qwen':
     case 'kimi':
     case 'deepseek':
+    case 'midjourney':
       return 'codex'
     case 'grok':
       return 'grok'
@@ -347,7 +348,8 @@ const clientTabs = computed((): TabConfig[] => {
     case 'doubao':
     case 'qwen':
     case 'kimi':
-    case 'deepseek': {
+    case 'deepseek':
+    case 'midjourney': {
       const tabs: TabConfig[] = [
         { id: 'codex', label: t('keys.useKeyModal.cliTabs.codexCli'), icon: TerminalIcon },
         { id: 'codex-ws', label: t('keys.useKeyModal.cliTabs.codexCliWs'), icon: TerminalIcon },
@@ -419,6 +421,7 @@ const platformDescription = computed(() => {
     case 'qwen':
     case 'kimi':
     case 'deepseek':
+    case 'midjourney':
       if (activeClientTab.value === 'claude') {
         return t('keys.useKeyModal.description')
       }
@@ -524,6 +527,7 @@ const currentFiles = computed((): FileConfig[] => {
       case 'qwen':
       case 'kimi':
       case 'deepseek':
+      case 'midjourney':
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
       case 'gemini':
         return [generateOpenCodeConfig('gemini', geminiBase, apiKey)]
@@ -545,6 +549,7 @@ const currentFiles = computed((): FileConfig[] => {
     case 'qwen':
     case 'kimi':
     case 'deepseek':
+    case 'midjourney':
       if (activeClientTab.value === 'claude') {
         return generateAnthropicFiles(baseUrl, apiKey)
       }

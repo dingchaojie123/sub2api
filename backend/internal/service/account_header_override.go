@@ -77,7 +77,7 @@ func (a *Account) IsHeaderOverrideEligible() bool {
 		return false
 	}
 	switch a.Platform {
-	case PlatformAnthropic, PlatformOpenAI, PlatformJimeng, PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek:
+	case PlatformAnthropic, PlatformOpenAI, PlatformJimeng, PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek, PlatformMidjourney:
 		return a.Type == AccountTypeAPIKey
 	case PlatformGrok:
 		return a.Type == AccountTypeAPIKey || a.Type == AccountTypeOAuth

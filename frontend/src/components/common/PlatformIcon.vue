@@ -48,6 +48,11 @@
   <svg v-else-if="platform === 'deepseek'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2.5l2.3 6.3L20.5 12l-6.2 3.2L12 21.5l-2.3-6.3L3.5 12l6.2-3.2L12 2.5zm0 5.6L11 11l-3 1 3 1 1 3 1-3 3-1-3-1-1-3z" />
   </svg>
+  <!-- Midjourney logo mark (image frame with sparkle) -->
+  <svg v-else-if="platform === 'midjourney'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9.2l3.2-3.2a1 1 0 0 1 1.4 0l2.2 2.2 3.6-4.6a1 1 0 0 1 1.58.02L19 12.3V6H5zm0 12h14v-2.38l-2.86-3.78-3.42 4.38a1 1 0 0 1-1.5.08L8.9 13.98 5 17.88V18z" />
+    <path d="M9.7 7.2l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45.45-1.05zm6.3-1.1.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7.7-1.7z" />
+  </svg>
   <!-- K-Ling logo mark (play button in a frame) -->
   <svg v-else-if="platform === 'kling'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M5 4.5A2.5 2.5 0 0 0 2.5 7v10A2.5 2.5 0 0 0 5 19.5h14a2.5 2.5 0 0 0 2.5-2.5V7A2.5 2.5 0 0 0 19 4.5H5zm5.1 3.9 5.35 3.1a.58.58 0 0 1 0 1l-5.35 3.1A.58.58 0 0 1 9.25 15V9a.58.58 0 0 1 .85-.6z" />

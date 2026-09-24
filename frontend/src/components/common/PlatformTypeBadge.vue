@@ -95,6 +95,7 @@ const platformLabel = computed(() => {
   if (props.platform === 'qwen') return '千问'
   if (props.platform === 'kimi') return 'Kimi'
   if (props.platform === 'deepseek') return 'DeepSeek'
+  if (props.platform === 'midjourney') return 'Midjourney'
   if (props.platform === 'kling') return 'K-Ling'
   if (props.platform === 'happyhourse') return 'Happy-Hourse'
   if (props.platform === 'seedance') return 'Seedance'
@@ -206,6 +207,9 @@ const platformClass = computed(() => {
   if (props.platform === 'deepseek') {
     return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
   }
+  if (props.platform === 'midjourney') {
+    return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
+  }
   if (props.platform === 'kling') {
     return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
   }
@@ -269,6 +273,9 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'deepseek') {
     return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200'
+  }
+  if (props.platform === 'midjourney') {
+    return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'
   }
   if (props.platform === 'kling') {
     return 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300'

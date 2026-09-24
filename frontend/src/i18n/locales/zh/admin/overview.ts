@@ -867,6 +867,7 @@ export default {
         qwen: '千问',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        midjourney: 'Midjourney',
         'minimax-speech': 'MiniMax-Speech',
         'qwen-tts': 'Qwen TTS',
       },

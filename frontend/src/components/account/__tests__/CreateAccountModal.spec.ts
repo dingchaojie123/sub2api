@@ -178,7 +178,7 @@ async function fillJimengApiKeyAccount(wrapper: ReturnType<typeof mountModal>) {
 
 async function fillProviderApiKeyAccount(
   wrapper: ReturnType<typeof mountModal>,
-  platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek',
+  platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek' | 'midjourney',
   baseUrl?: string
 ) {
   await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
@@ -256,7 +256,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(platformSelector.classes()).toContain('flex-wrap')
     expect(platformSelector.classes()).not.toContain('flex-nowrap')
     expect(platformSelector.classes()).not.toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(21)
+    expect(platformButtons).toHaveLength(22)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')
       expect(button.classes()).not.toContain('flex-1')
@@ -414,6 +414,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     ['qwen', 'https://dashscope.aliyuncs.com/compatible-mode/v1'],
     ['kimi', 'https://api.moonshot.cn/v1'],
     ['deepseek', 'https://api.deepseek.com'],
+    ['midjourney', 'https://api.modelverse.cn/v1'],
   ] as const)('creates %s with its official default Base URL', async (platform, defaultBaseUrl) => {
     const wrapper = mountModal()
     await fillProviderApiKeyAccount(wrapper, platform)
@@ -515,7 +516,9 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
       if (platform === 'bytedance') {
         expect(credentials).toMatchObject({
           model_mapping: {
-            'doubao-seedance-2-0-260128': 'doubao-seedance-2-0-260128'
+            'doubao-seedance-2-0-260128': 'doubao-seedance-2-0-260128',
+            'doubao-seedance-2-5-260628': 'doubao-seedance-2-5-260628',
+            'doubao-seedance-2-5-260628-global': 'doubao-seedance-2-5-260628-global'
           }
         })
       } else if (platform === 'wan3') {

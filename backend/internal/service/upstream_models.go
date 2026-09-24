@@ -82,7 +82,7 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	}
 	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
-		fixedModels := []string{ByteDanceVideoDefaultModel}
+		fixedModels := byteDanceModels()
 		if account.Platform == PlatformWan3 {
 			platformLabel = "Wan3.0"
 			fixedModels = []string{Wan30VideoDefaultModel, Wan30VideoPrimeModel}
@@ -687,7 +687,7 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 				filtered = append(filtered, model)
 			}
 		case PlatformByteDance:
-			if strings.EqualFold(strings.TrimSpace(model), ByteDanceVideoDefaultModel) {
+			if ppVideoByteDanceModelAllowed(model) {
 				filtered = append(filtered, model)
 			}
 		case PlatformWan3:

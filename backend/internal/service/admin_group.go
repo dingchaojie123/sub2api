@@ -114,7 +114,7 @@ func defaultModelsListCandidateIDs(platform string) []string {
 		return ids
 	case PlatformGrok:
 		return xai.DefaultModelIDs()
-	case PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek:
+	case PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek, PlatformMidjourney:
 		// Provider accounts use user-configured model mappings; do not expose
 		// unrelated Claude defaults for an OpenAI-compatible platform.
 		return []string{}
@@ -130,7 +130,7 @@ func defaultModelsListCandidateIDs(platform string) []string {
 func defaultAllowImageGenerationForPlatform(platform string) bool {
 	// Grok image and video generation routes share the legacy image-generation gate.
 	// Older clients send the false zero value, so Grok groups must default enabled.
-	return platform == PlatformGrok
+	return platform == PlatformGrok || platform == PlatformMidjourney
 }
 
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
@@ -313,7 +313,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 
 	// require_oauth_only: 过滤掉 apikey 类型账号
-	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok || group.Platform == PlatformJimeng || group.Platform == PlatformDoubao || group.Platform == PlatformQwen || group.Platform == PlatformKimi || group.Platform == PlatformDeepSeek) && len(accountIDsToCopy) > 0 {
+	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok || group.Platform == PlatformJimeng || group.Platform == PlatformDoubao || group.Platform == PlatformQwen || group.Platform == PlatformKimi || group.Platform == PlatformDeepSeek || group.Platform == PlatformMidjourney) && len(accountIDsToCopy) > 0 {
 		accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)
@@ -672,7 +672,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 
 		// require_oauth_only: 过滤掉 apikey 类型账号
-		if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok || group.Platform == PlatformJimeng || group.Platform == PlatformDoubao || group.Platform == PlatformQwen || group.Platform == PlatformKimi || group.Platform == PlatformDeepSeek) && len(accountIDsToCopy) > 0 {
+		if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok || group.Platform == PlatformJimeng || group.Platform == PlatformDoubao || group.Platform == PlatformQwen || group.Platform == PlatformKimi || group.Platform == PlatformDeepSeek || group.Platform == PlatformMidjourney) && len(accountIDsToCopy) > 0 {
 			accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)

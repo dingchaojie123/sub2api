@@ -194,6 +194,7 @@ const upstreamSyncPlatforms = new Set([
   'qwen',
   'kimi',
   'deepseek',
+  'midjourney',
   'kling',
   'happyhourse',
   'seedance',

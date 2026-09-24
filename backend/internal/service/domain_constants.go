@@ -38,27 +38,28 @@ const (
 
 // Platform constants
 const (
-	PlatformAnthropic   = domain.PlatformAnthropic
-	PlatformOpenAI      = domain.PlatformOpenAI
-	PlatformGemini      = domain.PlatformGemini
-	PlatformAntigravity = domain.PlatformAntigravity
-	PlatformGrok        = domain.PlatformGrok
-	PlatformJimeng      = domain.PlatformJimeng
-	PlatformDoubao      = domain.PlatformDoubao
-	PlatformQwen        = domain.PlatformQwen
-	PlatformKimi        = domain.PlatformKimi
-	PlatformDeepSeek    = domain.PlatformDeepSeek
-	PlatformKling       = domain.PlatformKling
-	PlatformHappyHourse = domain.PlatformHappyHourse
-	PlatformSeedance    = domain.PlatformSeedance
-	PlatformByteDance   = domain.PlatformByteDance
-	PlatformWan3        = domain.PlatformWan3
-	PlatformMiniMaxH3         = domain.PlatformMiniMaxH3
-	PlatformMiniMaxSpeech     = domain.PlatformMiniMaxSpeech
-	PlatformQwenTTS           = domain.PlatformQwenTTS
-	PlatformPixverseV6         = domain.PlatformPixverseV6
-	PlatformGrokImagineVideo  = domain.PlatformGrokImagineVideo
-	PlatformKuaishou          = domain.PlatformKuaishou
+	PlatformAnthropic        = domain.PlatformAnthropic
+	PlatformOpenAI           = domain.PlatformOpenAI
+	PlatformGemini           = domain.PlatformGemini
+	PlatformAntigravity      = domain.PlatformAntigravity
+	PlatformGrok             = domain.PlatformGrok
+	PlatformJimeng           = domain.PlatformJimeng
+	PlatformDoubao           = domain.PlatformDoubao
+	PlatformQwen             = domain.PlatformQwen
+	PlatformKimi             = domain.PlatformKimi
+	PlatformDeepSeek         = domain.PlatformDeepSeek
+	PlatformMidjourney       = domain.PlatformMidjourney
+	PlatformKling            = domain.PlatformKling
+	PlatformHappyHourse      = domain.PlatformHappyHourse
+	PlatformSeedance         = domain.PlatformSeedance
+	PlatformByteDance        = domain.PlatformByteDance
+	PlatformWan3             = domain.PlatformWan3
+	PlatformMiniMaxH3        = domain.PlatformMiniMaxH3
+	PlatformMiniMaxSpeech    = domain.PlatformMiniMaxSpeech
+	PlatformQwenTTS          = domain.PlatformQwenTTS
+	PlatformPixverseV6       = domain.PlatformPixverseV6
+	PlatformGrokImagineVideo = domain.PlatformGrokImagineVideo
+	PlatformKuaishou         = domain.PlatformKuaishou
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -75,6 +76,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformQwen,
 	PlatformKimi,
 	PlatformDeepSeek,
+	PlatformMidjourney,
 	PlatformKling,
 	PlatformHappyHourse,
 	PlatformSeedance,
@@ -101,11 +103,17 @@ func IsAllowedQuotaPlatform(s string) bool {
 // IsOpenAICompatiblePlatform reports whether platform uses the OpenAI-compatible gateway surface.
 func IsOpenAICompatiblePlatform(platform string) bool {
 	switch platform {
-	case PlatformOpenAI, PlatformGrok, PlatformJimeng, PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek:
+	case PlatformOpenAI, PlatformGrok, PlatformJimeng, PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek, PlatformMidjourney:
 		return true
 	default:
 		return false
 	}
+}
+
+// IsOpenAICompatibleChatImagePlatform reports whether a provider uses the
+// OpenAI Chat Completions surface for image generation responses.
+func IsOpenAICompatibleChatImagePlatform(platform string) bool {
+	return platform == PlatformMidjourney
 }
 
 // Account type constants

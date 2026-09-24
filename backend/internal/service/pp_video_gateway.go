@@ -3,6 +3,9 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,7 +16,31 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
+
+// PPVideoUpstreamError preserves an HTTP error returned before a video task is
+// created, such as ByteDance's reference-image asset registration endpoints.
+// Callers can distinguish a provider validation error from a transport failure.
+type PPVideoUpstreamError struct {
+	StatusCode   int
+	ResponseBody []byte
+	err          error
+}
+
+func (e *PPVideoUpstreamError) Error() string {
+	if e == nil || e.err == nil {
+		return "PP video upstream request failed"
+	}
+	return e.err.Error()
+}
+
+func (e *PPVideoUpstreamError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
 
 // ForwardPPVideoBuffered forwards one PP video submission or status request
 // without writing the response. The caller persists the response before it is
@@ -67,6 +94,12 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if err != nil {
 		return nil, err
 	}
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	upstreamCtx, release := detachUpstreamContext(ctx)
+	defer release()
 
 	method := http.MethodPost
 	var reader io.Reader
@@ -84,10 +117,14 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 			}
 			upstreamBody = prepared
 		}
+		if account.Platform == PlatformByteDance {
+			upstreamBody, err = s.prepareByteDancePrivateImageAssets(upstreamCtx, baseURL, token, proxyURL, account, upstreamBody)
+			if err != nil {
+				return nil, err
+			}
+		}
 		reader = bytes.NewReader(upstreamBody)
 	}
-	upstreamCtx, release := detachUpstreamContext(ctx)
-	defer release()
 	req, err := http.NewRequestWithContext(upstreamCtx, method, strings.TrimRight(baseURL, "/")+path, reader)
 	if err != nil {
 		return nil, err
@@ -104,10 +141,6 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	}
 	req.Header = headers
 	account.ApplyHeaderOverrides(req.Header)
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
 	start := time.Now()
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if c != nil {
@@ -134,6 +167,15 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	parsed, err := ParsePPVideoResponse(account.Platform, respBody)
 	if err != nil {
 		return nil, err
+	}
+	if isStatus && account.Platform == PlatformPixverseV6 && parsed.Status == PPVideoTaskStatusSucceeded {
+		if mediaURL := ppVideoExtractVideoURL(respBody); mediaURL != "" {
+			ready, probeErr := s.ppVideoPixverseV6MediaURLReady(upstreamCtx, mediaURL, proxyURL, account)
+			if probeErr != nil || !ready {
+				parsed.Status = PPVideoTaskStatusProcessing
+				respBody = ppVideoWithoutPublicVideoURL(respBody)
+			}
+		}
 	}
 	responseBody := respBody
 	if !isCancel {
@@ -206,6 +248,271 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		}
 	}
 	return result, nil
+}
+
+func (s *OpenAIGatewayService) ppVideoPixverseV6MediaURLReady(ctx context.Context, mediaURL string, proxyURL string, account *Account) (bool, error) {
+	mediaURL = strings.TrimSpace(mediaURL)
+	if mediaURL == "" {
+		return false, nil
+	}
+	if _, err := url.ParseRequestURI(mediaURL); err != nil {
+		return false, nil
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(probeCtx, http.MethodGet, mediaURL, nil)
+	if err != nil {
+		return false, nil
+	}
+	req.Header.Set("Range", "bytes=0-0")
+	req.Header.Set("Accept", "video/*,*/*;q=0.8")
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return false, err
+	}
+	if resp == nil {
+		return false, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	return resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices, nil
+}
+
+func (s *OpenAIGatewayService) prepareByteDancePrivateImageAssets(ctx context.Context, baseURL, token, proxyURL string, account *Account, body []byte) ([]byte, error) {
+	imageURLs := ppVideoByteDancePublicImageURLPaths(body)
+	if len(imageURLs) == 0 {
+		return body, nil
+	}
+	upstreamModel := byteDanceUpstreamModel(PPVideoModelFromBody(body))
+	if upstreamModel == "" {
+		upstreamModel = ByteDanceVideoDefaultModel
+	}
+	groupID, err := s.ensureByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, upstreamModel)
+	if err != nil {
+		return nil, err
+	}
+	rewritten := body
+	for _, item := range imageURLs {
+		assetID, err := s.ensureByteDanceImageAsset(ctx, baseURL, token, proxyURL, account, groupID, item.url)
+		if err != nil {
+			return nil, err
+		}
+		rewritten, err = sjson.SetBytes(rewritten, item.path, "asset://"+assetID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return rewritten, nil
+}
+
+type ppVideoByteDanceImageURLPath struct {
+	path string
+	url  string
+}
+
+func ppVideoByteDancePublicImageURLPaths(body []byte) []ppVideoByteDanceImageURLPath {
+	content := gjson.GetBytes(body, "input.content")
+	if !content.Exists() || !content.IsArray() {
+		return nil
+	}
+	var result []ppVideoByteDanceImageURLPath
+	for index, item := range content.Array() {
+		if strings.TrimSpace(item.Get("type").String()) != "image_url" {
+			continue
+		}
+		if strings.TrimSpace(item.Get("role").String()) != "reference_image" {
+			continue
+		}
+		rawURL := strings.TrimSpace(item.Get("image_url.url").String())
+		lowerURL := strings.ToLower(rawURL)
+		if rawURL == "" || strings.HasPrefix(lowerURL, "asset://") || strings.HasPrefix(lowerURL, "data:") {
+			continue
+		}
+		if strings.HasPrefix(lowerURL, "http://") || strings.HasPrefix(lowerURL, "https://") {
+			result = append(result, ppVideoByteDanceImageURLPath{
+				path: fmt.Sprintf("input.content.%d.image_url.url", index),
+				url:  rawURL,
+			})
+		}
+	}
+	return result
+}
+
+const ppVideoByteDanceSeedance20AssetGroupName = "seedance-2.0-i2v"
+const ppVideoByteDanceAssetStatusPolls = 30
+const ppVideoByteDanceAssetStatusPollInterval = 2 * time.Second
+
+func (s *OpenAIGatewayService) ensureByteDanceAIGCAssetGroup(ctx context.Context, baseURL, token, proxyURL string, account *Account, model string) (string, error) {
+	groupName := ppVideoByteDanceAssetGroupName(model)
+	listBody := []byte(fmt.Sprintf(`{"filter":{"group_type":"AIGC","name":%q},"page_number":1,"page_size":100}`, groupName))
+	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/groups/list", listBody)
+	if err != nil {
+		return "", err
+	}
+	for _, item := range gjson.GetBytes(respBody, "items").Array() {
+		if strings.TrimSpace(item.Get("name").String()) == groupName {
+			if id := strings.TrimSpace(item.Get("id").String()); id != "" {
+				return id, nil
+			}
+		}
+	}
+	createBody, err := json.Marshal(map[string]any{
+		"name":       groupName,
+		"group_type": "AIGC",
+		"model":      model,
+	})
+	if err != nil {
+		return "", err
+	}
+	respBody, err = s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/groups/create", createBody)
+	if err != nil {
+		return "", err
+	}
+	if id := strings.TrimSpace(gjson.GetBytes(respBody, "id").String()); id != "" {
+		return id, nil
+	}
+	return "", fmt.Errorf("ByteDance asset group response missing id")
+}
+
+func ppVideoByteDanceAssetGroupName(model string) string {
+	if strings.EqualFold(strings.TrimSpace(model), ByteDanceVideoDefaultModel) {
+		return ppVideoByteDanceSeedance20AssetGroupName
+	}
+	return "sub2api-private-portrait-assets"
+}
+
+func (s *OpenAIGatewayService) ensureByteDanceImageAsset(ctx context.Context, baseURL, token, proxyURL string, account *Account, groupID, imageURL string) (string, error) {
+	assetName := ppVideoByteDanceAssetName(imageURL)
+	if assetID, err := s.findActiveByteDanceImageAsset(ctx, baseURL, token, proxyURL, account, groupID, assetName, imageURL); err != nil {
+		return "", err
+	} else if assetID != "" {
+		return assetID, nil
+	}
+	return s.createByteDanceImageAsset(ctx, baseURL, token, proxyURL, account, groupID, assetName, imageURL)
+}
+
+func (s *OpenAIGatewayService) findActiveByteDanceImageAsset(ctx context.Context, baseURL, token, proxyURL string, account *Account, groupID, assetName, imageURL string) (string, error) {
+	listPayload, _ := json.Marshal(map[string]any{
+		"filter": map[string]any{
+			"group_ids":  []string{groupID},
+			"group_type": "AIGC",
+			"statuses":   []string{"Active"},
+			"name":       assetName,
+		},
+		"page_number": 1,
+		"page_size":   100,
+		"sort_by":     "UpdateTime",
+		"sort_order":  "Desc",
+	})
+	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/assets/list", listPayload)
+	if err != nil {
+		return "", err
+	}
+	for _, item := range gjson.GetBytes(respBody, "items").Array() {
+		if strings.TrimSpace(item.Get("name").String()) != assetName {
+			continue
+		}
+		if strings.TrimSpace(item.Get("url").String()) != imageURL {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(item.Get("asset_type").String()), "Image") {
+			continue
+		}
+		if !strings.EqualFold(strings.TrimSpace(item.Get("status").String()), "Active") {
+			continue
+		}
+		if id := strings.TrimSpace(item.Get("id").String()); id != "" {
+			return id, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *OpenAIGatewayService) createByteDanceImageAsset(ctx context.Context, baseURL, token, proxyURL string, account *Account, groupID, assetName, imageURL string) (string, error) {
+	createPayload, _ := json.Marshal(map[string]any{
+		"group_id":   groupID,
+		"url":        imageURL,
+		"name":       assetName,
+		"asset_type": "Image",
+	})
+	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/assets/create", createPayload)
+	if err != nil {
+		return "", err
+	}
+	assetID := strings.TrimSpace(gjson.GetBytes(respBody, "id").String())
+	if assetID == "" {
+		return "", fmt.Errorf("ByteDance asset create response missing id")
+	}
+	for attempt := 0; attempt < ppVideoByteDanceAssetStatusPolls; attempt++ {
+		status, statusErr := s.getByteDanceImageAssetStatus(ctx, baseURL, token, proxyURL, account, assetID)
+		if statusErr != nil {
+			return "", statusErr
+		}
+		switch strings.ToLower(status) {
+		case "active":
+			return assetID, nil
+		case "failed":
+			return "", fmt.Errorf("ByteDance image asset %s failed processing", assetID)
+		}
+		if attempt < ppVideoByteDanceAssetStatusPolls-1 {
+			timer := time.NewTimer(ppVideoByteDanceAssetStatusPollInterval)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return "", ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	return "", fmt.Errorf("ByteDance image asset %s is not active yet", assetID)
+}
+
+func ppVideoByteDanceAssetName(imageURL string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(imageURL)))
+	return "sub2api-image-" + hex.EncodeToString(sum[:])[:16]
+}
+
+func (s *OpenAIGatewayService) getByteDanceImageAssetStatus(ctx context.Context, baseURL, token, proxyURL string, account *Account, assetID string) (string, error) {
+	getPayload, _ := json.Marshal(map[string]any{"id": assetID})
+	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/assets/get", getPayload)
+	if err != nil {
+		return "", err
+	}
+	status := strings.TrimSpace(gjson.GetBytes(respBody, "status").String())
+	if status == "" {
+		return "", fmt.Errorf("ByteDance asset get response missing status")
+	}
+	return status, nil
+}
+
+func (s *OpenAIGatewayService) doByteDanceAssetRequest(ctx context.Context, baseURL, token, proxyURL string, account *Account, path string, body []byte) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	account.ApplyHeaderOverrides(req.Header)
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("ByteDance asset request returned no response")
+	}
+	defer func() { _ = resp.Body.Close() }()
+	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, nil, openAITooLargeError)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= http.StatusBadRequest {
+		return nil, &PPVideoUpstreamError{
+			StatusCode:   resp.StatusCode,
+			ResponseBody: append([]byte(nil), respBody...),
+			err:          fmt.Errorf("ByteDance asset request %s returned HTTP %d", path, resp.StatusCode),
+		}
+	}
+	return respBody, nil
 }
 
 func (s *OpenAIGatewayService) WritePPVideoForwardResult(c *gin.Context, result *OpenAIForwardResult) {

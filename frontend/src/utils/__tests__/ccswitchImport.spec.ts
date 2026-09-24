@@ -38,7 +38,7 @@ describe('ccswitchImport utils', () => {
     expect(atob(params.get('usageScript') || '')).toBe(baseInput.usageScript)
   })
 
-  it.each(['doubao', 'qwen', 'kimi', 'deepseek'] as GroupPlatform[])(
+  it.each(['doubao', 'qwen', 'kimi', 'deepseek', 'midjourney'] as GroupPlatform[])(
     'treats %s imports as OpenAI-compatible',
     (platform) => {
       const params = paramsFromDeeplink(

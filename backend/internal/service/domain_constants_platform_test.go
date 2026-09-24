@@ -8,6 +8,7 @@ func TestProviderPlatformsAreOpenAICompatibleAndQuotaEnabled(t *testing.T) {
 		PlatformQwen,
 		PlatformKimi,
 		PlatformDeepSeek,
+		PlatformMidjourney,
 	}
 
 	for _, platform := range platforms {

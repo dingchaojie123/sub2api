@@ -62,6 +62,7 @@ func TestOpenAICompatibleGatewayPlatformsIncludeProviderPlatforms(t *testing.T) 
 		service.PlatformQwen,
 		service.PlatformKimi,
 		service.PlatformDeepSeek,
+		service.PlatformMidjourney,
 	} {
 		require.True(t, isOpenAICompatibleGatewayPlatform(platform), "platform=%s", platform)
 	}
@@ -179,6 +180,25 @@ func TestGatewayRoutesDoubaoImagesPathsAreNotLocallyRejected(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesMidjourneyImagesPathsAreNotLocallyRejected(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformMidjourney)
+
+	for _, path := range []string{
+		"/v1/images/generations",
+		"/images/generations",
+		"/api/model-proxy/v1/images/generations",
+		"/api/model-proxy/images/generations",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"midjourney-fast-imagine","prompt":"draw a cat"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "path=%s should reach the Midjourney images handler", path)
+		require.NotContains(t, w.Body.String(), "Images API is not supported for this platform")
+	}
+}
+
 func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 	registered := make(map[string]bool)
@@ -193,6 +213,8 @@ func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
 		"POST /images/generations/async",
 		"POST /images/edits/async",
 		"GET /images/tasks/:task_id",
+		"POST /api/model-proxy/v1/images/generations/async",
+		"GET /api/model-proxy/v1/images/tasks/:task_id",
 	} {
 		require.True(t, registered[route], "%s should be registered", route)
 	}

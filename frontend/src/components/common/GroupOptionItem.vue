@@ -142,6 +142,8 @@ const ratePillClass = computed(() => {
       return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400'
     case 'deepseek':
       return 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400'
+    case 'midjourney':
+      return 'bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-400'
     default: // antigravity and others
       return 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400'
   }

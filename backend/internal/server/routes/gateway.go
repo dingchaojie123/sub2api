@@ -40,7 +40,7 @@ func RegisterGatewayRoutes(
 	}
 	countTokensHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformJimeng, service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
+		case service.PlatformOpenAI, service.PlatformJimeng, service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek, service.PlatformMidjourney:
 			h.OpenAIGateway.CountTokens(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokCountTokens(c)
@@ -59,7 +59,7 @@ func RegisterGatewayRoutes(
 		switch getGroupPlatform(c) {
 		case service.PlatformOpenAI:
 			h.OpenAIGateway.Images(c)
-		case service.PlatformDoubao:
+		case service.PlatformDoubao, service.PlatformMidjourney:
 			h.OpenAIGateway.Images(c)
 		case service.PlatformGrok:
 			h.OpenAIGateway.GrokImages(c)
@@ -255,6 +255,22 @@ func RegisterGatewayRoutes(
 		gemini.GET("/models/:model", h.Gateway.GeminiV1BetaGetModel)
 		// Gin treats ":" as a param marker, but Gemini uses "{model}:{action}" in the same segment.
 		gemini.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
+	}
+
+	modelProxy := r.Group("/api/model-proxy")
+	modelProxy.Use(bodyLimit)
+	modelProxy.Use(clientRequestID)
+	modelProxy.Use(opsErrorLogger)
+	modelProxy.Use(endpointNorm)
+	modelProxy.Use(gin.HandlerFunc(apiKeyAuth))
+	modelProxy.Use(requireGroupAnthropic)
+	{
+		modelProxy.POST("/v1/images/generations", imagesHandler)
+		modelProxy.POST("/images/generations", imagesHandler)
+		modelProxy.POST("/v1/images/generations/async", h.AsyncImage.Submit)
+		modelProxy.POST("/images/generations/async", h.AsyncImage.Submit)
+		modelProxy.GET("/v1/images/tasks/:task_id", h.AsyncImage.Get)
+		modelProxy.GET("/images/tasks/:task_id", h.AsyncImage.Get)
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform

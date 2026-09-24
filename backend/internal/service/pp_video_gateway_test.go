@@ -203,6 +203,214 @@ func TestForwardPPVideoBufferedUsesByteDanceModelVerseContract(t *testing.T) {
 	require.JSONEq(t, `{"deleted":true,"id":"bd-task-1","object":"video.deleted"}`, string(cancel.ResponseBody))
 }
 
+func TestForwardPPVideoBufferedCreatesByteDancePrivateImageAssetBeforeSubmit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"items":[],"total_count":0}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"group-sub2api"}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"items":[],"total_count":0}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"Asset-20260331150000-private"}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"Asset-20260331150000-private","status":"Active"}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"output":{"task_id":"bd-private-1"},"request_id":"req-private-1"}`))),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          11,
+		Platform:    PlatformByteDance,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "bd-token"},
+	}
+	submissionBody := []byte(`{
+		"model":"doubao-seedance-2-0-260128",
+		"input":{
+			"content":[
+				{"type":"text","text":"让图片里的人物挥手"},
+				{"type":"image_url","image_url":{"url":"https://example.com/person.jpg"},"role":"reference_image"}
+			]
+		},
+		"parameters":{"duration":5,"resolution":"720p"}
+	}`)
+
+	submissionRecorder := httptest.NewRecorder()
+	submissionContext, _ := gin.CreateTestContext(submissionRecorder)
+	submissionContext.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(submissionBody))
+	submission, err := svc.ForwardPPVideoBuffered(
+		context.Background(),
+		submissionContext,
+		account,
+		PPVideoOperationGeneric,
+		"",
+		submissionBody,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "bd-private-1", submission.ResponseID)
+	require.Len(t, upstream.requests, 6)
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/groups/list", upstream.requests[0].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/groups/create", upstream.requests[1].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/list", upstream.requests[2].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/create", upstream.requests[3].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/get", upstream.requests[4].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[5].URL.String())
+	require.Equal(t, "Bearer bd-token", upstream.requests[0].Header.Get("Authorization"))
+	require.Equal(t, "seedance-2.0-i2v", gjson.GetBytes(upstream.bodies[0], "filter.name").String())
+	require.Equal(t, "AIGC", gjson.GetBytes(upstream.bodies[1], "group_type").String())
+	require.Equal(t, "seedance-2.0-i2v", gjson.GetBytes(upstream.bodies[1], "name").String())
+	require.Equal(t, "doubao-seedance-2-0-260128", gjson.GetBytes(upstream.bodies[1], "model").String())
+	require.Equal(t, "group-sub2api", gjson.GetBytes(upstream.bodies[2], "filter.group_ids.0").String())
+	require.Equal(t, "Active", gjson.GetBytes(upstream.bodies[2], "filter.statuses.0").String())
+	require.Equal(t, "group-sub2api", gjson.GetBytes(upstream.bodies[3], "group_id").String())
+	require.Equal(t, "https://example.com/person.jpg", gjson.GetBytes(upstream.bodies[3], "url").String())
+	require.Equal(t, "Image", gjson.GetBytes(upstream.bodies[3], "asset_type").String())
+	require.Equal(t, gjson.GetBytes(upstream.bodies[2], "filter.name").String(), gjson.GetBytes(upstream.bodies[3], "name").String())
+	require.Equal(t, "Asset-20260331150000-private", gjson.GetBytes(upstream.bodies[4], "id").String())
+	require.Equal(t, "asset://Asset-20260331150000-private", gjson.GetBytes(upstream.bodies[5], "input.content.1.image_url.url").String())
+	require.NotContains(t, string(upstream.bodies[5]), "https://example.com/person.jpg")
+}
+
+func TestForwardPPVideoBufferedPreservesByteDanceAssetCreateBadRequest(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"items":[{"id":"group-sub2api","name":"seedance-2.0-i2v"}]}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"items":[]}`)))},
+			{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"error":{"type":"invalid_request_error","message":"reference image URL is not accessible"}}`)))},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{ID: 11, Platform: PlatformByteDance, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "bd-token"}}
+	body := []byte(`{"model":"doubao-seedance-2-0-260128","input":{"content":[{"type":"text","text":"让图片里的人物挥手"},{"type":"image_url","image_url":{"url":"https://example.com/person.jpg"},"role":"reference_image"}]},"parameters":{"duration":5,"resolution":"720p"}}`)
+
+	_, err := svc.ForwardPPVideoBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", body)
+
+	var upstreamErr *PPVideoUpstreamError
+	require.ErrorAs(t, err, &upstreamErr)
+	require.Equal(t, http.StatusBadRequest, upstreamErr.StatusCode)
+	require.JSONEq(t, `{"error":{"type":"invalid_request_error","message":"reference image URL is not accessible"}}`, string(upstreamErr.ResponseBody))
+	require.Equal(t, "reference image URL is not accessible", ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
+	require.Len(t, upstream.requests, 3)
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/create", upstream.requests[2].URL.String())
+}
+
+func TestForwardPPVideoBufferedReusesByteDancePrivateImageAssetBeforeSubmit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"items":[{"id":"group-sub2api","name":"seedance-2.0-i2v","group_type":"AIGC"}],"total_count":1}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"items":[{"id":"Asset-active","name":"sub2api-image-d538e047d0e4b694","url":"https://example.com/person.jpg","asset_type":"Image","status":"Active"}],"total_count":1}`))),
+			},
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"output":{"task_id":"bd-reuse-1"},"request_id":"req-reuse-1"}`))),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          11,
+		Platform:    PlatformByteDance,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "bd-token"},
+	}
+	submissionBody := []byte(`{
+		"model":"doubao-seedance-2-0-260128",
+		"input":{"content":[
+			{"type":"text","text":"让图片里的人物挥手"},
+			{"type":"image_url","image_url":{"url":"https://example.com/person.jpg"},"role":"reference_image"}
+		]},
+		"parameters":{"duration":5,"resolution":"720p"}
+	}`)
+
+	submissionRecorder := httptest.NewRecorder()
+	submissionContext, _ := gin.CreateTestContext(submissionRecorder)
+	submissionContext.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(submissionBody))
+	submission, err := svc.ForwardPPVideoBuffered(context.Background(), submissionContext, account, PPVideoOperationGeneric, "", submissionBody)
+
+	require.NoError(t, err)
+	require.Equal(t, "bd-reuse-1", submission.ResponseID)
+	require.Len(t, upstream.requests, 3)
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/groups/list", upstream.requests[0].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/list", upstream.requests[1].URL.String())
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[2].URL.String())
+	require.Equal(t, "asset://Asset-active", gjson.GetBytes(upstream.bodies[2], "input.content.1.image_url.url").String())
+}
+
+func TestForwardPPVideoBufferedDoesNotCreateByteDancePrivateAssetForFirstFrame(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"output":{"task_id":"bd-first-frame-1"},"request_id":"req-first-frame-1"}`))),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          11,
+		Platform:    PlatformByteDance,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "bd-token"},
+	}
+	submissionBody := []byte(`{
+		"model":"doubao-seedance-2-0-260128",
+		"input":{"content":[
+			{"type":"text","text":"以这张图作为首帧"},
+			{"type":"image_url","image_url":{"url":"https://example.com/first-frame.jpg"},"role":"first_frame"}
+		]},
+		"parameters":{"duration":5,"resolution":"720p"}
+	}`)
+
+	submissionRecorder := httptest.NewRecorder()
+	submissionContext, _ := gin.CreateTestContext(submissionRecorder)
+	submissionContext.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(submissionBody))
+	submission, err := svc.ForwardPPVideoBuffered(context.Background(), submissionContext, account, PPVideoOperationGeneric, "", submissionBody)
+
+	require.NoError(t, err)
+	require.Equal(t, "bd-first-frame-1", submission.ResponseID)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/submit", upstream.requests[0].URL.String())
+	require.Equal(t, "https://example.com/first-frame.jpg", gjson.GetBytes(upstream.bodies[0], "input.content.1.image_url.url").String())
+}
+
 func TestForwardPPVideoBufferedUsesWan30ModelVerseContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	upstream := &httpUpstreamRecorder{
@@ -304,6 +512,11 @@ func TestForwardPPVideoBufferedUsesPixverseV6ModelVerseContract(t *testing.T) {
 					`{"output":{"task_id":"pix-task-1","task_status":"Success","urls":["https://cdn.example.com/pixverse-v6.mp4"]},"usage":{"duration":5}}`,
 				))),
 			},
+			{
+				StatusCode: http.StatusPartialContent,
+				Header:     http.Header{"Content-Type": []string{"video/mp4"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte("0"))),
+			},
 		},
 	}
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
@@ -347,7 +560,7 @@ func TestForwardPPVideoBufferedUsesPixverseV6ModelVerseContract(t *testing.T) {
 	require.Equal(t, PixverseV6VideoDefaultModel, gjson.GetBytes(upstream.bodies[0], "model").String())
 	require.Equal(t, "360p", gjson.GetBytes(upstream.bodies[0], "parameters.resolution").String())
 	require.Equal(t, "16:9", gjson.GetBytes(upstream.bodies[0], "parameters.aspect_ratio").String())
-	require.Equal(t, int64(1), gjson.GetBytes(upstream.bodies[0], "parameters.generate_audio").Int())
+	require.True(t, gjson.GetBytes(upstream.bodies[0], "parameters.generate_audio").Bool())
 
 	statusRecorder := httptest.NewRecorder()
 	statusContext, _ := gin.CreateTestContext(statusRecorder)
@@ -367,7 +580,73 @@ func TestForwardPPVideoBufferedUsesPixverseV6ModelVerseContract(t *testing.T) {
 	require.Equal(t, int64(5000), status.VideoDurationMilliseconds)
 	require.Equal(t, VideoBillingResolution480P, status.VideoResolution)
 	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=pix-task-1", upstream.requests[1].URL.String())
+	require.Equal(t, "https://cdn.example.com/pixverse-v6.mp4", upstream.requests[2].URL.String())
+	require.Equal(t, "bytes=0-0", upstream.requests[2].Header.Get("Range"))
 	require.Contains(t, string(status.ResponseBody), `"video_url":"https://cdn.example.com/pixverse-v6.mp4"`)
+}
+
+func TestForwardPPVideoBufferedKeepsPixverseV6ProcessingWhenMediaURLNotReady(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(bytes.NewReader([]byte(
+					`{"output":{"task_id":"pix-task-404","task_status":"Success","urls":["https://media.pixverse.ai/pixverse/mp4/media/missing.mp4"]},"usage":{"duration":5}}`,
+				))),
+			},
+			{
+				StatusCode: http.StatusNotFound,
+				Header:     http.Header{"Content-Type": []string{"application/xml"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`<Error><Code>NoSuchKey</Code></Error>`))),
+			},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          14,
+		Platform:    PlatformPixverseV6,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "pix-token"},
+	}
+
+	statusRecorder := httptest.NewRecorder()
+	statusContext, _ := gin.CreateTestContext(statusRecorder)
+	statusContext.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/generations/pix-task-404", nil)
+	status, err := svc.ForwardPPVideoBuffered(
+		context.Background(),
+		statusContext,
+		account,
+		PPVideoOperationGeneric,
+		"pix-task-404",
+		nil,
+		PPVideoPublicRequest{Model: "video-v1", DurationMilliseconds: 5000, VideoCount: 1},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusProcessing, status.TaskStatus)
+	require.Equal(t, "https://api.modelverse.cn/v1/tasks/status?task_id=pix-task-404", upstream.requests[0].URL.String())
+	require.Equal(t, "https://media.pixverse.ai/pixverse/mp4/media/missing.mp4", upstream.requests[1].URL.String())
+	require.NotContains(t, string(status.ResponseBody), "video_url")
+	require.NotContains(t, string(status.ResponseBody), "https://media.pixverse.ai")
+	require.JSONEq(t, `{
+		"id": "pix-task-404",
+		"task_id": "pix-task-404",
+		"object": "video.generation.task",
+		"status": "processing",
+		"model": "video-v1",
+		"usage": {
+			"duration_ms": 5000,
+			"duration_seconds": 5,
+			"video_count": 1
+		},
+		"output": {
+			"task_id": "pix-task-404",
+			"task_status": "processing"
+		}
+	}`, string(status.ResponseBody))
 }
 
 func TestForwardPPVideoBufferedUsesGrokImagineVideoModelVerseContract(t *testing.T) {

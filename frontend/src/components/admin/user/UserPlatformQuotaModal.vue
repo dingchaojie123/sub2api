@@ -139,6 +139,7 @@ const PLATFORMS: PlatformQuotaPlatform[] = [
   'qwen',
   'kimi',
   'deepseek',
+  'midjourney',
   'qwen-tts'
 ]
 

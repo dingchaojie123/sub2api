@@ -27,6 +27,8 @@ const (
 	ModelVerseVideoDefaultBaseURL        = "https://api.modelverse.cn/v1"
 	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
 	ByteDanceVideoDefaultModel           = "doubao-seedance-2-0-260128"
+	ByteDanceSeedance25Model             = "doubao-seedance-2-5-260628"
+	ByteDanceSeedance25GlobalModel       = "doubao-seedance-2-5-260628-global"
 	Wan30VideoDefaultModel               = "wan3.0-video"
 	Wan30VideoPrimeModel                 = "wan3.0-video-prime"
 	MiniMaxH3VideoDefaultModel           = "MiniMax-H3"
@@ -279,12 +281,20 @@ func normalizePPVideoByteDancePayload(payload map[string]any, body []byte, publi
 	if payload == nil || public == nil {
 		return nil, fmt.Errorf("ByteDance request body is required")
 	}
+	upstreamModel := byteDanceUpstreamModel(public.UpstreamModel)
+	if upstreamModel == "" {
+		upstreamModel = byteDanceUpstreamModel(public.Model)
+	}
+	if upstreamModel == "" {
+		upstreamModel = ByteDanceVideoDefaultModel
+	}
+	maxDurationSeconds := byteDanceMaxDurationSeconds(upstreamModel)
 	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
-		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to 15")
+		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to %d", maxDurationSeconds)
 	}
 	durationSeconds := public.DurationMilliseconds / 1000
-	if durationSeconds < 4 || durationSeconds > 15 {
-		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to 15")
+	if durationSeconds < 4 || durationSeconds > int64(maxDurationSeconds) {
+		return nil, fmt.Errorf("ByteDance duration must be an integer number of seconds from 4 to %d", maxDurationSeconds)
 	}
 
 	content, err := normalizePPVideoByteDanceContent(body, public)
@@ -303,6 +313,7 @@ func normalizePPVideoByteDancePayload(payload map[string]any, body []byte, publi
 		"watermark",
 		"callback_url",
 		"seedance_tools",
+		"omni_reference_task_type",
 	} {
 		if value, ok := ppVideoJSONValue(body, "parameters."+key, key); ok {
 			parameters[key] = value
@@ -312,23 +323,27 @@ func normalizePPVideoByteDancePayload(payload map[string]any, body []byte, publi
 		parameters["ratio"] = value
 	}
 	parameters["duration"] = int(durationSeconds)
-	if resolution := byteDanceResolution(public.Resolution); resolution != "" {
+	if resolution := byteDanceResolutionForModel(upstreamModel, public.Resolution); resolution != "" {
 		parameters["resolution"] = resolution
 	} else {
+		if byteDanceIsSeedance25Model(upstreamModel) {
+			return nil, fmt.Errorf("ByteDance resolution must be one of 480p, 720p, or 1080p")
+		}
 		return nil, fmt.Errorf("ByteDance resolution must be one of 480p, 720p, 1080p, or 4K")
 	}
 	if _, ok := parameters["ratio"]; !ok {
 		parameters["ratio"] = "adaptive"
 	}
 	if _, ok := parameters["generate_audio"]; !ok {
-		parameters["generate_audio"] = false
+		parameters["generate_audio"] = true
 	}
 
 	result := map[string]any{
-		"model":      ByteDanceVideoDefaultModel,
+		"model":      upstreamModel,
 		"input":      map[string]any{"content": content},
 		"parameters": parameters,
 	}
+	public.UpstreamModel = upstreamModel
 	return result, nil
 }
 
@@ -389,6 +404,22 @@ func normalizePPVideoByteDanceContent(body []byte, public *PPVideoPublicRequest)
 		})
 		public.HasImage = true
 	}
+	if referenceImage := ppVideoJSONText(body, "reference_image_url", "input.reference_image_url", "data.reference_image_url"); referenceImage != "" {
+		content = append(content, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]any{"url": referenceImage},
+			"role":      "reference_image",
+		})
+		public.HasImage = true
+	}
+	if assetURL := ppVideoByteDanceAssetURL(body); assetURL != "" {
+		content = append(content, map[string]any{
+			"type":      "image_url",
+			"image_url": map[string]any{"url": assetURL},
+			"role":      "reference_image",
+		})
+		public.HasImage = true
+	}
 	if video := ppVideoJSONText(body, "video", "video_url", "videos.0", "input.video", "input.video_url"); video != "" {
 		content = append(content, map[string]any{
 			"type":      "video_url",
@@ -426,7 +457,11 @@ func normalizePPVideoByteDanceContentItem(source map[string]any) (map[string]any
 	case "image_url":
 		value, ok := source["image_url"]
 		if !ok {
-			return nil, fmt.Errorf("ByteDance image_url content requires image_url")
+			if assetURL := ppVideoByteDanceAssetURLFromValue(source["asset_id"]); assetURL != "" {
+				value = map[string]any{"url": assetURL}
+			} else {
+				return nil, fmt.Errorf("ByteDance image_url content requires image_url")
+			}
 		}
 		normalized, err := normalizePPVideoByteDanceURLObject(value)
 		if err != nil {
@@ -483,9 +518,44 @@ func normalizePPVideoByteDanceURLObject(value any) (map[string]any, error) {
 	rawURL, _ := object["url"].(string)
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
+		rawURL = ppVideoByteDanceAssetURLFromValue(object["asset_id"])
+	}
+	if rawURL == "" {
 		return nil, fmt.Errorf("url must not be empty")
 	}
 	return map[string]any{"url": rawURL}, nil
+}
+
+func ppVideoByteDanceAssetURL(body []byte) string {
+	for _, path := range []string{
+		"asset_id",
+		"image_asset_id",
+		"reference_asset_id",
+		"input.asset_id",
+		"input.image_asset_id",
+		"input.reference_asset_id",
+		"assets.0",
+		"asset_ids.0",
+		"input.assets.0",
+		"input.asset_ids.0",
+	} {
+		if assetURL := ppVideoByteDanceAssetURLFromValue(gjson.GetBytes(body, path).Value()); assetURL != "" {
+			return assetURL
+		}
+	}
+	return ""
+}
+
+func ppVideoByteDanceAssetURLFromValue(value any) string {
+	raw, _ := value.(string)
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(raw), "asset://") {
+		return raw
+	}
+	return "asset://" + raw
 }
 
 func normalizePPVideoWan30Payload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
@@ -532,7 +602,7 @@ func normalizePPVideoWan30Payload(payload map[string]any, body []byte, public *P
 		return nil, fmt.Errorf("Wan3.0 ratio is not supported")
 	}
 
-	audio, err := wan30BooleanParameter(body, "audio", false)
+	audio, err := wan30BooleanParameter(body, "audio", true)
 	if err != nil {
 		return nil, err
 	}
@@ -833,7 +903,7 @@ func normalizePPVideoPixverseV6Payload(payload map[string]any, body []byte, publ
 	parameters := map[string]any{
 		"resolution":     resolution,
 		"duration":       int(durationSeconds),
-		"generate_audio": 1,
+		"generate_audio": true,
 	}
 	aspectRatio, hasAspectRatio, err := pixverseV6AspectRatioFromRequest(body)
 	if err != nil {
@@ -842,7 +912,7 @@ func normalizePPVideoPixverseV6Payload(payload map[string]any, body []byte, publ
 	if hasAspectRatio && !hasReferenceMedia {
 		parameters["aspect_ratio"] = aspectRatio
 	}
-	if generateAudio, hasGenerateAudio, err := pixverseV6IntegerParameter(body, "generate_audio"); err != nil {
+	if generateAudio, hasGenerateAudio, err := pixverseV6GenerateAudioFromRequest(body); err != nil {
 		return nil, err
 	} else if hasGenerateAudio {
 		parameters["generate_audio"] = generateAudio
@@ -1269,6 +1339,25 @@ func pixverseV6IntegerParameter(body []byte, field string) (int64, bool, error) 
 		return 0, false, fmt.Errorf("Pixverse v6 %s must be an integer", field)
 	}
 	return int64(number), true, nil
+}
+
+func pixverseV6GenerateAudioFromRequest(body []byte) (bool, bool, error) {
+	value, ok := ppVideoJSONValue(body, "parameters.generate_audio", "generate_audio")
+	if !ok {
+		return false, false, nil
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed, true, nil
+	case float64:
+		if typed == 0 {
+			return false, true, nil
+		}
+		if typed == 1 {
+			return true, true, nil
+		}
+	}
+	return false, false, fmt.Errorf("Pixverse v6 generate_audio must be boolean or 0/1")
 }
 
 func pixverseV6ImageURLAllowed(rawURL string) bool {
@@ -1790,6 +1879,14 @@ func byteDanceResolution(resolution string) string {
 	}
 }
 
+func byteDanceResolutionForModel(model, resolution string) string {
+	normalized := byteDanceResolution(resolution)
+	if byteDanceIsSeedance25Model(model) && normalized == "4K" {
+		return ""
+	}
+	return normalized
+}
+
 func normalizePPVideoKlingPayload(payload map[string]any, operation PPVideoOperation, body []byte, public *PPVideoPublicRequest) error {
 	if payload == nil || public == nil {
 		return fmt.Errorf("Kling request body is required")
@@ -2106,8 +2203,12 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		),
 		RawBody: append([]byte(nil), body...),
 	}
-	if ppVideoResponseHasFinalVideo(body) && result.Status != PPVideoTaskStatusFailed {
+	hasFinalVideo := ppVideoResponseHasFinalVideo(body)
+	if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
 		result.Status = PPVideoTaskStatusSucceeded
+	}
+	if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo {
+		result.Status = PPVideoTaskStatusProcessing
 	}
 	if result.VideoCount <= 0 {
 		result.VideoCount = 1
@@ -2197,6 +2298,57 @@ func ppVideoSetVideosField(payload map[string]any, videoURL string) {
 		return
 	}
 	payload["videos"] = []any{map[string]any{"url": videoURL, "video_url": videoURL}}
+}
+
+func ppVideoWithoutPublicVideoURL(raw []byte) []byte {
+	if len(raw) == 0 || !gjson.ValidBytes(raw) {
+		return raw
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
+		return raw
+	}
+	ppVideoRemoveVideoURLFields(payload)
+	ppVideoMarkProcessingStatusFields(payload)
+	normalized, err := json.Marshal(payload)
+	if err != nil {
+		return raw
+	}
+	return normalized
+}
+
+func ppVideoRemoveVideoURLFields(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, key := range []string{"video_url", "result_url", "url", "download_url", "video_url_download", "video_urls", "urls", "videos"} {
+			delete(typed, key)
+		}
+		for _, child := range typed {
+			ppVideoRemoveVideoURLFields(child)
+		}
+	case []any:
+		for _, child := range typed {
+			ppVideoRemoveVideoURLFields(child)
+		}
+	}
+}
+
+func ppVideoMarkProcessingStatusFields(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for _, key := range []string{"status", "state", "task_status"} {
+			if raw, ok := typed[key].(string); ok && NormalizePPVideoTaskStatus(raw) == PPVideoTaskStatusSucceeded {
+				typed[key] = PPVideoTaskStatusProcessing
+			}
+		}
+		for _, child := range typed {
+			ppVideoMarkProcessingStatusFields(child)
+		}
+	case []any:
+		for _, child := range typed {
+			ppVideoMarkProcessingStatusFields(child)
+		}
+	}
 }
 
 func NormalizePPVideoTaskStatus(status string) string {
@@ -2514,6 +2666,9 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 	model := strings.TrimSpace(public.Model)
 	switch platform {
 	case PlatformByteDance:
+		if upstreamModel := byteDanceUpstreamModel(model); upstreamModel != "" {
+			return upstreamModel
+		}
 		return ByteDanceVideoDefaultModel
 	case PlatformWan3:
 		return wan30UpstreamModel(model)
@@ -2556,7 +2711,21 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 
 func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest, account *Account) string {
 	if platform == PlatformByteDance {
-		return ByteDanceVideoDefaultModel
+		if account != nil {
+			if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
+				if mappedModel = byteDanceUpstreamModel(mappedModel); mappedModel != "" {
+					return mappedModel
+				}
+			}
+			if strings.TrimSpace(public.Model) == "" {
+				if mappedModel := ppVideoFirstMappedModelForAccount(platform, account); mappedModel != "" {
+					if mappedModel = byteDanceUpstreamModel(mappedModel); mappedModel != "" {
+						return mappedModel
+					}
+				}
+			}
+		}
+		return ppVideoUpstreamModel(platform, public)
 	}
 	if platform == PlatformWan3 {
 		return wan30UpstreamModel(public.Model)
@@ -2723,7 +2892,38 @@ func ppVideoIsSeedanceModel(model string) bool {
 }
 
 func ppVideoIsByteDanceModel(model string) bool {
-	return strings.EqualFold(strings.TrimSpace(model), ByteDanceVideoDefaultModel)
+	return byteDanceUpstreamModel(model) != ""
+}
+
+func byteDanceModels() []string {
+	return []string{
+		ByteDanceVideoDefaultModel,
+		ByteDanceSeedance25Model,
+		ByteDanceSeedance25GlobalModel,
+	}
+}
+
+func byteDanceUpstreamModel(model string) string {
+	model = strings.TrimSpace(model)
+	for _, candidate := range byteDanceModels() {
+		if strings.EqualFold(model, candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func byteDanceIsSeedance25Model(model string) bool {
+	model = strings.TrimSpace(model)
+	return strings.EqualFold(model, ByteDanceSeedance25Model) ||
+		strings.EqualFold(model, ByteDanceSeedance25GlobalModel)
+}
+
+func byteDanceMaxDurationSeconds(model string) int {
+	if byteDanceIsSeedance25Model(model) {
+		return 30
+	}
+	return 15
 }
 
 func ppVideoByteDanceModelAllowed(model string) bool {

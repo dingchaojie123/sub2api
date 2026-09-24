@@ -27,6 +27,34 @@ func buildOpenAIEndpointURL(base string, endpoint string) string {
 	return parsed.String()
 }
 
+func stripKnownOpenAIEndpointURL(base string) string {
+	normalized := strings.TrimSpace(base)
+	parsed, err := url.Parse(normalized)
+	if err != nil {
+		return normalized
+	}
+	path := strings.TrimRight(parsed.Path, "/")
+	for _, suffix := range []string{
+		"/chat/completions",
+		"/images/generations",
+		"/images/edits",
+		"/tasks/submit",
+		"/tasks/status",
+		"/responses",
+		"/embeddings",
+		"/models",
+	} {
+		if strings.HasSuffix(path, suffix) {
+			path = strings.TrimRight(strings.TrimSuffix(path, suffix), "/")
+			break
+		}
+	}
+	parsed.Path = path
+	parsed.RawPath = ""
+	parsed.Fragment = ""
+	return parsed.String()
+}
+
 func buildOpenAIResponsesInputTokensURL(base string) string {
 	return buildOpenAIEndpointURL(base, "/v1/responses/input_tokens")
 }

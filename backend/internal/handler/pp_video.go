@@ -388,6 +388,16 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "upstream_error", err.Error())
 		}
 		if !service.IsResponseCommitted(c) {
+			var upstreamErr *service.PPVideoUpstreamError
+			if errors.As(err, &upstreamErr) && upstreamErr.StatusCode >= http.StatusBadRequest && upstreamErr.StatusCode < http.StatusInternalServerError {
+				message := strings.TrimSpace(service.ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
+				if message == "" {
+					message = "ByteDance reference image registration failed"
+				}
+				service.SetOpsUpstreamError(c, upstreamErr.StatusCode, message, string(upstreamErr.ResponseBody))
+				h.errorResponse(c, upstreamErr.StatusCode, "upstream_error", message)
+				return
+			}
 			h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream request failed")
 		}
 		return

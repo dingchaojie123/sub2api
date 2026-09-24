@@ -210,7 +210,7 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	if clientStream {
 		result, forwardErr = s.streamRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime, len(body))
 	} else {
-		result, forwardErr = s.bufferRawChatCompletions(c, resp, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
+		result, forwardErr = s.bufferRawChatCompletions(c, resp, account, originalModel, billingModel, upstreamModel, reasoningEffort, serviceTier, startTime)
 	}
 	if result != nil {
 		addOpenAIUsage(&result.Usage, bridgeUsage)
@@ -405,6 +405,7 @@ func extractCCStreamUsage(payload string) *OpenAIUsage {
 func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	c *gin.Context,
 	resp *http.Response,
+	account *Account,
 	originalModel string,
 	billingModel string,
 	upstreamModel string,
@@ -425,6 +426,10 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	var usage OpenAIUsage
 	if parsedUsage, ok := extractOpenAIUsageFromJSONBytes(respBody); ok {
 		usage = parsedUsage
+	}
+	imageCount := 0
+	if account != nil && IsOpenAICompatibleChatImagePlatform(account.Platform) {
+		imageCount = countChatCompletionMessageImagesFromJSONBytes(respBody)
 	}
 
 	if s.responseHeaderFilter != nil {
@@ -448,7 +453,32 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 		ServiceTier:     serviceTier,
 		Stream:          false,
 		Duration:        time.Since(startTime),
+		ImageCount:      imageCount,
 	}, nil
+}
+
+func countChatCompletionMessageImagesFromJSONBytes(body []byte) int {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return 0
+	}
+	choices := gjson.GetBytes(body, "choices")
+	if !choices.Exists() || !choices.IsArray() {
+		return 0
+	}
+	count := 0
+	choices.ForEach(func(_, choice gjson.Result) bool {
+		images := choice.Get("message.images")
+		if images.IsArray() {
+			images.ForEach(func(_, image gjson.Result) bool {
+				if strings.TrimSpace(image.Get("image_url.url").String()) != "" {
+					count++
+				}
+				return true
+			})
+		}
+		return true
+	})
+	return count
 }
 
 // buildOpenAIChatCompletionsURL 拼接上游 Chat Completions 端点 URL。
@@ -460,5 +490,5 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 //
 // 与 buildOpenAIResponsesURL 是姐妹函数。
 func buildOpenAIChatCompletionsURL(base string) string {
-	return buildOpenAIEndpointURL(base, "/v1/chat/completions")
+	return buildOpenAIEndpointURL(stripKnownOpenAIEndpointURL(base), "/v1/chat/completions")
 }

@@ -73,6 +73,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
 	}
+	requestPlatform := openAICompatibleRequestPlatform(apiKey)
+	if requestPlatform == service.PlatformMidjourney && !parsed.ExplicitModel && parsed.Model == "gpt-image-2" {
+		parsed.Model = service.PlatformMidjourney
+	}
 	requestModel := parsed.Model
 
 	reqLog = reqLog.With(
@@ -146,7 +150,6 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	jsonKeepaliveStarted := false
 	defer func() { stopJSONKeepalive() }()
 	var oauth429FailoverState service.OpenAIOAuth429FailoverState
-	requestPlatform := openAICompatibleRequestPlatform(apiKey)
 
 	for {
 		reqLog.Debug("openai.images.account_selecting", zap.Int("excluded_account_count", len(failedAccountIDs)))

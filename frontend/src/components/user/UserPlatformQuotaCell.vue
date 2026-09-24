@@ -45,6 +45,7 @@ const PLATFORM_ORDER: PlatformQuotaPlatform[] = [
   'qwen',
   'kimi',
   'deepseek',
+  'midjourney',
   'qwen-tts'
 ]
 

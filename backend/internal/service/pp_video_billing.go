@@ -25,6 +25,8 @@ type PPVideoBillingQuote struct {
 	Cost      float64
 }
 
+const byteDanceSeedance25BillingMultiplier = 3.0
+
 func (s *OpenAIGatewayService) calculatePPVideoGroupVideoCost(
 	meta PPVideoBillingMetadata,
 	apiKey *APIKey,
@@ -48,6 +50,9 @@ func (s *OpenAIGatewayService) calculatePPVideoGroupVideoCost(
 	resolution := ppVideoGroupBillingResolution(meta)
 	groupConfig := videoPriceConfigFromAPIKey(apiKey)
 	unitPrice := billingService.getVideoUnitPrice(meta.Model, resolution, groupConfig)
+	if meta.Platform == PlatformByteDance && byteDanceIsSeedance25Model(meta.Model) {
+		unitPrice *= byteDanceSeedance25BillingMultiplier
+	}
 	units := float64(durationMs) / 1000 * float64(meta.VideoCount)
 	return PPVideoBillingQuote{
 		Formula:   PPVideoBillingFormulaPerSecond,
@@ -111,8 +116,16 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	if meta.ValidationError != nil {
 		return nil, meta.ValidationError
 	}
-	if meta.Platform == PlatformByteDance ||
-		(meta.Platform == PlatformMiniMaxH3 && !ppVideoIsMiniMaxHailuo23Model(meta.Model)) {
+	if meta.Platform == PlatformByteDance {
+		maxDurationSeconds := byteDanceMaxDurationSeconds(meta.Model)
+		if meta.RequestedDurationMilliseconds <= 0 ||
+			meta.RequestedDurationMilliseconds%1000 != 0 ||
+			meta.RequestedDurationMilliseconds < 4000 ||
+			meta.RequestedDurationMilliseconds > int64(maxDurationSeconds)*1000 {
+			return nil, fmt.Errorf("%s duration must be an integer number of seconds from 4 to %d", meta.Platform, maxDurationSeconds)
+		}
+	}
+	if meta.Platform == PlatformMiniMaxH3 && !ppVideoIsMiniMaxHailuo23Model(meta.Model) {
 		if meta.RequestedDurationMilliseconds <= 0 ||
 			meta.RequestedDurationMilliseconds%1000 != 0 ||
 			meta.RequestedDurationMilliseconds < 4000 ||
@@ -245,6 +258,11 @@ func (s *OpenAIGatewayService) SettlePPVideoTask(ctx context.Context, in *PPVide
 	if finalStatus != PPVideoTaskStatusSucceeded && finalStatus != PPVideoTaskStatusFailed {
 		return nil
 	}
+	if finalStatus == PPVideoTaskStatusSucceeded {
+		if err := validatePPVideoSuccessfulSettlement(in); err != nil {
+			return err
+		}
+	}
 	repo, err := s.ppVideoTaskRepo()
 	if err != nil {
 		return err
@@ -281,9 +299,6 @@ func (s *OpenAIGatewayService) SettlePPVideoTask(ctx context.Context, in *PPVide
 		return nil
 	}
 	if settlement.FinalStatus == PPVideoTaskStatusSucceeded {
-		if err := validatePPVideoSuccessfulSettlement(&settlement); err != nil {
-			return err
-		}
 		return s.captureAndRecordPPVideoTask(ctx, &settlement)
 	}
 	return s.releaseAndMarkPPVideoTask(ctx, &settlement)
@@ -292,6 +307,9 @@ func (s *OpenAIGatewayService) SettlePPVideoTask(ctx context.Context, in *PPVide
 func validatePPVideoSuccessfulSettlement(in *PPVideoSettlementInput) error {
 	if in == nil || in.Task == nil {
 		return ErrPPVideoTaskNotFound
+	}
+	if !ppVideoResponseHasFinalVideo([]byte(in.Task.ResponseBody)) {
+		return ErrPPVideoSettlementBillingFailed.WithCause(errors.New("PP video settlement missing final video URL"))
 	}
 	if in.APIKey == nil || in.Account == nil {
 		return ErrPPVideoSettlementBillingFailed.WithCause(errors.New("PP video settlement missing api key or account"))

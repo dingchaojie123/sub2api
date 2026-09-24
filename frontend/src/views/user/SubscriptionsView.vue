@@ -271,6 +271,7 @@ function platformAccentDotClass(p: string): string {
     case 'qwen': return 'bg-amber-500'
     case 'kimi': return 'bg-indigo-500'
     case 'deepseek': return 'bg-teal-500'
+    case 'midjourney': return 'bg-pink-500'
     default: return 'bg-gray-400'
   }
 }

@@ -447,7 +447,12 @@ func grokMediaScheduleModel(account *service.Account, routingModel string, resul
 }
 
 func shouldRecordGrokMediaUsage(endpoint service.GrokMediaEndpoint, requestModel string) bool {
-	return endpoint.IsGenerationRequest() && strings.TrimSpace(requestModel) != ""
+	switch endpoint {
+	case service.GrokMediaEndpointImagesGenerations, service.GrokMediaEndpointImagesEdits:
+		return strings.TrimSpace(requestModel) != ""
+	default:
+		return false
+	}
 }
 
 func recordGrokMediaUsage(

@@ -3,6 +3,7 @@ export const imagePricingPlatforms = new Set([
   "doubao",
   "gemini",
   "grok",
+  "midjourney",
   "openai",
 ]);
 

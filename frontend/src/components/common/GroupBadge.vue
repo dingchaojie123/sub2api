@@ -174,6 +174,9 @@ const labelClass = computed(() => {
   if (props.platform === 'deepseek') {
     return `${base} bg-teal-200/60 text-teal-800 dark:bg-teal-800/40 dark:text-teal-300`
   }
+  if (props.platform === 'midjourney') {
+    return `${base} bg-pink-200/60 text-pink-800 dark:bg-pink-800/40 dark:text-pink-300`
+  }
   return `${base} bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300`
 })
 
@@ -228,6 +231,11 @@ const badgeClass = computed(() => {
     return isSubscription.value
       ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
       : 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400'
+  }
+  if (props.platform === 'midjourney') {
+    return isSubscription.value
+      ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+      : 'bg-pink-50 text-pink-700 dark:bg-pink-900/20 dark:text-pink-400'
   }
   // Fallback: original colors
   return isSubscription.value

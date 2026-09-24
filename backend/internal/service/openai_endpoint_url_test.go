@@ -29,3 +29,22 @@ func TestBuildOpenAIEndpointURLPreservesURLComponents(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildOpenAIEndpointURLSwitchesKnownCompleteEndpoints(t *testing.T) {
+	require.Equal(t,
+		"https://api.modelverse.cn/v1/chat/completions",
+		buildOpenAIChatCompletionsURL("https://api.modelverse.cn/v1/images/generations"),
+	)
+	require.Equal(t,
+		"https://api.modelverse.cn/v1/images/generations",
+		buildOpenAIImagesURL("https://api.modelverse.cn/v1/chat/completions", openAIImagesGenerationsEndpoint),
+	)
+	require.Equal(t,
+		"https://api.modelverse.cn/v1/tasks/status",
+		buildOpenAIEndpointURL(stripKnownOpenAIEndpointURL("https://api.modelverse.cn/v1/tasks/submit"), "/v1/tasks/status"),
+	)
+	require.Equal(t,
+		"https://relay.example.com/openai/v1/chat/completions?tenant=a",
+		buildOpenAIChatCompletionsURL("https://relay.example.com/openai/v1/images/generations?tenant=a#stale"),
+	)
+}

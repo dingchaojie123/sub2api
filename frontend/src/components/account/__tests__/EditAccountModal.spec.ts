@@ -189,7 +189,7 @@ function buildJimengAccount() {
   } as any
 }
 
-function buildProviderAccount(platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek') {
+function buildProviderAccount(platform: 'doubao' | 'qwen' | 'kimi' | 'deepseek' | 'midjourney') {
   return {
     ...buildAccount(),
     id: 8,
@@ -426,7 +426,7 @@ describe('EditAccountModal', () => {
     )
   })
 
-  it.each(['doubao', 'qwen', 'kimi', 'deepseek'] as const)(
+  it.each(['doubao', 'qwen', 'kimi', 'deepseek', 'midjourney'] as const)(
     'preserves synced upstream models for %s accounts when reopening the edit modal',
     async (platform) => {
       const account = buildProviderAccount(platform)

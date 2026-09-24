@@ -266,6 +266,22 @@ func TestGatewayModels_GeminiGroupFiltersMappedModelsByPlatform(t *testing.T) {
 	require.Equal(t, []string{"gemini-2.5-flash"}, modelIDsForTest(got.Data))
 }
 
+func TestGatewayModels_MidjourneyOrdersImagineFirst(t *testing.T) {
+	got := orderMidjourneyImageModels([]string{
+		"midjourney-fast-variation",
+		"midjourney-fast-reroll",
+		"midjourney-fast-upscale",
+		"midjourney-fast-imagine",
+	})
+
+	require.Equal(t, []string{
+		"midjourney-fast-imagine",
+		"midjourney-fast-variation",
+		"midjourney-fast-upscale",
+		"midjourney-fast-reroll",
+	}, got)
+}
+
 func TestGatewayModels_CustomModelsListDisabledKeepsOriginalModels(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

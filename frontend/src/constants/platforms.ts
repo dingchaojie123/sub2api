@@ -1,4 +1,4 @@
-export const PROVIDER_PLATFORMS = ['doubao', 'qwen', 'kimi', 'deepseek'] as const
+export const PROVIDER_PLATFORMS = ['doubao', 'qwen', 'kimi', 'deepseek', 'midjourney'] as const
 
 export type ProviderPlatform = (typeof PROVIDER_PLATFORMS)[number]
 
@@ -31,6 +31,7 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'qwen',
   'kimi',
   'deepseek',
+  'midjourney',
   'kling',
   'happyhourse',
   'seedance',
@@ -110,6 +111,15 @@ export const PROVIDER_PLATFORM_METADATA: Record<ProviderPlatform, ProviderPlatfo
     apiKeyPlaceholder: 'sk-...',
     accountType: 'apikey',
     modelPlatform: 'deepseek'
+  },
+  midjourney: {
+    id: 'midjourney',
+    label: 'Midjourney',
+    defaultBaseUrl: 'https://api.modelverse.cn/v1',
+    baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    modelPlatform: 'midjourney'
   }
 }
 

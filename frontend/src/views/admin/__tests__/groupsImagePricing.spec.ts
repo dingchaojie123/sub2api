@@ -25,6 +25,11 @@ describe("groups image pricing platform support", () => {
     expect(imagePricingPlatforms.has("doubao")).toBe(true);
   });
 
+  it("includes Midjourney image groups", () => {
+    expect(supportsImagePricingPlatform("midjourney")).toBe(true);
+    expect(imagePricingPlatforms.has("midjourney")).toBe(true);
+  });
+
   it("enables video pricing controls for Grok and PP video platforms", () => {
     expect(supportsVideoPricingPlatform("grok")).toBe(true);
     expect(supportsVideoPricingPlatform("kling")).toBe(true);

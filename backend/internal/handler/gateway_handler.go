@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -1075,6 +1076,9 @@ func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 		writeGrokModelsList(c, modelIDs)
 		return
 	}
+	if platform == service.PlatformMidjourney {
+		modelIDs = orderMidjourneyImageModels(modelIDs)
+	}
 	models := make([]claude.Model, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
 		models = append(models, claude.Model{
@@ -1088,6 +1092,30 @@ func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 		"object": "list",
 		"data":   models,
 	})
+}
+
+func orderMidjourneyImageModels(modelIDs []string) []string {
+	ordered := append([]string(nil), modelIDs...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		return midjourneyImageModelRank(ordered[i]) < midjourneyImageModelRank(ordered[j])
+	})
+	return ordered
+}
+
+func midjourneyImageModelRank(modelID string) int {
+	modelID = strings.ToLower(strings.TrimSpace(modelID))
+	switch {
+	case strings.Contains(modelID, "imagine"):
+		return 0
+	case strings.Contains(modelID, "variation"):
+		return 1
+	case strings.Contains(modelID, "upscale"):
+		return 2
+	case strings.Contains(modelID, "reroll"):
+		return 3
+	default:
+		return 4
+	}
 }
 
 func writeCustomModelsList(c *gin.Context, platform string, modelIDs []string) {
@@ -1246,7 +1274,7 @@ func defaultModelIDsForPlatform(platform string) []string {
 	switch platform {
 	case service.PlatformOpenAI, service.PlatformJimeng:
 		return openai.DefaultModelIDs()
-	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek:
+	case service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek, service.PlatformMidjourney:
 		return nil
 	case service.PlatformGemini:
 		ids := make([]string, 0, len(geminicli.DefaultModels))

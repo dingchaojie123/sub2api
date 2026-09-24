@@ -37,6 +37,7 @@ const pOpts = computed(() => [
   { value: 'qwen', label: t('admin.accounts.platforms.qwen') },
   { value: 'kimi', label: t('admin.accounts.platforms.kimi') },
   { value: 'deepseek', label: t('admin.accounts.platforms.deepseek') },
+  { value: 'midjourney', label: t('admin.accounts.platforms.midjourney') },
   { value: 'kling', label: t('admin.accounts.platforms.kling') },
   { value: 'happyhourse', label: t('admin.accounts.platforms.happyhourse') },
   { value: 'seedance', label: t('admin.accounts.platforms.seedance') },

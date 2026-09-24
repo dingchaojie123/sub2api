@@ -107,6 +107,7 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 		{"platform":"qwen","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"kimi","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"deepseek","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
+		{"platform":"midjourney","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"kling","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"happyhourse","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
 		{"platform":"seedance","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}

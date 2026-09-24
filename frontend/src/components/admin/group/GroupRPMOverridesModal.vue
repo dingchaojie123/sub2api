@@ -256,6 +256,7 @@ const platformColorClass = computed(() => {
 	case 'qwen': return 'text-sky-700 dark:text-sky-400'
 	case 'kimi': return 'text-indigo-700 dark:text-indigo-400'
 	case 'deepseek': return 'text-teal-700 dark:text-teal-400'
+	case 'midjourney': return 'text-pink-700 dark:text-pink-400'
 	default: return 'text-blue-700 dark:text-blue-400'
 	}
 })

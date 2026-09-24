@@ -259,6 +259,7 @@ export default {
         qwen: '千问',
         kimi: 'Kimi',
         deepseek: 'DeepSeek',
+        midjourney: 'Midjourney',
         kling: 'K-Ling',
         happyhourse: 'Happy-Hourse',
         seedance: 'Seedance',

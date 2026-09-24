@@ -638,10 +638,70 @@ func TestBufferRawChatCompletions_RejectsOversizedResponse(t *testing.T) {
 	svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig()}
 	svc.cfg.Gateway.UpstreamResponseReadMaxBytes = 3
 
-	result, err := svc.bufferRawChatCompletions(c, resp, "gpt-5.4", "gpt-5.4", "gpt-5.4", nil, nil, time.Now())
+	result, err := svc.bufferRawChatCompletions(c, resp, rawChatCompletionsTestAccount(), "gpt-5.4", "gpt-5.4", "gpt-5.4", nil, nil, time.Now())
 	require.ErrorIs(t, err, ErrUpstreamResponseBodyTooLarge)
 	require.Nil(t, result)
 	require.Equal(t, http.StatusBadGateway, rec.Code)
+}
+
+func TestCountChatCompletionMessageImagesFromJSONBytes(t *testing.T) {
+	t.Parallel()
+
+	body := []byte(`{
+		"choices": [
+			{"message": {"role": "assistant", "images": [
+				{"image_url": {"url": "https://cdn.example/a.png"}},
+				{"image_url": {"url": "https://cdn.example/b.png"}},
+				{"image_url": {"url": ""}}
+			]}},
+			{"message": {"role": "assistant", "content": "done"}}
+		]
+	}`)
+
+	require.Equal(t, 2, countChatCompletionMessageImagesFromJSONBytes(body))
+	require.Zero(t, countChatCompletionMessageImagesFromJSONBytes([]byte(`{"choices":[{"message":{"images":[{}]}}]}`)))
+	require.Zero(t, countChatCompletionMessageImagesFromJSONBytes([]byte(`not-json`)))
+}
+
+func TestForwardAsRawChatCompletions_MidjourneyCapturesMessageImages(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"midjourney","messages":[{"role":"user","content":"draw a cat"}],"stream":false}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}, "x-request-id": []string{"rid_midjourney_images"}},
+		Body: io.NopCloser(strings.NewReader(`{
+			"id":"chatcmpl_img",
+			"object":"chat.completion",
+			"model":"midjourney",
+			"choices":[{"index":0,"message":{"role":"assistant","content":null,"images":[
+				{"image_url":{"url":"https://cdn.example/mj-1.png"}},
+				{"image_url":{"url":"https://cdn.example/mj-2.png"}}
+			]},"finish_reason":"stop"}],
+			"usage":{"prompt_tokens":12,"completion_tokens":4,"total_tokens":16}
+		}`)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	account := rawChatCompletionsTestAccount()
+	account.Platform = PlatformMidjourney
+	account.Credentials["base_url"] = "https://api.modelverse.cn/v1"
+
+	result, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 2, result.ImageCount)
+	require.Equal(t, 12, result.Usage.InputTokens)
+	require.Equal(t, 4, result.Usage.OutputTokens)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "https://api.modelverse.cn/v1/chat/completions", upstream.lastReq.URL.String())
 }
 
 func rawChatCompletionsTestConfig() *config.Config {

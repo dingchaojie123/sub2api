@@ -36,6 +36,7 @@ export function resolveCcSwitchImportConfig(
     case 'qwen':
     case 'kimi':
     case 'deepseek':
+    case 'midjourney':
       return {
         app: 'codex',
         endpoint: baseUrl,

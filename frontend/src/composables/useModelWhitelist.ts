@@ -163,6 +163,11 @@ export const JIMENG_FIXED_MODEL = 'by-seedance2.0-933'
 const jimengModels = [JIMENG_FIXED_MODEL]
 
 export const BYTEDANCE_FIXED_MODEL = 'doubao-seedance-2-0-260128'
+export const BYTEDANCE_FIXED_MODELS = [
+  BYTEDANCE_FIXED_MODEL,
+  'doubao-seedance-2-5-260628',
+  'doubao-seedance-2-5-260628-global'
+]
 export const WAN3_FIXED_MODELS = ['wan3.0-video', 'wan3.0-video-prime']
 export const MINIMAX_H3_FIXED_MODEL = 'MiniMax-H3'
 export const MINIMAX_HAILUO_23_FIXED_MODEL = 'MiniMax-Hailuo-2.3'
@@ -172,7 +177,7 @@ export const KUAISHOU_FIXED_MODEL = 'kling-v3'
 const klingModels: string[] = []
 const happyHourseModels: string[] = []
 const seedanceModels: string[] = []
-const bytedanceModels = [BYTEDANCE_FIXED_MODEL]
+const bytedanceModels = [...BYTEDANCE_FIXED_MODELS]
 const wan3Models = [...WAN3_FIXED_MODELS]
 const minimaxH3Models = [MINIMAX_H3_FIXED_MODEL, MINIMAX_HAILUO_23_FIXED_MODEL]
 const pixverseV6Models = [PIXVERSE_V6_FIXED_MODEL]
@@ -506,14 +511,16 @@ export function getPresetMappingsByPlatform(platform: string) {
     ]
   }
   if (platform === 'bytedance') {
-    return [
-      {
-        label: 'Doubao Seedance 2.0',
-        from: BYTEDANCE_FIXED_MODEL,
-        to: BYTEDANCE_FIXED_MODEL,
-        color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400'
-      }
-    ]
+    return BYTEDANCE_FIXED_MODELS.map(model => ({
+      label: model === BYTEDANCE_FIXED_MODEL
+        ? 'Doubao Seedance 2.0'
+        : model === 'doubao-seedance-2-5-260628'
+          ? 'Doubao Seedance 2.5'
+          : 'Doubao Seedance 2.5 Global',
+      from: model,
+      to: model,
+      color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400'
+    }))
   }
   if (platform === 'minimax-h3') {
     return [

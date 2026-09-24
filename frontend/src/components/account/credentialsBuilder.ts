@@ -44,7 +44,8 @@ export function isHeaderOverrideCapable(platform: string, type: string): boolean
     platform === 'doubao' ||
     platform === 'qwen' ||
     platform === 'kimi' ||
-    platform === 'deepseek'
+    platform === 'deepseek' ||
+    platform === 'midjourney'
   ) {
     return type === 'apikey'
   }

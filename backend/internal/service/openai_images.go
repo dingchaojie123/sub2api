@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -30,6 +31,9 @@ import (
 const (
 	openAIImagesGenerationsEndpoint = "/v1/images/generations"
 	openAIImagesEditsEndpoint       = "/v1/images/edits"
+	openAIChatCompletionsEndpoint   = "/v1/chat/completions"
+	midjourneyTasksSubmitEndpoint   = "/v1/tasks/submit"
+	midjourneyTasksStatusEndpoint   = "/v1/tasks/status"
 
 	openAIImagesGenerationsURL = "https://api.openai.com/v1/images/generations"
 	openAIImagesEditsURL       = "https://api.openai.com/v1/images/edits"
@@ -41,6 +45,8 @@ const (
 	openAIImageMaxUploadPartSize   = 20 << 20 // 20MB per multipart upload part
 	openAIImagesResponsesMainModel = "gpt-5.4-mini"
 	doubaoSeedreamMinPixels        = int64(3686400)
+	midjourneyPollInterval         = 3 * time.Second
+	midjourneyPollTimeout          = 150 * time.Second
 )
 
 type OpenAIImagesCapability string
@@ -473,7 +479,8 @@ func applyOpenAIImagesDefaults(req *OpenAIImagesRequest) {
 func isOpenAIImageGenerationModel(model string) bool {
 	return IsGPTImageGenerationModel(model) ||
 		isGrokImageGenerationModel(model) ||
-		isDoubaoSeedreamImageGenerationModel(model)
+		isDoubaoSeedreamImageGenerationModel(model) ||
+		isMidjourneyImageGenerationModel(model)
 }
 
 // IsGPTImageGenerationModel identifies the GPT native image-generation model family.
@@ -492,6 +499,11 @@ func isGrokImageGenerationModel(model string) bool {
 	return model == "grok-imagine" ||
 		model == "grok-imagine-edit" ||
 		strings.HasPrefix(model, "grok-imagine-image")
+}
+
+func isMidjourneyImageGenerationModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return model == "midjourney" || strings.HasPrefix(model, "midjourney-")
 }
 
 func validateOpenAIImagesModel(model string) error {
@@ -595,6 +607,9 @@ func (s *OpenAIGatewayService) ForwardImages(
 ) (*OpenAIForwardResult, error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("parsed images request is required")
+	}
+	if account.Platform == PlatformMidjourney {
+		return s.forwardMidjourneyImagesViaTasks(ctx, c, account, body, parsed, channelMappedModel)
 	}
 	switch account.Type {
 	case AccountTypeAPIKey:
@@ -789,6 +804,282 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 	}
 }
 
+func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	body []byte,
+	parsed *OpenAIImagesRequest,
+	channelMappedModel string,
+) (*OpenAIForwardResult, error) {
+	if parsed.IsEdits() || parsed.Multipart {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "invalid_request_error",
+				"message": "Midjourney Images API compatibility currently supports /v1/images/generations JSON requests only",
+			},
+		})
+		return nil, fmt.Errorf("midjourney images compatibility does not support edits or multipart requests")
+	}
+	if parsed.Stream {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"type":    "invalid_request_error",
+				"message": "Midjourney Images API compatibility does not support streaming image responses",
+			},
+		})
+		return nil, fmt.Errorf("midjourney images compatibility does not support streaming requests")
+	}
+
+	startTime := time.Now()
+	requestModel := strings.TrimSpace(parsed.Model)
+	if !parsed.ExplicitModel && requestModel == "gpt-image-2" {
+		requestModel = PlatformMidjourney
+	}
+	if mapped := strings.TrimSpace(channelMappedModel); mapped != "" {
+		requestModel = mapped
+	}
+	upstreamModel := account.GetMappedModel(requestModel)
+	prompt := strings.TrimSpace(parsed.Prompt)
+	submitBody, err := buildMidjourneyTaskSubmitBody(body, upstreamModel, prompt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
+		return nil, err
+	}
+	token, tokenKind, err := s.getRequestCredential(ctx, c, account)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(token) == "" {
+		return nil, fmt.Errorf("account %d missing %s credential", account.ID, tokenKind)
+	}
+	baseURL, err := s.midjourneyTasksBaseURL(account)
+	if err != nil {
+		return nil, err
+	}
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	SetActualOpenAIUpstreamEndpoint(c, midjourneyTasksSubmitEndpoint)
+	resp, err := s.sendMidjourneyTaskRequest(ctx, account, proxyURL, http.MethodPost, buildOpenAIEndpointURL(baseURL, midjourneyTasksSubmitEndpoint), token, submitBody)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode >= 400 {
+		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
+		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
+			return nil, foErr
+		}
+		return s.handleOpenAIImagesErrorResponse(ctx, resp, c, account, upstreamModel)
+	}
+
+	submitRespBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
+	if err != nil {
+		return nil, fmt.Errorf("read upstream body: %w", err)
+	}
+	taskID := strings.TrimSpace(gjson.GetBytes(submitRespBody, "output.task_id").String())
+	if taskID == "" {
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error": gin.H{
+				"type":    "upstream_error",
+				"message": "Midjourney upstream response missing task_id",
+			},
+		})
+		return nil, fmt.Errorf("midjourney upstream response missing task_id")
+	}
+
+	statusBody, statusHeader, err := s.pollMidjourneyTaskStatus(ctx, c, account, proxyURL, baseURL, token, taskID)
+	if err != nil {
+		return nil, err
+	}
+	usage, _ := extractOpenAIUsageFromJSONBytes(statusBody)
+	images := collectMidjourneyTaskImageURLs(statusBody)
+	if len(images) == 0 {
+		c.JSON(http.StatusBadGateway, gin.H{
+			"error": gin.H{
+				"type":    "upstream_error",
+				"message": "Midjourney upstream response did not include generated images",
+			},
+		})
+		return nil, fmt.Errorf("midjourney upstream response missing output.urls")
+	}
+
+	data := make([]map[string]string, 0, len(images))
+	for _, imageURL := range images {
+		data = append(data, map[string]string{"url": imageURL})
+	}
+	responseBody, err := json.Marshal(map[string]any{
+		"created": time.Now().Unix(),
+		"data":    data,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build midjourney images compatibility response: %w", err)
+	}
+	if s.responseHeaderFilter != nil && statusHeader != nil {
+		responseheaders.WriteFilteredHeaders(c.Writer.Header(), statusHeader, s.responseHeaderFilter)
+	}
+	c.Data(http.StatusOK, "application/json", responseBody)
+
+	responseHeaders := http.Header{}
+	if statusHeader != nil {
+		responseHeaders = statusHeader.Clone()
+	}
+	return &OpenAIForwardResult{
+		RequestID:        taskID,
+		ResponseID:       taskID,
+		Usage:            usage,
+		Model:            requestModel,
+		UpstreamModel:    upstreamModel,
+		UpstreamEndpoint: midjourneyTasksStatusEndpoint,
+		Stream:           false,
+		ResponseHeaders:  responseHeaders,
+		Duration:         time.Since(startTime),
+		ImageCount:       len(images),
+		ImageSize:        parsed.SizeTier,
+		ImageInputSize:   parsed.Size,
+		ImageOutputSizes: nil,
+	}, nil
+}
+
+func buildMidjourneyTaskSubmitBody(body []byte, model string, prompt string) ([]byte, error) {
+	model = strings.TrimSpace(model)
+	lowerModel := strings.ToLower(model)
+	if strings.Contains(lowerModel, "variation") || strings.Contains(lowerModel, "upscale") || strings.Contains(lowerModel, "reroll") {
+		mjTaskID := strings.TrimSpace(gjson.GetBytes(body, "parameters.mj_task_id").String())
+		mjCustomID := strings.TrimSpace(gjson.GetBytes(body, "parameters.mj_custom_id").String())
+		if mjTaskID == "" || mjCustomID == "" {
+			return nil, fmt.Errorf("Midjourney %s requests require parameters.mj_task_id and parameters.mj_custom_id from a previous task status response", model)
+		}
+		return json.Marshal(map[string]any{
+			"model":      model,
+			"input":      map[string]any{},
+			"parameters": map[string]string{"mj_task_id": mjTaskID, "mj_custom_id": mjCustomID},
+		})
+	}
+	if prompt == "" {
+		return nil, fmt.Errorf("prompt is required")
+	}
+	return json.Marshal(map[string]any{
+		"model": model,
+		"input": map[string]string{"prompt": prompt},
+	})
+}
+
+func (s *OpenAIGatewayService) midjourneyTasksBaseURL(account *Account) (string, error) {
+	baseURL := ""
+	if account != nil {
+		baseURL = account.GetOpenAIBaseURL()
+	}
+	if strings.TrimSpace(baseURL) == "" {
+		baseURL = ModelVerseVideoDefaultBaseURL
+	}
+	validatedURL, err := s.validateUpstreamBaseURL(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid midjourney base_url: %w", err)
+	}
+	return stripKnownOpenAIEndpointURL(validatedURL), nil
+}
+
+func (s *OpenAIGatewayService) sendMidjourneyTaskRequest(ctx context.Context, account *Account, proxyURL string, method string, targetURL string, token string, body []byte) (*http.Response, error) {
+	var reader io.Reader
+	if len(body) > 0 {
+		reader = bytes.NewReader(body)
+	}
+	upstreamCtx, release := detachUpstreamContext(ctx)
+	defer release()
+	req, err := http.NewRequestWithContext(upstreamCtx, method, targetURL, reader)
+	if err != nil {
+		return nil, fmt.Errorf("build midjourney upstream request: %w", err)
+	}
+	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
+	req.Header.Set("Authorization", "Bearer "+token)
+	if len(body) > 0 {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if account != nil {
+		if ua := account.GetOpenAIUserAgent(); ua != "" {
+			req.Header.Set("User-Agent", ua)
+		}
+		account.ApplyHeaderOverrides(req.Header)
+	}
+	accountID := int64(0)
+	accountConcurrency := 0
+	if account != nil {
+		accountID = account.ID
+		accountConcurrency = account.Concurrency
+	}
+	return s.httpUpstream.Do(req, proxyURL, accountID, accountConcurrency)
+}
+
+func (s *OpenAIGatewayService) pollMidjourneyTaskStatus(ctx context.Context, c *gin.Context, account *Account, proxyURL string, baseURL string, token string, taskID string) ([]byte, http.Header, error) {
+	deadline := time.NewTimer(midjourneyPollTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(midjourneyPollInterval)
+	defer ticker.Stop()
+
+	statusURL := buildOpenAIEndpointURL(baseURL, midjourneyTasksStatusEndpoint) + "?task_id=" + url.QueryEscape(taskID)
+	for {
+		SetActualOpenAIUpstreamEndpoint(c, midjourneyTasksStatusEndpoint)
+		resp, err := s.sendMidjourneyTaskRequest(ctx, account, proxyURL, http.MethodGet, statusURL, token, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		respBody, readErr := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			return nil, nil, readErr
+		}
+		if resp.StatusCode >= http.StatusBadRequest {
+			resp.Body = io.NopCloser(bytes.NewReader(respBody))
+			_, err := s.handleOpenAIImagesErrorResponse(ctx, resp, c, account, taskID)
+			return nil, nil, err
+		}
+
+		status := strings.ToLower(strings.TrimSpace(gjson.GetBytes(respBody, "output.task_status").String()))
+		switch status {
+		case "success":
+			return respBody, resp.Header.Clone(), nil
+		case "failure":
+			message := strings.TrimSpace(gjson.GetBytes(respBody, "output.error_message").String())
+			if message == "" {
+				message = "Midjourney task failed"
+			}
+			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "upstream_error", "message": message}})
+			return nil, nil, fmt.Errorf("midjourney task failed: %s", message)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		case <-deadline.C:
+			c.JSON(http.StatusGatewayTimeout, gin.H{"error": gin.H{"type": "upstream_error", "message": "Midjourney task timed out"}})
+			return nil, nil, fmt.Errorf("midjourney task timed out")
+		case <-ticker.C:
+		}
+	}
+}
+
+func collectMidjourneyTaskImageURLs(body []byte) []string {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return nil
+	}
+	urls := gjson.GetBytes(body, "output.urls")
+	if !urls.Exists() || !urls.IsArray() {
+		return nil
+	}
+	out := make([]string, 0, 1)
+	urls.ForEach(func(_, imageURL gjson.Result) bool {
+		if url := strings.TrimSpace(imageURL.String()); url != "" {
+			out = append(out, url)
+		}
+		return true
+	})
+	return out
+}
+
 func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 	ctx context.Context,
 	c *gin.Context,
@@ -846,7 +1137,7 @@ func (s *OpenAIGatewayService) buildOpenAIImagesRequest(
 }
 
 func buildOpenAIImagesURL(base string, endpoint string) string {
-	return buildOpenAIEndpointURL(base, endpoint)
+	return buildOpenAIEndpointURL(stripKnownOpenAIEndpointURL(base), endpoint)
 }
 
 func rewriteOpenAIImagesModel(body []byte, contentType string, model string) ([]byte, string, error) {

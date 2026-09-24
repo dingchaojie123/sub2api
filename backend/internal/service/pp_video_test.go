@@ -225,18 +225,18 @@ func TestParsePPVideoResponseRecognizesTaskIDsAndStatuses(t *testing.T) {
 			wantStatus: PPVideoTaskStatusFailed,
 		},
 		{
-			name:       "data id complete",
+			name:       "data id complete without video remains processing",
 			platform:   PlatformSeedance,
 			body:       `{"data":{"id":"seedance-2","status":"completed"}}`,
 			wantTaskID: "seedance-2",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
-			name:       "data task id success",
+			name:       "data task id success without video remains processing",
 			platform:   PlatformHappyHourse,
 			body:       `{"data":{"task_id":"horse-2","status":"SUCCESS"}}`,
 			wantTaskID: "horse-2",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
 			name:       "data request id running",
@@ -267,32 +267,32 @@ func TestParsePPVideoResponseRecognizesTaskIDsAndStatuses(t *testing.T) {
 			wantStatus: PPVideoTaskStatusFailed,
 		},
 		{
-			name:       "Kling official succeed status",
+			name:       "Kling official succeed status without video remains processing",
 			platform:   PlatformKling,
 			body:       `{"data":{"task_id":"kling-3","task_status":"succeed"}}`,
 			wantTaskID: "kling-3",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
-			name:       "ByteDance output task status",
+			name:       "ByteDance output task status without video remains processing",
 			platform:   PlatformByteDance,
 			body:       `{"output":{"task_id":"bd-1","task_status":"Success"}}`,
 			wantTaskID: "bd-1",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
-			name:       "Wan3.0 output task status",
+			name:       "Wan3.0 output task status without video remains processing",
 			platform:   PlatformWan3,
 			body:       `{"output":{"task_id":"wan-task-1","task_status":"Success"}}`,
 			wantTaskID: "wan-task-1",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
-			name:       "Pixverse v6 output task status",
+			name:       "Pixverse v6 output task status without video remains processing",
 			platform:   PlatformPixverseV6,
 			body:       `{"output":{"task_id":"pix-task-1","task_status":"Success"}}`,
 			wantTaskID: "pix-task-1",
-			wantStatus: PPVideoTaskStatusSucceeded,
+			wantStatus: PPVideoTaskStatusProcessing,
 		},
 		{
 			name:       "Grok Imagine Video output task status",
@@ -803,6 +803,155 @@ func TestPreparePPVideoRequestBodyNormalizesByteDanceModelVersePayload(t *testin
 	require.False(t, gjson.GetBytes(body, "unexpected").Exists())
 }
 
+func TestPreparePPVideoRequestBodyNormalizesByteDanceSeedance25Payload(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{
+			"model": "doubao-seedance-2-5-260628-global",
+			"input": {
+				"content": [
+					{"type":"text","text":"让他跑起来。"},
+					{"type":"video_url","video_url":{"url":"https://example.com/reference.mp4"},"role":"reference_video"},
+					{"type":"audio_url","audio_url":{"url":"https://example.com/reference.mp3"},"role":"reference_audio"}
+				]
+			},
+			"parameters": {
+				"duration": 30,
+				"resolution": "1080p",
+				"ratio": "21:9",
+				"generate_audio": true,
+				"omni_reference_task_type": "extend"
+			}
+		}`),
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, ByteDanceSeedance25GlobalModel, public.UpstreamModel)
+	require.Equal(t, int64(30000), public.DurationMilliseconds)
+	require.Equal(t, ByteDanceSeedance25GlobalModel, gjson.GetBytes(body, "model").String())
+	require.Equal(t, 30, int(gjson.GetBytes(body, "parameters.duration").Int()))
+	require.Equal(t, "1080p", gjson.GetBytes(body, "parameters.resolution").String())
+	require.Equal(t, "21:9", gjson.GetBytes(body, "parameters.ratio").String())
+	require.True(t, gjson.GetBytes(body, "parameters.generate_audio").Bool())
+	require.Equal(t, "extend", gjson.GetBytes(body, "parameters.omni_reference_task_type").String())
+	require.Equal(t, "reference_video", gjson.GetBytes(body, "input.content.1.role").String())
+	require.Equal(t, "reference_audio", gjson.GetBytes(body, "input.content.2.role").String())
+}
+
+func TestPreparePPVideoRequestBodyNormalizesByteDancePrivateAssetReference(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{
+			"model": "doubao-seedance-2-0-260128",
+			"prompt": "让素材中的人物微笑挥手",
+			"image_asset_id": "Asset-20260331150000-abcde",
+			"parameters": {
+				"duration": 5,
+				"resolution": "720p"
+			}
+		}`),
+	)
+
+	require.NoError(t, err)
+	require.True(t, public.HasImage)
+	require.Equal(t, "text", gjson.GetBytes(body, "input.content.0.type").String())
+	require.Equal(t, "image_url", gjson.GetBytes(body, "input.content.1.type").String())
+	require.Equal(t, "asset://Asset-20260331150000-abcde", gjson.GetBytes(body, "input.content.1.image_url.url").String())
+	require.Equal(t, "reference_image", gjson.GetBytes(body, "input.content.1.role").String())
+}
+
+func TestPreparePPVideoRequestBodyNormalizesByteDanceReferenceImageURL(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{
+			"model": "doubao-seedance-2-0-260128",
+			"prompt": "让参考图中的人物微笑挥手",
+			"reference_image_url": "https://example.com/person.jpg",
+			"parameters": {
+				"duration": 5,
+				"resolution": "720p"
+			}
+		}`),
+	)
+
+	require.NoError(t, err)
+	require.True(t, public.HasImage)
+	require.Equal(t, "text", gjson.GetBytes(body, "input.content.0.type").String())
+	require.Equal(t, "image_url", gjson.GetBytes(body, "input.content.1.type").String())
+	require.Equal(t, "https://example.com/person.jpg", gjson.GetBytes(body, "input.content.1.image_url.url").String())
+	require.Equal(t, "reference_image", gjson.GetBytes(body, "input.content.1.role").String())
+}
+
+func TestPreparePPVideoRequestBodyNormalizesByteDanceContentAssetReference(t *testing.T) {
+	t.Parallel()
+
+	body, public, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{
+			"model": "doubao-seedance-2-0-260128",
+			"input": {
+				"content": [
+					{"type":"text","text":"让素材中的人物转身"},
+					{"type":"image_url","image_url":{"asset_id":"Asset-20260331150000-abcde"},"role":"reference_image"}
+				]
+			},
+			"parameters": {
+				"duration": 5,
+				"resolution": "720p"
+			}
+		}`),
+	)
+
+	require.NoError(t, err)
+	require.True(t, public.HasImage)
+	require.Equal(t, "asset://Asset-20260331150000-abcde", gjson.GetBytes(body, "input.content.1.image_url.url").String())
+	require.Equal(t, "reference_image", gjson.GetBytes(body, "input.content.1.role").String())
+}
+
+func TestPreparePPVideoRequestBodyDefaultsByteDanceGenerateAudioOn(t *testing.T) {
+	t.Parallel()
+
+	body, _, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"doubao-seedance-2-0-260128","prompt":"scene","parameters":{"duration":5,"resolution":"720p"}}`),
+	)
+
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(body, "parameters.generate_audio").Bool())
+
+	body, _, err = PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"doubao-seedance-2-0-260128","prompt":"scene","parameters":{"duration":5,"resolution":"720p","generate_audio":false}}`),
+	)
+
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(body, "parameters.generate_audio").Bool())
+}
+
+func TestPreparePPVideoRequestBodyKeepsByteDanceDefaultDurationLimit(t *testing.T) {
+	t.Parallel()
+
+	_, _, err := PreparePPVideoRequestBody(
+		PlatformByteDance,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"doubao-seedance-2-0-260128","prompt":"scene","parameters":{"duration":30}}`),
+	)
+
+	require.ErrorContains(t, err, "from 4 to 15")
+}
+
 func TestPreparePPVideoRequestBodyNormalizesMiniMaxH3ModelVersePayload(t *testing.T) {
 	t.Parallel()
 
@@ -977,6 +1126,28 @@ func TestPreparePPVideoRequestBodyNormalizesWan30ModelVersePayload(t *testing.T)
 	require.False(t, gjson.GetBytes(body, "unexpected").Exists())
 }
 
+func TestPreparePPVideoRequestBodyDefaultsWan30AudioOn(t *testing.T) {
+	t.Parallel()
+
+	body, _, err := PreparePPVideoRequestBody(
+		PlatformWan3,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"wan3.0-video","input":{"prompt":"scene"},"parameters":{"duration":8,"resolution":"720P"}}`),
+	)
+
+	require.NoError(t, err)
+	require.True(t, gjson.GetBytes(body, "parameters.audio").Bool())
+
+	body, _, err = PreparePPVideoRequestBody(
+		PlatformWan3,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"wan3.0-video","input":{"prompt":"scene"},"parameters":{"duration":8,"resolution":"720P","audio":false}}`),
+	)
+
+	require.NoError(t, err)
+	require.False(t, gjson.GetBytes(body, "parameters.audio").Bool())
+}
+
 func TestPreparePPVideoRequestBodyNormalizesPixverseV6Payload(t *testing.T) {
 	t.Parallel()
 
@@ -1013,7 +1184,7 @@ func TestPreparePPVideoRequestBodyNormalizesPixverseV6Payload(t *testing.T) {
 	require.Equal(t, "data:image/png;base64,ZmFrZQ==", gjson.GetBytes(body, "input.last_frame_url").String())
 	require.Equal(t, 8, int(gjson.GetBytes(body, "parameters.duration").Int()))
 	require.Equal(t, "540p", gjson.GetBytes(body, "parameters.resolution").String())
-	require.Equal(t, int64(1), gjson.GetBytes(body, "parameters.generate_audio").Int())
+	require.True(t, gjson.GetBytes(body, "parameters.generate_audio").Bool())
 	require.Equal(t, int64(42), gjson.GetBytes(body, "parameters.seed").Int())
 	require.False(t, gjson.GetBytes(body, "parameters.aspect_ratio").Exists())
 	require.False(t, gjson.GetBytes(body, "unexpected").Exists())
@@ -1035,7 +1206,51 @@ func TestPreparePPVideoRequestBodyNormalizesPixverseV6TextToVideoPayload(t *test
 	require.Equal(t, VideoBillingResolution480P, public.Resolution)
 	require.False(t, public.HasImage)
 	require.Equal(t, "21:9", gjson.GetBytes(body, "parameters.aspect_ratio").String())
-	require.Equal(t, int64(1), gjson.GetBytes(body, "parameters.generate_audio").Int())
+	require.True(t, gjson.GetBytes(body, "parameters.generate_audio").Bool())
+}
+
+func TestPreparePPVideoRequestBodyNormalizesPixverseV6GenerateAudioToBoolean(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{
+			name: "default true",
+			body: `{"input":{"prompt":"scene"},"parameters":{"duration":3,"resolution":"540p","aspect_ratio":"3:4"}}`,
+			want: true,
+		},
+		{
+			name: "boolean false",
+			body: `{"input":{"prompt":"scene"},"parameters":{"duration":3,"generate_audio":false}}`,
+			want: false,
+		},
+		{
+			name: "legacy integer zero",
+			body: `{"input":{"prompt":"scene"},"parameters":{"duration":3,"generate_audio":0}}`,
+			want: false,
+		},
+		{
+			name: "legacy integer one",
+			body: `{"input":{"prompt":"scene"},"parameters":{"duration":3,"generate_audio":1}}`,
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body, _, err := PreparePPVideoRequestBody(PlatformPixverseV6, PPVideoOperationGeneric, []byte(tt.body))
+			require.NoError(t, err)
+			generateAudio := gjson.GetBytes(body, "parameters.generate_audio")
+			require.Equal(t, tt.want, generateAudio.Bool())
+			require.Contains(t, []gjson.Type{gjson.True, gjson.False}, generateAudio.Type)
+		})
+	}
 }
 
 func TestPreparePPVideoRequestBodyNormalizesGrokImagineVideoPayload(t *testing.T) {

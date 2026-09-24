@@ -165,10 +165,20 @@ func TestFilterUpstreamModelsForPlatform(t *testing.T) {
 			},
 		},
 		{
-			name:     "ByteDance keeps only the fixed ModelVerse model",
+			name:     "ByteDance keeps only fixed ModelVerse models",
 			platform: PlatformByteDance,
-			models:   []string{ByteDanceVideoDefaultModel, "doubao-seedance-2-0-mini-260615", "gpt-5"},
-			want:     []string{ByteDanceVideoDefaultModel},
+			models: []string{
+				ByteDanceVideoDefaultModel,
+				ByteDanceSeedance25Model,
+				ByteDanceSeedance25GlobalModel,
+				"doubao-seedance-2-0-mini-260615",
+				"gpt-5",
+			},
+			want: []string{
+				ByteDanceVideoDefaultModel,
+				ByteDanceSeedance25Model,
+				ByteDanceSeedance25GlobalModel,
+			},
 		},
 		{
 			name:     "Wan3.0 keeps only its fixed ModelVerse models",
@@ -243,7 +253,7 @@ func TestFetchUpstreamSupportedModelsUsesByteDanceFixedModelWithoutHTTPProbe(t *
 	})
 
 	require.NoError(t, err)
-	require.Equal(t, []string{ByteDanceVideoDefaultModel}, models)
+	require.Equal(t, byteDanceModels(), models)
 	require.Empty(t, upstream.requests)
 }
 

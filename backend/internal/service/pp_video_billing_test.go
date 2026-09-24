@@ -111,6 +111,78 @@ func TestCalculatePPVideoCostUsesGroupVideoPriceForSeedance(t *testing.T) {
 	}
 }
 
+func TestCalculatePPVideoCostValidatesByteDanceDurationsByModel(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(102)
+	videoPrice := 0.2
+	apiKey := &APIKey{
+		GroupID: &groupID,
+		Group: &Group{
+			ID:             groupID,
+			Platform:       PlatformByteDance,
+			RateMultiplier: 1,
+			VideoPrice720P: &videoPrice,
+		},
+	}
+	svc := &OpenAIGatewayService{billingService: newTestBillingService()}
+
+	tests := []struct {
+		name      string
+		model     string
+		duration  int64
+		wantRate  float64
+		wantErr   string
+	}{
+		{
+			name:      "Seedance 2.0 rejects 30 seconds",
+			model:     ByteDanceVideoDefaultModel,
+			duration:  30000,
+			wantErr:   "from 4 to 15",
+		},
+		{
+			name:     "Seedance 2.0 keeps the configured unit price",
+			model:    ByteDanceVideoDefaultModel,
+			duration: 15000,
+			wantRate: 0.2,
+		},
+		{
+			name:     "Seedance 2.5 accepts 30 seconds with three times unit price",
+			model:    ByteDanceSeedance25Model,
+			duration: 30000,
+			wantRate: 0.6,
+		},
+		{
+			name:     "Seedance 2.5 Global accepts 30 seconds with three times unit price",
+			model:    ByteDanceSeedance25GlobalModel,
+			duration: 30000,
+			wantRate: 0.6,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cost, err := svc.CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{}, PPVideoBillingMetadata{
+				Platform:                      PlatformByteDance,
+				Model:                         tt.model,
+				RequestedDurationMilliseconds: tt.duration,
+				VideoCount:                    1,
+				VideoResolution:               VideoBillingResolution720P,
+			})
+
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			expectedUnits := float64(tt.duration) / 1000
+			require.InDelta(t, expectedUnits, cost.BillingUnits, 1e-12)
+			require.InDelta(t, tt.wantRate, cost.BillingUnitPrice, 1e-12)
+			require.InDelta(t, expectedUnits*tt.wantRate, cost.TotalCost, 1e-12)
+		})
+	}
+}
+
 func TestCalculatePPVideoCostUsesGroupVideoPriceForKling(t *testing.T) {
 	t.Parallel()
 
@@ -372,6 +444,7 @@ func TestSettlePPVideoTaskUsesActualMillisecondsAndRecordsUsage(t *testing.T) {
 		GeneratedVideoDurationMilliseconds: 5041,
 		VideoCount:                         1,
 		VideoResolution:                    VideoBillingResolution720P,
+		ResponseBody:                       `{"status":"succeeded","video_url":"https://cdn.example.com/kling.mp4"}`,
 	}
 	repo := &ppVideoBillingRepoStub{task: task, claim: true}
 	logRepo := &ppVideoUsageLogRepoStub{}
@@ -409,6 +482,55 @@ func TestSettlePPVideoTaskUsesActualMillisecondsAndRecordsUsage(t *testing.T) {
 	require.Equal(t, 6, *logRepo.lastLog.VideoDurationSeconds)
 }
 
+func TestSettlePPVideoTaskSucceededWithoutVideoURLDoesNotCapture(t *testing.T) {
+	task := &PPVideoTask{
+		LocalTaskID:                        "ppvidtask_no_video",
+		TaskID:                             "pp-task-no-video",
+		UserID:                             1,
+		APIKeyID:                           2,
+		AccountID:                          3,
+		Platform:                           PlatformPixverseV6,
+		Model:                              PixverseV6VideoDefaultModel,
+		Status:                             PPVideoTaskStatusSucceeded,
+		BillingStatus:                      PPVideoBillingStatusHeld,
+		RequestHash:                        "payload-hash",
+		HoldID:                             PPVideoHoldRequestID("ppvidtask_no_video"),
+		CaptureID:                          PPVideoCaptureRequestID("ppvidtask_no_video"),
+		ReleaseID:                          PPVideoReleaseRequestID("ppvidtask_no_video"),
+		EstimatedTotalCost:                 5,
+		HoldAmount:                         5,
+		RequestedVideoDurationSeconds:      5,
+		RequestedVideoDurationMilliseconds: 5000,
+		GeneratedVideoDurationMilliseconds: 5000,
+		VideoCount:                         1,
+		VideoResolution:                    VideoBillingResolution720P,
+		ResponseBody:                       `{"status":"succeeded"}`,
+	}
+	repo := &ppVideoBillingRepoStub{task: task, claim: true}
+	logRepo := &ppVideoUsageLogRepoStub{}
+	svc := &OpenAIGatewayService{
+		usageBillingRepo: repo,
+		usageLogRepo:     logRepo,
+	}
+
+	err := svc.SettlePPVideoTask(context.Background(), &PPVideoSettlementInput{
+		Task:               task,
+		FinalStatus:        PPVideoTaskStatusSucceeded,
+		APIKey:             &APIKey{ID: 2, User: &User{ID: 1}, Quota: 100, RateLimit5h: 10},
+		User:               &User{ID: 1},
+		Account:            &Account{ID: 3, Type: AccountTypeAPIKey},
+		RequestPayloadHash: task.RequestHash,
+		APIKeyService:      &ppVideoQuotaUpdaterStub{},
+		QuotaPlatform:      PlatformPixverseV6,
+	})
+
+	require.ErrorIs(t, err, ErrPPVideoSettlementBillingFailed)
+	require.Empty(t, repo.captures)
+	require.Empty(t, repo.applyCommands)
+	require.Empty(t, repo.settled)
+	require.Zero(t, logRepo.calls)
+}
+
 func TestSettlePPVideoTaskRetriesSettlingState(t *testing.T) {
 	task := &PPVideoTask{
 		LocalTaskID:                        "ppvidtask_retry_settling",
@@ -427,6 +549,7 @@ func TestSettlePPVideoTaskRetriesSettlingState(t *testing.T) {
 		GeneratedVideoDurationMilliseconds: 4000,
 		VideoCount:                         1,
 		VideoResolution:                    VideoBillingResolution720P,
+		ResponseBody:                       `{"status":"succeeded","video_url":"https://cdn.example.com/seedance.mp4"}`,
 	}
 	repo := &ppVideoBillingRepoStub{task: task, claim: false}
 	svc := &OpenAIGatewayService{usageBillingRepo: repo}

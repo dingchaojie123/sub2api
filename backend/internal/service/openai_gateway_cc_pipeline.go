@@ -129,7 +129,11 @@ func (s *OpenAIGatewayService) failoverOpenAIUpstreamHTTPError(
 func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *Account) (string, error) {
 	baseURL := account.GetOpenAIBaseURL()
 	if baseURL == "" {
-		baseURL = "https://api.openai.com"
+		if account != nil && account.Platform == PlatformMidjourney {
+			baseURL = ModelVerseVideoDefaultBaseURL
+		} else {
+			baseURL = "https://api.openai.com"
+		}
 	}
 	validatedURL, err := s.validateUpstreamBaseURL(baseURL)
 	if err != nil {

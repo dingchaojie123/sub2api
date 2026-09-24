@@ -10,8 +10,8 @@ import {
 } from '../platforms'
 
 describe('provider platform metadata', () => {
-  it('defines the four independent OpenAI-compatible provider platforms', () => {
-    expect(PROVIDER_PLATFORMS).toEqual(['doubao', 'qwen', 'kimi', 'deepseek'])
+  it('defines the independent OpenAI-compatible provider platforms', () => {
+    expect(PROVIDER_PLATFORMS).toEqual(['doubao', 'qwen', 'kimi', 'deepseek', 'midjourney'])
 
     for (const platform of PROVIDER_PLATFORMS) {
       const metadata = getPlatformMetadata(platform)

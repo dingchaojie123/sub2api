@@ -243,7 +243,7 @@ func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (
 			if err != nil {
 				return nil, err
 			}
-			if g.RequireOAuthOnly && (g.Platform == PlatformOpenAI || g.Platform == PlatformAntigravity || g.Platform == PlatformAnthropic || g.Platform == PlatformGemini || g.Platform == PlatformGrok || g.Platform == PlatformJimeng || g.Platform == PlatformDoubao || g.Platform == PlatformQwen || g.Platform == PlatformKimi || g.Platform == PlatformDeepSeek) {
+			if g.RequireOAuthOnly && (g.Platform == PlatformOpenAI || g.Platform == PlatformAntigravity || g.Platform == PlatformAnthropic || g.Platform == PlatformGemini || g.Platform == PlatformGrok || g.Platform == PlatformJimeng || g.Platform == PlatformDoubao || g.Platform == PlatformQwen || g.Platform == PlatformKimi || g.Platform == PlatformDeepSeek || g.Platform == PlatformMidjourney) {
 				return nil, fmt.Errorf("分组 [%s] 仅允许 OAuth 账号，apikey 类型账号无法加入", g.Name)
 			}
 		}
@@ -359,7 +359,7 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 			if err != nil {
 				return nil, err
 			}
-			if g.RequireOAuthOnly && (g.Platform == PlatformOpenAI || g.Platform == PlatformAntigravity || g.Platform == PlatformAnthropic || g.Platform == PlatformGemini || g.Platform == PlatformGrok || g.Platform == PlatformJimeng || g.Platform == PlatformDoubao || g.Platform == PlatformQwen || g.Platform == PlatformKimi || g.Platform == PlatformDeepSeek) {
+			if g.RequireOAuthOnly && (g.Platform == PlatformOpenAI || g.Platform == PlatformAntigravity || g.Platform == PlatformAnthropic || g.Platform == PlatformGemini || g.Platform == PlatformGrok || g.Platform == PlatformJimeng || g.Platform == PlatformDoubao || g.Platform == PlatformQwen || g.Platform == PlatformKimi || g.Platform == PlatformDeepSeek || g.Platform == PlatformMidjourney) {
 				return nil, fmt.Errorf("分组 [%s] 仅允许 OAuth 账号，apikey 类型账号无法加入", g.Name)
 			}
 		}
@@ -491,7 +491,7 @@ func (s *AccountService) TestCredentials(ctx context.Context, id int64) error {
 	case PlatformJimeng:
 		// Jimeng API-key credentials are validated via account connection tests.
 		return nil
-	case PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek:
+	case PlatformDoubao, PlatformQwen, PlatformKimi, PlatformDeepSeek, PlatformMidjourney:
 		// OpenAI-compatible provider credentials are validated on the request path.
 		return nil
 	case PlatformMiniMaxSpeech, PlatformQwenTTS:

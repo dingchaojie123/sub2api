@@ -121,7 +121,7 @@ describe('isHeaderOverrideCapable', () => {
   })
 
   it('provider platforms support header overrides for API-key accounts', () => {
-    for (const platform of ['doubao', 'qwen', 'kimi', 'deepseek']) {
+    for (const platform of ['doubao', 'qwen', 'kimi', 'deepseek', 'midjourney']) {
       expect(isHeaderOverrideCapable(platform, 'apikey')).toBe(true)
       expect(isHeaderOverrideCapable(platform, 'oauth')).toBe(false)
     }
