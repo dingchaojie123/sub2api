@@ -19,10 +19,11 @@ var (
 )
 
 type PPVideoBillingQuote struct {
-	Formula   string
-	Units     float64
-	UnitPrice float64
-	Cost      float64
+	Formula           string
+	Units             float64
+	UnitPrice         float64
+	FallbackUnitPrice float64
+	Cost              float64
 }
 
 const byteDanceSeedance25BillingMultiplier = 3.0
@@ -50,15 +51,24 @@ func (s *OpenAIGatewayService) calculatePPVideoGroupVideoCost(
 	resolution := ppVideoGroupBillingResolution(meta)
 	groupConfig := videoPriceConfigFromAPIKey(apiKey)
 	unitPrice := billingService.getVideoUnitPrice(meta.Model, resolution, groupConfig)
+	fallbackUnitPrice := 0.0
+	if meta.Platform == PlatformMiniMaxH3CompShare {
+		var err error
+		unitPrice, fallbackUnitPrice, err = compShareVideoPrices(meta.VideoResolution, apiKey)
+		if err != nil {
+			return PPVideoBillingQuote{}, err
+		}
+	}
 	if meta.Platform == PlatformByteDance && byteDanceIsSeedance25Model(meta.Model) {
 		unitPrice *= byteDanceSeedance25BillingMultiplier
 	}
 	units := float64(durationMs) / 1000 * float64(meta.VideoCount)
 	return PPVideoBillingQuote{
-		Formula:   PPVideoBillingFormulaPerSecond,
-		Units:     units,
-		UnitPrice: unitPrice,
-		Cost:      units * unitPrice,
+		Formula:           PPVideoBillingFormulaPerSecond,
+		Units:             units,
+		UnitPrice:         unitPrice,
+		FallbackUnitPrice: fallbackUnitPrice,
+		Cost:              units * unitPrice,
 	}, nil
 }
 
@@ -115,6 +125,11 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	}
 	if meta.ValidationError != nil {
 		return nil, meta.ValidationError
+	}
+	if meta.Platform == PlatformMiniMaxH3CompShare {
+		if err := validateCompShareVideoDuration(meta.RequestedDurationMilliseconds); err != nil {
+			return nil, err
+		}
 	}
 	if meta.Platform == PlatformByteDance {
 		maxDurationSeconds := byteDanceMaxDurationSeconds(meta.Model)
@@ -176,13 +191,14 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 	accountMultiplier := account.BillingRateMultiplier()
 	return &CostBreakdown{
-		TotalCost:        quote.Cost,
-		OutputCost:       quote.Cost,
-		ActualCost:       quote.Cost * videoMultiplier * accountMultiplier,
-		BillingMode:      string(BillingModeVideo),
-		BillingFormula:   quote.Formula,
-		BillingUnits:     quote.Units,
-		BillingUnitPrice: quote.UnitPrice,
+		TotalCost:                quote.Cost,
+		OutputCost:               quote.Cost,
+		ActualCost:               quote.Cost * videoMultiplier * accountMultiplier,
+		BillingMode:              string(BillingModeVideo),
+		BillingFormula:           quote.Formula,
+		BillingUnits:             quote.Units,
+		BillingUnitPrice:         quote.UnitPrice,
+		BillingFallbackUnitPrice: quote.FallbackUnitPrice,
 	}, nil
 }
 
@@ -384,6 +400,17 @@ func ppVideoRawSettlementCost(task *PPVideoTask) float64 {
 	if task == nil {
 		return 0
 	}
+	if task.Platform == PlatformMiniMaxH3CompShare {
+		durationMs := task.GeneratedVideoDurationMilliseconds
+		if durationMs <= 0 {
+			durationMs = task.RequestedVideoDurationMilliseconds
+		}
+		price := task.BillingUnitPrice
+		if strings.EqualFold(task.VideoResolution, "768P") {
+			price = task.BillingFallbackUnitPrice
+		}
+		return ppVideoTaskBillingUnits(task, durationMs) * price
+	}
 	if task.BillingFormula != "" && task.BillingUnitPrice > 0 {
 		durationMs := task.GeneratedVideoDurationMilliseconds
 		if durationMs <= 0 {
@@ -458,7 +485,7 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 		totalCost = actualCost
 	}
 	outputCost := ppVideoRawSettlementCost(task)
-	if outputCost <= 0 {
+	if outputCost <= 0 && task.Platform != PlatformMiniMaxH3CompShare {
 		outputCost = totalCost
 	}
 	rateMultiplier := 1.0
@@ -470,6 +497,9 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 		videoCount = 1
 	}
 	resolution := normalizePPVideoResolution(task.VideoResolution)
+	if task.Platform == PlatformMiniMaxH3CompShare {
+		resolution = strings.ToLower(task.VideoResolution)
+	}
 	if resolution == "" {
 		resolution = VideoBillingResolution720P
 	}

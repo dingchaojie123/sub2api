@@ -189,7 +189,7 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	case service.PlatformOpenAI, service.PlatformGrok, service.PlatformJimeng,
 		service.PlatformDoubao, service.PlatformQwen, service.PlatformKimi, service.PlatformDeepSeek, service.PlatformMidjourney,
 		service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance,
-		service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 		if inbound == EndpointEmbeddings || inbound == EndpointAlphaSearch || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideosEdits || inbound == EndpointVideosExtensions || inbound == EndpointVideos {
 			return inbound
 		}

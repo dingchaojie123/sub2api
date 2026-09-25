@@ -819,6 +819,7 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 				"message": "Midjourney Images API compatibility currently supports /v1/images/generations JSON requests only",
 			},
 		})
+		MarkResponseCommitted(c)
 		return nil, fmt.Errorf("midjourney images compatibility does not support edits or multipart requests")
 	}
 	if parsed.Stream {
@@ -828,6 +829,7 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 				"message": "Midjourney Images API compatibility does not support streaming image responses",
 			},
 		})
+		MarkResponseCommitted(c)
 		return nil, fmt.Errorf("midjourney images compatibility does not support streaming requests")
 	}
 
@@ -844,6 +846,7 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 	submitBody, err := buildMidjourneyTaskSubmitBody(body, upstreamModel, prompt)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"type": "invalid_request_error", "message": err.Error()}})
+		MarkResponseCommitted(c)
 		return nil, err
 	}
 	token, tokenKind, err := s.getRequestCredential(ctx, c, account)
@@ -870,6 +873,9 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 
 	if resp.StatusCode >= 400 {
 		respBody, upstreamMsg := s.readOpenAIUpstreamError(resp)
+		if moderationErr := s.handleMidjourneyImagesModerationError(c, account, resp, respBody); moderationErr != nil {
+			return nil, moderationErr
+		}
 		if foErr := s.failoverOpenAIUpstreamHTTPError(ctx, c, account, resp, respBody, upstreamMsg, upstreamModel); foErr != nil {
 			return nil, foErr
 		}
@@ -888,6 +894,7 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 				"message": "Midjourney upstream response missing task_id",
 			},
 		})
+		MarkResponseCommitted(c)
 		return nil, fmt.Errorf("midjourney upstream response missing task_id")
 	}
 
@@ -904,6 +911,7 @@ func (s *OpenAIGatewayService) forwardMidjourneyImagesViaTasks(
 				"message": "Midjourney upstream response did not include generated images",
 			},
 		})
+		MarkResponseCommitted(c)
 		return nil, fmt.Errorf("midjourney upstream response missing output.urls")
 	}
 
@@ -1033,6 +1041,9 @@ func (s *OpenAIGatewayService) pollMidjourneyTaskStatus(ctx context.Context, c *
 			return nil, nil, readErr
 		}
 		if resp.StatusCode >= http.StatusBadRequest {
+			if moderationErr := s.handleMidjourneyImagesModerationError(c, account, resp, respBody); moderationErr != nil {
+				return nil, nil, moderationErr
+			}
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 			_, err := s.handleOpenAIImagesErrorResponse(ctx, resp, c, account, taskID)
 			return nil, nil, err
@@ -1048,6 +1059,7 @@ func (s *OpenAIGatewayService) pollMidjourneyTaskStatus(ctx context.Context, c *
 				message = "Midjourney task failed"
 			}
 			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{"type": "upstream_error", "message": message}})
+			MarkResponseCommitted(c)
 			return nil, nil, fmt.Errorf("midjourney task failed: %s", message)
 		}
 
@@ -1056,6 +1068,7 @@ func (s *OpenAIGatewayService) pollMidjourneyTaskStatus(ctx context.Context, c *
 			return nil, nil, ctx.Err()
 		case <-deadline.C:
 			c.JSON(http.StatusGatewayTimeout, gin.H{"error": gin.H{"type": "upstream_error", "message": "Midjourney task timed out"}})
+			MarkResponseCommitted(c)
 			return nil, nil, fmt.Errorf("midjourney task timed out")
 		case <-ticker.C:
 		}

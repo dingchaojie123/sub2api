@@ -79,6 +79,7 @@ type AuthService struct {
 	affiliateService      *AffiliateService
 	defaultSubAssigner    DefaultSubscriptionAssigner
 	userPlatformQuotaRepo UserPlatformQuotaRepository
+	defaultAPIKeys        signupDefaultAPIKeyProvisioner
 }
 
 type DefaultSubscriptionAssigner interface {
@@ -221,6 +222,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 	s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 	// snapshot user × platform quota（fail-open）
 	_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
+	s.provisionSignupAPIKeys(ctx, user.ID)
 	s.bindSignupAffiliate(ctx, user.ID, invitationAffiliateCode, affiliateCode)
 
 	// 标记邀请码为已使用（如果使用了邀请码）
@@ -526,6 +528,7 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 				s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 				// snapshot user × platform quota（fail-open）
 				_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
+				s.provisionSignupAPIKeys(ctx, user.ID)
 			}
 		} else {
 			logger.LegacyPrintf("service.auth", "[Auth] Database error during oauth login: %v", err)
@@ -680,6 +683,7 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 					// snapshot user × platform quota（fail-open）
 					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
+					s.provisionSignupAPIKeys(ctx, user.ID)
 					s.bindSignupAffiliate(ctx, user.ID, invitationAffiliateCode, affiliateCode)
 				}
 			} else {
@@ -701,6 +705,7 @@ func (s *AuthService) loginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 					s.assignSubscriptions(ctx, user.ID, grantPlan.Subscriptions, "auto assigned by signup defaults")
 					// snapshot user × platform quota（fail-open）
 					_ = s.snapshotPlatformQuotaDefaults(ctx, user.ID, &grantPlan)
+					s.provisionSignupAPIKeys(ctx, user.ID)
 					s.bindSignupAffiliate(ctx, user.ID, invitationAffiliateCode, affiliateCode)
 					if invitationRedeemCode != nil {
 						if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {

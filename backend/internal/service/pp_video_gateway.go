@@ -86,6 +86,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		return nil, fmt.Errorf("PP video api key not found in credentials")
 	}
 	baseURLRaw := account.GetOpenAIBaseURL()
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMiniMaxH3CompShare {
+		baseURLRaw = CompShareVideoDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" &&
 		(account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou) {
 		baseURLRaw = ModelVerseVideoDefaultBaseURL
@@ -105,6 +108,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	var reader io.Reader
 	if isStatus || isCancel {
 		method = http.MethodGet
+		if isCancel && account.Platform == PlatformMiniMaxH3CompShare {
+			method = http.MethodDelete
+		}
 	} else {
 		if len(upstreamBody) == 0 {
 			return nil, fmt.Errorf("PP video request body is empty")
@@ -167,6 +173,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	parsed, err := ParsePPVideoResponse(account.Platform, respBody)
 	if err != nil {
 		return nil, err
+	}
+	if account.Platform == PlatformMiniMaxH3CompShare && parsed.Status != PPVideoTaskStatusSucceeded {
+		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if isStatus && account.Platform == PlatformPixverseV6 && parsed.Status == PPVideoTaskStatusSucceeded {
 		if mediaURL := ppVideoExtractVideoURL(respBody); mediaURL != "" {
@@ -604,6 +613,9 @@ func isPPVideoAccountEligibleForModel(account *Account, requestedModel string) b
 	}
 	if account.Platform == PlatformMiniMaxH3 && ppVideoMiniMaxH3ModelAllowedForAccount(requestedModel, account) {
 		return true
+	}
+	if account.Platform == PlatformMiniMaxH3CompShare {
+		return compShareVideoModelAllowed(requestedModel)
 	}
 	if account.Platform == PlatformPixverseV6 && ppVideoPixverseV6ModelAllowed(requestedModel) {
 		return true

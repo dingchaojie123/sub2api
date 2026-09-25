@@ -165,6 +165,7 @@ type CostBreakdown struct {
 	BillingFormula            string  // 特殊媒体计费公式，例如 PP 视频模型公式
 	BillingUnits              float64 // 特殊媒体计费公式的计费单位数量
 	BillingUnitPrice          float64 // 特殊媒体计费公式的基础单价
+	BillingFallbackUnitPrice  float64 // Native-resolution unit price captured when a task is created.
 	LongContextBillingApplied bool
 }
 

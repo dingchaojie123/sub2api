@@ -47,6 +47,7 @@ export function billingModesForPlatform(
     normalizedPlatform === 'bytedance' ||
     normalizedPlatform === 'wan3' ||
     normalizedPlatform === 'minimax-h3' ||
+    normalizedPlatform === 'minimax-h3-compshare' ||
     normalizedPlatform === 'pixverse-v6' ||
     normalizedPlatform === 'grok-imagine-video' ||
     normalizedPlatform === 'kuaishou'

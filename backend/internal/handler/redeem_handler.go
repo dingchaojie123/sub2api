@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -38,6 +40,7 @@ type RedeemResponse struct {
 // Redeem handles redeeming a code
 // POST /api/v1/redeem
 func (h *RedeemHandler) Redeem(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")
@@ -50,6 +53,11 @@ func (h *RedeemHandler) Redeem(c *gin.Context) {
 		return
 	}
 
+	req.Code = strings.TrimSpace(req.Code)
+	if req.Code == "" {
+		response.BadRequest(c, "Redeem code is required")
+		return
+	}
 	result, err := h.redeemService.Redeem(c.Request.Context(), subject.UserID, req.Code)
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -62,6 +70,7 @@ func (h *RedeemHandler) Redeem(c *gin.Context) {
 // GetHistory returns the user's redemption history
 // GET /api/v1/redeem/history
 func (h *RedeemHandler) GetHistory(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)
 	if !ok {
 		response.Unauthorized(c, "User not authenticated")

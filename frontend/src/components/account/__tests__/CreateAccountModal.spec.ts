@@ -193,7 +193,7 @@ async function fillProviderApiKeyAccount(
 
 async function fillVideoApiKeyAccount(
   wrapper: ReturnType<typeof mountModal>,
-  platform: 'kling' | 'happyhourse' | 'seedance' | 'bytedance' | 'wan3' | 'minimax-h3' | 'pixverse-v6' | 'grok-imagine-video' | 'kuaishou'
+  platform: 'kling' | 'happyhourse' | 'seedance' | 'bytedance' | 'wan3' | 'minimax-h3' | 'minimax-h3-compshare' | 'pixverse-v6' | 'grok-imagine-video' | 'kuaishou'
 ) {
   await selectButtonByText(wrapper, `admin.accounts.platforms.${platform}`)
   await flushPromises()
@@ -256,7 +256,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(platformSelector.classes()).toContain('flex-wrap')
     expect(platformSelector.classes()).not.toContain('flex-nowrap')
     expect(platformSelector.classes()).not.toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(22)
+    expect(platformButtons).toHaveLength(23)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')
       expect(button.classes()).not.toContain('flex-1')
@@ -493,7 +493,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     }
   )
 
-  it.each(['bytedance', 'wan3', 'minimax-h3', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'] as const)(
+  it.each(['bytedance', 'wan3', 'minimax-h3', 'minimax-h3-compshare', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'] as const)(
     'creates the new %s video platform as a Bearer API key account',
     async (platform) => {
       const wrapper = mountModal()
@@ -534,6 +534,10 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
             'MiniMax-H3': 'MiniMax-H3',
             'MiniMax-Hailuo-2.3': 'MiniMax-Hailuo-2.3'
           }
+        })
+      } else if (platform === 'minimax-h3-compshare') {
+        expect(credentials).toMatchObject({
+          model_mapping: { 'MiniMax-H3': 'MiniMax-H3', 'minimax-h3-lite': 'minimax-h3-lite' }
         })
       } else if (platform === 'pixverse-v6') {
         expect(credentials).toMatchObject({

@@ -60,8 +60,9 @@ func TestRedeemServiceApplyBalanceDisplayBonusForFixedTier(t *testing.T) {
 		SetPasswordHash("hash").
 		SetUsername("redeem-display-bonus").
 		SetBalance(12).
-		SetDisplayBalance(12).
 		Save(ctx)
+	require.NoError(t, err)
+	_, err = client.ExecContext(ctx, "UPDATE users SET display_balance = ? WHERE id = ?", 12, user.ID)
 	require.NoError(t, err)
 
 	tx, err := client.Tx(ctx)
@@ -88,8 +89,9 @@ func TestRedeemServiceApplyBalanceDisplayBonusCanBeSkipped(t *testing.T) {
 		SetPasswordHash("hash").
 		SetUsername("redeem-display-skip").
 		SetBalance(12).
-		SetDisplayBalance(12).
 		Save(ctx)
+	require.NoError(t, err)
+	_, err = client.ExecContext(ctx, "UPDATE users SET display_balance = ? WHERE id = ?", 12, user.ID)
 	require.NoError(t, err)
 
 	tx, err := client.Tx(ctx)

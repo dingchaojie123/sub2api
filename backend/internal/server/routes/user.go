@@ -26,6 +26,7 @@ func RegisterUserRoutes(
 		user := authenticated.Group("/user")
 		{
 			user.GET("/profile", h.User.GetProfile)
+			user.GET("/balance", h.User.GetBalance)
 			user.PUT("/password", h.User.ChangePassword)
 			user.PUT("", h.User.UpdateProfile)
 			user.GET("/aff", h.User.GetAffiliate)
@@ -64,6 +65,10 @@ func RegisterUserRoutes(
 		keys := authenticated.Group("/keys")
 		{
 			keys.GET("", h.APIKey.List)
+			keys.GET("/defaults", h.APIKey.GetDefaults)
+			keys.GET("/defaults/:purpose", h.APIKey.GetDefault)
+			keys.POST("/defaults", h.APIKey.EnsureDefaults)
+			keys.PUT("/defaults/:purpose", h.APIKey.UpdateDefault)
 			keys.GET("/:id", h.APIKey.GetByID)
 			keys.POST("", h.APIKey.Create)
 			keys.PUT("/:id", h.APIKey.Update)

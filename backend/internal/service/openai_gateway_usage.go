@@ -614,7 +614,8 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 		return false
 	}
 	return group.ImagePrice1K == nil && group.ImagePrice2K == nil && group.ImagePrice4K == nil &&
-		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil
+		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil &&
+		group.VideoPrice2K == nil && group.VideoPrice4K == nil
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {

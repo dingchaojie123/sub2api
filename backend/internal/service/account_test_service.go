@@ -782,6 +782,9 @@ func (s *AccountTestService) testPPVideoAccountConnection(c *gin.Context, accoun
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: account.Platform})
 
+	if account.Platform == PlatformMiniMaxH3CompShare {
+		return s.testCompShareVideoAccount(c, account)
+	}
 	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		fixedModels := []string{ByteDanceVideoDefaultModel}

@@ -2450,6 +2450,8 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 				requestedModels = append(requestedModels, service.Wan30VideoDefaultModel, service.Wan30VideoPrimeModel)
 			case service.PlatformMiniMaxH3:
 				requestedModels = append(requestedModels, service.MiniMaxH3VideoDefaultModel, service.MiniMaxHailuo23VideoModel)
+			case service.PlatformMiniMaxH3CompShare:
+				requestedModels = append(requestedModels, service.MiniMaxH3VideoDefaultModel, service.CompShareVideoLiteModel)
 			case service.PlatformPixverseV6:
 				requestedModels = append(requestedModels, service.PixverseV6VideoDefaultModel)
 			case service.PlatformGrokImagineVideo:

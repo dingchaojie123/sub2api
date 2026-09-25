@@ -529,6 +529,7 @@ export type GroupPlatform =
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
+  | 'minimax-h3-compshare'
   | 'minimax-speech'
   | 'qwen-tts'
   | 'pixverse-v6'
@@ -572,6 +573,8 @@ export interface Group {
   video_price_480p: number | null
   video_price_720p: number | null
   video_price_1080p: number | null
+  video_price_2k: number | null
+  video_price_4k: number | null
   // Codex 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
   web_search_price_per_call: number | null
   // 高峰时段倍率配置
@@ -707,6 +710,8 @@ export interface CreateGroupRequest {
   video_price_480p?: number | null
   video_price_720p?: number | null
   video_price_1080p?: number | null
+  video_price_2k?: number | null
+  video_price_4k?: number | null
   web_search_price_per_call?: number | null
   peak_rate_enabled?: boolean
   peak_start?: string
@@ -755,6 +760,8 @@ export interface UpdateGroupRequest {
   video_price_480p?: number | null
   video_price_720p?: number | null
   video_price_1080p?: number | null
+  video_price_2k?: number | null
+  video_price_4k?: number | null
   web_search_price_per_call?: number | null
   peak_rate_enabled?: boolean
   peak_start?: string
@@ -797,6 +804,7 @@ export type AccountPlatform =
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
+  | 'minimax-h3-compshare'
   | 'minimax-speech'
   | 'qwen-tts'
   | 'pixverse-v6'

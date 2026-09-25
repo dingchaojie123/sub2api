@@ -467,6 +467,8 @@ export function getModelsByPlatform(platform: string): string[] {
       return wan3Models
     case 'minimax-h3':
       return minimaxH3Models
+    case 'minimax-h3-compshare':
+      return ['MiniMax-H3', 'minimax-h3-lite']
     case 'minimax-speech':
     case 'qwen-tts':
       return []
@@ -520,6 +522,14 @@ export function getPresetMappingsByPlatform(platform: string) {
       from: model,
       to: model,
       color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400'
+    }))
+  }
+  if (platform === 'minimax-h3-compshare') {
+    return ['MiniMax-H3', 'minimax-h3-lite'].map(model => ({
+      label: model,
+      from: model,
+      to: model,
+      color: 'bg-pink-100 text-pink-700 hover:bg-pink-200 dark:bg-pink-900/30 dark:text-pink-400'
     }))
   }
   if (platform === 'minimax-h3') {

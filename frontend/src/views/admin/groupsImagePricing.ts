@@ -16,7 +16,7 @@ export const ppVideoPricingPlatforms = new Set([
   "seedance",
   "bytedance",
   "wan3",
-  "minimax-h3",
+  "minimax-h3", "minimax-h3-compshare",
   "pixverse-v6",
   "grok-imagine-video",
   "kuaishou",
@@ -29,7 +29,7 @@ export const isPPVideoPricingPlatform = (platform: string): boolean =>
   ppVideoPricingPlatforms.has(platform);
 
 export const usesGroupVideoPriceConfig = (platform: string): boolean =>
-  ["grok", "kling", "happyhourse", "seedance", "bytedance", "wan3", "minimax-h3", "pixverse-v6", "grok-imagine-video", "kuaishou"].includes(platform);
+  ["grok", "kling", "happyhourse", "seedance", "bytedance", "wan3", "minimax-h3", "minimax-h3-compshare", "pixverse-v6", "grok-imagine-video", "kuaishou"].includes(platform);
 
 export const imagePricingI18nKey = (_platform: string, key: string): string =>
   `admin.groups.imagePricing.${key}`;
@@ -41,7 +41,9 @@ type ImagePricingTierKey = "image_price_1k" | "image_price_2k" | "image_price_4k
 type VideoPricingTierKey =
   | "video_price_480p"
   | "video_price_720p"
-  | "video_price_1080p";
+  | "video_price_1080p"
+  | "video_price_2k"
+  | "video_price_4k";
 
 const defaultImagePricePlaceholders: Record<
   string,
@@ -63,7 +65,7 @@ const defaultImagePricePlaceholders: Record<
 // 官方每秒价；1080p 仅 grok-imagine-video-1.5 图生视频支持，取 1.5 的每秒价。
 const defaultVideoPricePlaceholders: Record<
   string,
-  Record<VideoPricingTierKey, string>
+  Partial<Record<VideoPricingTierKey, string>>
 > = {
   grok: {
     video_price_480p: "0.05",

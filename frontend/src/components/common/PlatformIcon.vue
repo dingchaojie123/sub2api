@@ -83,6 +83,7 @@
       platform === 'bytedance' ||
       platform === 'wan3' ||
       platform === 'minimax-h3' ||
+      platform === 'minimax-h3-compshare' ||
       platform === 'pixverse-v6' ||
       platform === 'grok-imagine-video' ||
       platform === 'kuaishou'

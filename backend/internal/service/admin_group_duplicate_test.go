@@ -152,6 +152,8 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		VideoPrice480P:                  groupDuplicateTestPointer(0.1),
 		VideoPrice720P:                  groupDuplicateTestPointer(0.2),
 		VideoPrice1080P:                 groupDuplicateTestPointer(0.3),
+		VideoPrice2K:                    groupDuplicateTestPointer(0.4),
+		VideoPrice4K:                    groupDuplicateTestPointer(0.5),
 		WebSearchPricePerCall:           groupDuplicateTestPointer(0.005),
 		ClaudeCodeOnly:                  true,
 		FallbackGroupID:                 groupDuplicateTestPointer(int64(7)),
@@ -201,6 +203,9 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.PeakRateMultiplier, duplicate.PeakRateMultiplier)
 	require.Equal(t, source.DefaultValidityDays, duplicate.DefaultValidityDays)
 	require.Equal(t, source.ImagePrice4K, duplicate.ImagePrice4K)
+	require.Equal(t, source.VideoPrice2K, duplicate.VideoPrice2K)
+	require.Equal(t, source.VideoPrice4K, duplicate.VideoPrice4K)
+	require.NotSame(t, source.VideoPrice4K, duplicate.VideoPrice4K)
 	require.Equal(t, source.WebSearchPricePerCall, duplicate.WebSearchPricePerCall)
 	require.Equal(t, source.FallbackGroupID, duplicate.FallbackGroupID)
 	require.Equal(t, source.ModelRouting, duplicate.ModelRouting)

@@ -99,7 +99,7 @@ type PPVideoPublicRequest struct {
 
 func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -201,6 +201,14 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 			)
 		}
 		payload, err = normalizePPVideoWan30Payload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformMiniMaxH3CompShare:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizePPVideoCompSharePayload(body, &public)
 		if err != nil {
 			return nil, PPVideoPublicRequest{}, err
 		}
@@ -1985,6 +1993,17 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
+	case PlatformMiniMaxH3CompShare:
+		if operation == PPVideoOperationCancel && taskID != "" {
+			return "/minimax/v2/video_generation/" + url.PathEscape(taskID), nil
+		}
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if taskID != "" {
+			return "/minimax/v2/query/video_generation/" + url.PathEscape(taskID), nil
+		}
+		return "/minimax/v2/video_generation", nil
 	case PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		switch operation {
 		case PPVideoOperationGeneric:
@@ -2058,6 +2077,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 	}
 	if !gjson.ValidBytes(body) {
 		return PPVideoResponse{}, fmt.Errorf("parse PP video response: invalid JSON")
+	}
+	if platform == PlatformMiniMaxH3CompShare {
+		return parseCompShareVideoResponse(body)
 	}
 
 	result := PPVideoResponse{
@@ -2443,6 +2465,9 @@ func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBill
 		metadata.VideoCount = 1
 	}
 	metadata.VideoResolution = normalizePPVideoResolution(resolution)
+	if platform == PlatformMiniMaxH3CompShare {
+		metadata.VideoResolution = strings.ToLower(resolution)
+	}
 	metadata.KlingMode = klingMode
 	metadata.InputVideoDurationMilliseconds = extractPPVideoDurationMilliseconds(body,
 		"input_video_duration",
@@ -2517,6 +2542,10 @@ func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBill
 		"parameters.with_audio",
 		"metadata.generate_audio",
 	)
+	if platform == PlatformMiniMaxH3CompShare {
+		metadata.HasAudio = !gjson.GetBytes(body, "mute_audio").Bool()
+		metadata.OutputWidth, metadata.OutputHeight = 0, 0
+	}
 
 	switch {
 	case platform == PlatformKling &&
@@ -2665,6 +2694,8 @@ func normalizePPVideoSeedanceMediaFields(payload map[string]any, body []byte) er
 func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 	model := strings.TrimSpace(public.Model)
 	switch platform {
+	case PlatformMiniMaxH3CompShare:
+		return compShareVideoUpstreamModel(public, nil)
 	case PlatformByteDance:
 		if upstreamModel := byteDanceUpstreamModel(model); upstreamModel != "" {
 			return upstreamModel
@@ -2710,6 +2741,9 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 }
 
 func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest, account *Account) string {
+	if platform == PlatformMiniMaxH3CompShare {
+		return compShareVideoUpstreamModel(public, account)
+	}
 	if platform == PlatformByteDance {
 		if account != nil {
 			if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
@@ -2812,6 +2846,8 @@ func ppVideoIsPublicDefaultAlias(model string) bool {
 
 func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 	switch platform {
+	case PlatformMiniMaxH3CompShare:
+		return model == MiniMaxH3VideoDefaultModel || model == CompShareVideoLiteModel
 	case PlatformKling:
 		return ppVideoIsKlingModel(model)
 	case PlatformHappyHourse:
@@ -2846,7 +2882,7 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if ppVideoModelBelongsToPlatform(platform, model) {
 		return false
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		if candidate == platform {
 			continue
 		}
@@ -3201,6 +3237,7 @@ func ppVideoExtractVideoURL(body []byte) string {
 
 func ppVideoVideoURLPaths() []string {
 	suffixes := []string{
+		"task.content.url",
 		"video_url",
 		"result_url",
 		"url",
@@ -3251,7 +3288,9 @@ func ppVideoResponseHasFinalVideo(body []byte) bool {
 
 func ppVideoPublicUsage(raw []byte, public PPVideoPublicRequest, parsed PPVideoResponse) map[string]any {
 	providerUsage := json.RawMessage(nil)
-	if value := gjson.GetBytes(raw, "usage"); value.Exists() {
+	if value := gjson.GetBytes(raw, "task.usage"); value.Exists() {
+		providerUsage = json.RawMessage(value.Raw)
+	} else if value := gjson.GetBytes(raw, "usage"); value.Exists() {
 		providerUsage = json.RawMessage(value.Raw)
 	} else if value := gjson.GetBytes(raw, "output.usage"); value.Exists() {
 		providerUsage = json.RawMessage(value.Raw)
@@ -3277,6 +3316,9 @@ func ppVideoPublicUsage(raw []byte, public PPVideoPublicRequest, parsed PPVideoR
 	resolution := normalizePPVideoResolution(parsed.VideoResolution)
 	if resolution == "" {
 		resolution = normalizePPVideoResolution(public.Resolution)
+	}
+	if gjson.GetBytes(raw, "task.resolution").Exists() {
+		resolution = strings.ToLower(gjson.GetBytes(raw, "task.resolution").String())
 	}
 	usage := make(map[string]any)
 	if durationMs > 0 {

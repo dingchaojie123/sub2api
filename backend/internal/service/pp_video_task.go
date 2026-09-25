@@ -63,6 +63,7 @@ type PPVideoTask struct {
 	BillingFormula                     string
 	BillingUnits                       float64
 	BillingUnitPrice                   float64
+	BillingFallbackUnitPrice           float64
 	HoldID                             string
 	CaptureID                          string
 	ReleaseID                          string
@@ -113,6 +114,7 @@ type CreatePPVideoTaskParams struct {
 	BillingFormula                     string
 	BillingUnits                       float64
 	BillingUnitPrice                   float64
+	BillingFallbackUnitPrice           float64
 	HoldID                             string
 	CaptureID                          string
 	ReleaseID                          string

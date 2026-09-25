@@ -201,6 +201,7 @@ const upstreamSyncPlatforms = new Set([
   'bytedance',
   'wan3',
   'minimax-h3',
+  'minimax-h3-compshare',
   'minimax-speech',
   'qwen-tts',
   'pixverse-v6',

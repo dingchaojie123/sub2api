@@ -87,7 +87,7 @@ func NewGroupHandler(adminService service.AdminService, dashboardService *servic
 type CreateGroupRequest struct {
 	Name             string             `json:"name" binding:"required"`
 	Description      string             `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok jimeng doubao qwen kimi deepseek midjourney kling happyhourse seedance bytedance wan3 minimax-h3 minimax-speech qwen-tts pixverse-v6 grok-imagine-video kuaishou"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok jimeng doubao qwen kimi deepseek midjourney kling happyhourse seedance bytedance wan3 minimax-h3 minimax-h3-compshare minimax-speech qwen-tts pixverse-v6 grok-imagine-video kuaishou"`
 	RateMultiplier   float64            `json:"rate_multiplier"`
 	IsExclusive      bool               `json:"is_exclusive"`
 	SubscriptionType string             `json:"subscription_type" binding:"omitempty,oneof=standard subscription"`
@@ -113,6 +113,8 @@ type CreateGroupRequest struct {
 	VideoPrice480P                  *float64 `json:"video_price_480p"`
 	VideoPrice720P                  *float64 `json:"video_price_720p"`
 	VideoPrice1080P                 *float64 `json:"video_price_1080p"`
+	VideoPrice2K                    *float64 `json:"video_price_2k"`
+	VideoPrice4K                    *float64 `json:"video_price_4k"`
 	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call"`
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
@@ -140,7 +142,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name             string             `json:"name"`
 	Description      *string            `json:"description"`
-	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok jimeng doubao qwen kimi deepseek midjourney kling happyhourse seedance bytedance wan3 minimax-h3 minimax-speech qwen-tts pixverse-v6 grok-imagine-video kuaishou"`
+	Platform         string             `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity grok jimeng doubao qwen kimi deepseek midjourney kling happyhourse seedance bytedance wan3 minimax-h3 minimax-h3-compshare minimax-speech qwen-tts pixverse-v6 grok-imagine-video kuaishou"`
 	RateMultiplier   *float64           `json:"rate_multiplier"`
 	IsExclusive      *bool              `json:"is_exclusive"`
 	Status           string             `json:"status" binding:"omitempty,oneof=active inactive"`
@@ -167,6 +169,8 @@ type UpdateGroupRequest struct {
 	VideoPrice480P                  *float64 `json:"video_price_480p"`
 	VideoPrice720P                  *float64 `json:"video_price_720p"`
 	VideoPrice1080P                 *float64 `json:"video_price_1080p"`
+	VideoPrice2K                    *float64 `json:"video_price_2k"`
+	VideoPrice4K                    *float64 `json:"video_price_4k"`
 	WebSearchPricePerCall           *float64 `json:"web_search_price_per_call"`
 	ClaudeCodeOnly                  *bool    `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
@@ -339,6 +343,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		VideoPrice480P:                  req.VideoPrice480P,
 		VideoPrice720P:                  req.VideoPrice720P,
 		VideoPrice1080P:                 req.VideoPrice1080P,
+		VideoPrice2K:                    req.VideoPrice2K,
+		VideoPrice4K:                    req.VideoPrice4K,
 		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
@@ -455,6 +461,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		VideoPrice480P:                  req.VideoPrice480P,
 		VideoPrice720P:                  req.VideoPrice720P,
 		VideoPrice1080P:                 req.VideoPrice1080P,
+		VideoPrice2K:                    req.VideoPrice2K,
+		VideoPrice4K:                    req.VideoPrice4K,
 		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,

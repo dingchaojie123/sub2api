@@ -35,7 +35,8 @@ func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
 	defer h.recoverResponsesPanic(c, &streamStarted)
 
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey == nil || apiKey.Group == nil || apiKey.Group.Platform != service.PlatformByteDance {
+	if !ok || apiKey == nil || apiKey.Group == nil ||
+		(apiKey.Group.Platform != service.PlatformByteDance && apiKey.Group.Platform != service.PlatformMiniMaxH3CompShare) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video cancellation is not supported for this platform")
 		return
 	}
@@ -54,7 +55,7 @@ func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
 		return
 	}
 	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
-	if err != nil || task == nil || task.Platform != service.PlatformByteDance {
+	if err != nil || task == nil || task.Platform != apiKey.Group.Platform {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
@@ -105,15 +106,21 @@ func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video cancellation returned no response")
 		return
 	}
+	// CompShare can acknowledge cancellation while the worker is still running.
+	// Keep the hold and let the poller observe the eventual terminal state.
+	if task.Platform == service.PlatformMiniMaxH3CompShare && result.TaskStatus != service.PPVideoTaskStatusFailed {
+		h.gatewayService.WritePPVideoForwardResult(c, result)
+		return
+	}
 
 	task, err = h.gatewayService.MarkPPVideoTaskStatus(c.Request.Context(), service.MarkPPVideoTaskStatusParams{
-		TaskID:            task.TaskID,
-		Status:            service.PPVideoTaskStatusFailed,
-		LastErrorCode:     "cancelled",
-		LastErrorMessage:  "video task cancelled",
-		ResponseStatus:    result.ResponseStatusCode,
+		TaskID:              task.TaskID,
+		Status:              service.PPVideoTaskStatusFailed,
+		LastErrorCode:       "cancelled",
+		LastErrorMessage:    "video task cancelled",
+		ResponseStatus:      result.ResponseStatusCode,
 		ResponseContentType: result.ResponseContentType,
-		ResponseBody:      string(result.ResponseBody),
+		ResponseBody:        string(result.ResponseBody),
 	})
 	if err != nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video cancellation")
@@ -346,18 +353,19 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			RequestedVideoDurationMilliseconds: meta.RequestedDurationMilliseconds,
 			InputVideoDurationMilliseconds:     meta.InputVideoDurationMilliseconds,
 			VideoCount:                         meta.VideoCount, VideoResolution: meta.VideoResolution,
-			OutputWidth:        meta.OutputWidth,
-			OutputHeight:       meta.OutputHeight,
-			FrameRate:          meta.FrameRate,
-			HasAudio:           meta.HasAudio,
-			KlingMode:          meta.KlingMode,
-			BillingFormula:     cost.BillingFormula,
-			BillingUnits:       cost.BillingUnits,
-			BillingUnitPrice:   cost.BillingUnitPrice,
-			HoldID:             service.PPVideoHoldRequestID(localTaskID),
-			CaptureID:          service.PPVideoCaptureRequestID(localTaskID),
-			ReleaseID:          service.PPVideoReleaseRequestID(localTaskID),
-			EstimatedTotalCost: cost.TotalCost, HoldAmount: holdAmount, Currency: "USD",
+			OutputWidth:              meta.OutputWidth,
+			OutputHeight:             meta.OutputHeight,
+			FrameRate:                meta.FrameRate,
+			HasAudio:                 meta.HasAudio,
+			KlingMode:                meta.KlingMode,
+			BillingFormula:           cost.BillingFormula,
+			BillingUnits:             cost.BillingUnits,
+			BillingUnitPrice:         cost.BillingUnitPrice,
+			BillingFallbackUnitPrice: cost.BillingFallbackUnitPrice,
+			HoldID:                   service.PPVideoHoldRequestID(localTaskID),
+			CaptureID:                service.PPVideoCaptureRequestID(localTaskID),
+			ReleaseID:                service.PPVideoReleaseRequestID(localTaskID),
+			EstimatedTotalCost:       cost.TotalCost, HoldAmount: holdAmount, Currency: "USD",
 		})
 		if err != nil {
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to create video task")

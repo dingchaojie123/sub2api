@@ -38,28 +38,29 @@ const (
 
 // Platform constants
 const (
-	PlatformAnthropic        = domain.PlatformAnthropic
-	PlatformOpenAI           = domain.PlatformOpenAI
-	PlatformGemini           = domain.PlatformGemini
-	PlatformAntigravity      = domain.PlatformAntigravity
-	PlatformGrok             = domain.PlatformGrok
-	PlatformJimeng           = domain.PlatformJimeng
-	PlatformDoubao           = domain.PlatformDoubao
-	PlatformQwen             = domain.PlatformQwen
-	PlatformKimi             = domain.PlatformKimi
-	PlatformDeepSeek         = domain.PlatformDeepSeek
-	PlatformMidjourney       = domain.PlatformMidjourney
-	PlatformKling            = domain.PlatformKling
-	PlatformHappyHourse      = domain.PlatformHappyHourse
-	PlatformSeedance         = domain.PlatformSeedance
-	PlatformByteDance        = domain.PlatformByteDance
-	PlatformWan3             = domain.PlatformWan3
-	PlatformMiniMaxH3        = domain.PlatformMiniMaxH3
-	PlatformMiniMaxSpeech    = domain.PlatformMiniMaxSpeech
-	PlatformQwenTTS          = domain.PlatformQwenTTS
-	PlatformPixverseV6       = domain.PlatformPixverseV6
-	PlatformGrokImagineVideo = domain.PlatformGrokImagineVideo
-	PlatformKuaishou         = domain.PlatformKuaishou
+	PlatformAnthropic          = domain.PlatformAnthropic
+	PlatformOpenAI             = domain.PlatformOpenAI
+	PlatformGemini             = domain.PlatformGemini
+	PlatformAntigravity        = domain.PlatformAntigravity
+	PlatformGrok               = domain.PlatformGrok
+	PlatformJimeng             = domain.PlatformJimeng
+	PlatformDoubao             = domain.PlatformDoubao
+	PlatformQwen               = domain.PlatformQwen
+	PlatformKimi               = domain.PlatformKimi
+	PlatformDeepSeek           = domain.PlatformDeepSeek
+	PlatformMidjourney         = domain.PlatformMidjourney
+	PlatformKling              = domain.PlatformKling
+	PlatformHappyHourse        = domain.PlatformHappyHourse
+	PlatformSeedance           = domain.PlatformSeedance
+	PlatformByteDance          = domain.PlatformByteDance
+	PlatformWan3               = domain.PlatformWan3
+	PlatformMiniMaxH3          = domain.PlatformMiniMaxH3
+	PlatformMiniMaxH3CompShare = domain.PlatformMiniMaxH3CompShare
+	PlatformMiniMaxSpeech      = domain.PlatformMiniMaxSpeech
+	PlatformQwenTTS            = domain.PlatformQwenTTS
+	PlatformPixverseV6         = domain.PlatformPixverseV6
+	PlatformGrokImagineVideo   = domain.PlatformGrokImagineVideo
+	PlatformKuaishou           = domain.PlatformKuaishou
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -83,6 +84,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformByteDance,
 	PlatformWan3,
 	PlatformMiniMaxH3,
+	PlatformMiniMaxH3CompShare,
 	PlatformMiniMaxSpeech,
 	PlatformQwenTTS,
 	PlatformPixverseV6,

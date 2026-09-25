@@ -53,6 +53,8 @@ type Group struct {
 	VideoPrice480P               *float64
 	VideoPrice720P               *float64
 	VideoPrice1080P              *float64
+	VideoPrice2K                 *float64
+	VideoPrice4K                 *float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；
 	// nil 表示使用默认价 defaultWebSearchPricePerCall（官方 $10/1000 次）。
 	WebSearchPricePerCall *float64
@@ -139,6 +141,16 @@ func (g *Group) GetImagePrice(imageSize string) *float64 {
 // GetVideoPrice 根据 resolution 返回对应的视频生成价格。
 // 如果分组未配置价格，返回 nil（调用方应使用默认值）。
 func (g *Group) GetVideoPrice(resolution string) *float64 {
+	if g.Platform == PlatformMiniMaxH3CompShare {
+		switch strings.ToLower(resolution) {
+		case "768p":
+			return g.VideoPrice720P
+		case "2k":
+			return g.VideoPrice2K
+		case "4k":
+			return g.VideoPrice4K
+		}
+	}
 	switch NormalizeVideoBillingResolutionOrDefault(resolution) {
 	case VideoBillingResolution480P:
 		return g.VideoPrice480P

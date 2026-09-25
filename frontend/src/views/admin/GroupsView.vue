@@ -1056,7 +1056,7 @@
               />
             </div>
             <div>
-              <label class="input-label">720p ($/s)</label>
+              <label class="input-label">{{ createForm.platform === 'minimax-h3-compshare' ? '768P' : '720p' }} ($/s)</label>
               <input
                 v-model.number="createForm.video_price_720p"
                 type="number"
@@ -1077,6 +1077,16 @@
                 :placeholder="getVideoPricePlaceholder(createForm.platform, 'video_price_1080p')"
               />
             </div>
+            <template v-if="createForm.platform === 'minimax-h3-compshare'">
+              <div>
+                <label class="input-label">2K ($/s)</label>
+                <input v-model.number="createForm.video_price_2k" type="number" step="0.001" min="0" class="input" />
+              </div>
+              <div>
+                <label class="input-label">4K ($/s)</label>
+                <input v-model.number="createForm.video_price_4k" type="number" step="0.001" min="0" class="input" />
+              </div>
+            </template>
           </div>
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t(videoPricingI18nKey("modeHint")) }}
@@ -2580,7 +2590,7 @@
               />
             </div>
             <div>
-              <label class="input-label">720p ($/s)</label>
+              <label class="input-label">{{ editForm.platform === 'minimax-h3-compshare' ? '768P' : '720p' }} ($/s)</label>
               <input
                 v-model.number="editForm.video_price_720p"
                 type="number"
@@ -2601,6 +2611,16 @@
                 :placeholder="getVideoPricePlaceholder(editForm.platform, 'video_price_1080p')"
               />
             </div>
+            <template v-if="editForm.platform === 'minimax-h3-compshare'">
+              <div>
+                <label class="input-label">2K ($/s)</label>
+                <input v-model.number="editForm.video_price_2k" type="number" step="0.001" min="0" class="input" />
+              </div>
+              <div>
+                <label class="input-label">4K ($/s)</label>
+                <input v-model.number="editForm.video_price_4k" type="number" step="0.001" min="0" class="input" />
+              </div>
+            </template>
           </div>
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t(videoPricingI18nKey("modeHint")) }}
@@ -3854,6 +3874,7 @@ const platformOptions = computed(() => [
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "minimax-h3-compshare", label: "MiniMax-H3（优云智算）" },
   { value: "minimax-speech", label: "MiniMax-Speech" },
   { value: "qwen-tts", label: "Qwen TTS" },
   { value: "pixverse-v6", label: "Pixverse-V6" },
@@ -3880,6 +3901,7 @@ const platformFilterOptions = computed(() => [
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
+  { value: "minimax-h3-compshare", label: "MiniMax-H3（优云智算）" },
   { value: "minimax-speech", label: "MiniMax-Speech" },
   { value: "qwen-tts", label: "Qwen TTS" },
   { value: "pixverse-v6", label: "Pixverse-V6" },
@@ -4092,6 +4114,8 @@ const createForm = reactive({
   video_price_480p: null as number | null,
   video_price_720p: null as number | null,
   video_price_1080p: null as number | null,
+  video_price_2k: null as number | null,
+  video_price_4k: null as number | null,
   // Codex 网页搜索按次计费（仅 openai 平台使用）；null = 使用默认价 0.01
   web_search_price_per_call: null as number | null,
   // 高峰时段倍率配置
@@ -4439,6 +4463,8 @@ const editForm = reactive({
   video_price_480p: null as number | null,
   video_price_720p: null as number | null,
   video_price_1080p: null as number | null,
+  video_price_2k: null as number | null,
+  video_price_4k: null as number | null,
   // Codex 网页搜索按次计费（仅 openai 平台使用）；null = 使用默认价 0.01
   web_search_price_per_call: null as number | null,
   // 高峰时段倍率配置
@@ -4498,6 +4524,8 @@ type VideoPricingFormState = {
   video_price_480p: number | string | null;
   video_price_720p: number | string | null;
   video_price_1080p: number | string | null;
+  video_price_2k: number | string | null;
+  video_price_4k: number | string | null;
 };
 
 const imagePricingTiers = [
@@ -4510,6 +4538,8 @@ const videoPricingTiers = [
   { key: "video_price_480p", label: "480p" },
   { key: "video_price_720p", label: "720p" },
   { key: "video_price_1080p", label: "1080p" },
+  { key: "video_price_2k", label: "2K" },
+  { key: "video_price_4k", label: "4K" },
 ] as const;
 
 const normalizePreviewNumber = (value: number | string | null | undefined, fallback = 0) => {
@@ -4572,12 +4602,13 @@ const buildVideoFinalPricePreview = (form: VideoPricingFormState) => {
   const multiplier = form.video_rate_independent
     ? normalizePreviewNumber(form.video_rate_multiplier, 1)
     : normalizePreviewNumber(form.rate_multiplier, 1);
-  return videoPricingTiers.map((tier) => {
+  const tiers = form.platform === 'minimax-h3-compshare' ? videoPricingTiers : videoPricingTiers.slice(0, 3);
+  return tiers.map((tier) => {
     const basePrice =
       parsePreviewPrice(form[tier.key]) ??
       getDefaultVideoPreviewPrice(form.platform, tier.key);
     return {
-      label: tier.label,
+      label: form.platform === 'minimax-h3-compshare' && tier.key === 'video_price_720p' ? '768P' : tier.label,
       value: basePrice !== null
         ? formatVideoPricePreview(basePrice * multiplier)
         : t("admin.groups.videoPricing.notConfigured"),
@@ -4844,6 +4875,8 @@ const closeCreateModal = () => {
   createForm.video_price_480p = null;
   createForm.video_price_720p = null;
   createForm.video_price_1080p = null;
+  createForm.video_price_2k = null;
+  createForm.video_price_4k = null;
   createForm.web_search_price_per_call = null;
   createForm.peak_rate_enabled = false;
   createForm.peak_start = "";
@@ -4956,6 +4989,8 @@ const handleCreateGroup = async () => {
     requestData.video_price_480p = emptyToNull(requestData.video_price_480p);
     requestData.video_price_720p = emptyToNull(requestData.video_price_720p);
     requestData.video_price_1080p = emptyToNull(requestData.video_price_1080p);
+    requestData.video_price_2k = emptyToNull(requestData.video_price_2k);
+    requestData.video_price_4k = emptyToNull(requestData.video_price_4k);
     requestData.web_search_price_per_call = emptyToNull(
       requestData.web_search_price_per_call,
     );
@@ -5012,6 +5047,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.video_price_480p = group.video_price_480p;
   editForm.video_price_720p = group.video_price_720p;
   editForm.video_price_1080p = group.video_price_1080p;
+  editForm.video_price_2k = group.video_price_2k;
+  editForm.video_price_4k = group.video_price_4k;
   editForm.web_search_price_per_call = group.web_search_price_per_call ?? null;
   editForm.peak_rate_enabled = group.peak_rate_enabled ?? false;
   editForm.peak_start = group.peak_start ?? "";
@@ -5070,6 +5107,8 @@ const closeEditModal = () => {
   editForm.video_price_480p = null;
   editForm.video_price_720p = null;
   editForm.video_price_1080p = null;
+  editForm.video_price_2k = null;
+  editForm.video_price_4k = null;
   editForm.web_search_price_per_call = null;
   resetMessagesDispatchFormState(editForm);
   resetModelsListState(editModelsListState);
@@ -5149,6 +5188,8 @@ const handleUpdateGroup = async () => {
     payload.video_price_480p = emptyPriceToClear(payload.video_price_480p);
     payload.video_price_720p = emptyPriceToClear(payload.video_price_720p);
     payload.video_price_1080p = emptyPriceToClear(payload.video_price_1080p);
+    payload.video_price_2k = emptyPriceToClear(payload.video_price_2k);
+    payload.video_price_4k = emptyPriceToClear(payload.video_price_4k);
     payload.web_search_price_per_call = emptyPriceToClear(
       payload.web_search_price_per_call,
     );

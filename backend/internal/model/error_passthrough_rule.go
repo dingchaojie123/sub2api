@@ -32,28 +32,29 @@ const MatchModeAll = "all"
 
 // 支持的平台常量
 const (
-	PlatformAnthropic   = "anthropic"
-	PlatformOpenAI      = "openai"
-	PlatformGemini      = "gemini"
-	PlatformAntigravity = "antigravity"
-	PlatformGrok        = "grok"
-	PlatformJimeng      = "jimeng"
-	PlatformDoubao      = "doubao"
-	PlatformQwen        = "qwen"
-	PlatformKimi        = "kimi"
-	PlatformDeepSeek    = "deepseek"
-	PlatformMidjourney  = "midjourney"
-	PlatformKling       = "kling"
-	PlatformHappyHourse = "happyhourse"
-	PlatformSeedance    = "seedance"
-	PlatformByteDance   = "bytedance"
-	PlatformWan3        = "wan3"
-	PlatformMiniMaxH3        = "minimax-h3"
-	PlatformMiniMaxSpeech    = "minimax-speech"
-	PlatformQwenTTS          = "qwen-tts"
-	PlatformPixverseV6       = "pixverse-v6"
-	PlatformGrokImagineVideo  = "grok-imagine-video"
-	PlatformKuaishou         = "kuaishou"
+	PlatformAnthropic          = "anthropic"
+	PlatformOpenAI             = "openai"
+	PlatformGemini             = "gemini"
+	PlatformAntigravity        = "antigravity"
+	PlatformGrok               = "grok"
+	PlatformJimeng             = "jimeng"
+	PlatformDoubao             = "doubao"
+	PlatformQwen               = "qwen"
+	PlatformKimi               = "kimi"
+	PlatformDeepSeek           = "deepseek"
+	PlatformMidjourney         = "midjourney"
+	PlatformKling              = "kling"
+	PlatformHappyHourse        = "happyhourse"
+	PlatformSeedance           = "seedance"
+	PlatformByteDance          = "bytedance"
+	PlatformWan3               = "wan3"
+	PlatformMiniMaxH3          = "minimax-h3"
+	PlatformMiniMaxH3CompShare = "minimax-h3-compshare"
+	PlatformMiniMaxSpeech      = "minimax-speech"
+	PlatformQwenTTS            = "qwen-tts"
+	PlatformPixverseV6         = "pixverse-v6"
+	PlatformGrokImagineVideo   = "grok-imagine-video"
+	PlatformKuaishou           = "kuaishou"
 )
 
 // AllPlatforms 返回所有支持的平台列表
@@ -76,6 +77,7 @@ func AllPlatforms() []string {
 		PlatformByteDance,
 		PlatformWan3,
 		PlatformMiniMaxH3,
+		PlatformMiniMaxH3CompShare,
 		PlatformMiniMaxSpeech,
 		PlatformQwenTTS,
 		PlatformPixverseV6,

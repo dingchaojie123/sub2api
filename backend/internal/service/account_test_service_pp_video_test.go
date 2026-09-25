@@ -51,3 +51,20 @@ func TestAccountTestService_PPVideoUsesModelsProbeInsteadOfClaudeMessages(t *tes
 	require.Contains(t, rec.Body.String(), `"success":true`)
 	require.Contains(t, rec.Body.String(), "kling-v3")
 }
+
+func TestCompShareAccountConnectionUsesBalanceProbe(t *testing.T) {
+	account := &Account{ID: 24, Platform: PlatformMiniMaxH3CompShare, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-ml-test"}}
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"total_points":100,"reserved_points":20,"available_points":80}`)),
+	}}
+	svc := &AccountTestService{accountRepo: &mockAccountRepoForGemini{accountsByID: map[int64]*Account{account.ID: account}}, httpUpstream: upstream, cfg: upstreamModelSyncTestConfig()}
+	c, rec := newTestContext()
+	require.NoError(t, svc.TestAccountConnection(c, account.ID, "", "", ""))
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "https://cp.compshare.cn/minimax/v2/query/point_usage_summary", upstream.lastReq.URL.String())
+	require.Equal(t, http.MethodGet, upstream.lastReq.Method)
+	require.Contains(t, rec.Body.String(), `"available_points":80`)
+	require.Contains(t, rec.Body.String(), `"success":true`)
+}

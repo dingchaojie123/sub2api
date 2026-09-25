@@ -26,13 +26,13 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 				requested_video_duration_milliseconds, input_video_duration_milliseconds,
 				generated_video_duration_milliseconds, video_count, video_resolution,
 				output_width, output_height, frame_rate, has_audio, kling_mode,
-				billing_formula, billing_units, billing_unit_price
+				billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9,
 				$10, $11, NULLIF($12, ''), $13, $14,
 				$15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30, $31, $32
+				$25, $26, $27, $28, $29, $30, $31, $32, $33
 			)
 			RETURNING `+ppVideoTaskColumns(),
 		strings.TrimSpace(params.LocalTaskID),
@@ -67,6 +67,7 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 		strings.TrimSpace(params.BillingFormula),
 		params.BillingUnits,
 		params.BillingUnitPrice,
+		params.BillingFallbackUnitPrice,
 	)
 	task, err := scanPPVideoTask(row)
 	if err != nil {
@@ -537,7 +538,7 @@ func ppVideoTaskColumns() string {
 		requested_video_duration_milliseconds, input_video_duration_milliseconds,
 		generated_video_duration_milliseconds, video_count, video_resolution,
 		output_width, output_height, frame_rate, has_audio, kling_mode,
-		billing_formula, billing_units, billing_unit_price,
+		billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price,
 		response_status, response_content_type, response_body,
 		COALESCE(last_error_code, ''), COALESCE(last_error_message, ''),
 		COALESCE(poll_lease_token, ''), COALESCE(poll_lease_owner, ''), poll_lease_until, poll_attempts, last_polled_at,
@@ -586,6 +587,7 @@ func scanPPVideoTask(row ppVideoTaskScanner) (*service.PPVideoTask, error) {
 		&task.BillingFormula,
 		&task.BillingUnits,
 		&task.BillingUnitPrice,
+		&task.BillingFallbackUnitPrice,
 		&task.ResponseStatus,
 		&task.ResponseContentType,
 		&task.ResponseBody,

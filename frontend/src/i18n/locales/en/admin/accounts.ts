@@ -116,6 +116,7 @@ export default {
         bytedance: 'ByteDance',
         wan3: 'Wan3.0',
         'minimax-h3': 'MiniMax-H3',
+        'minimax-h3-compshare': 'MiniMax-H3 (CompShare)',
         'minimax-speech': 'MiniMax-Speech',
         'qwen-tts': 'Qwen TTS',
         'pixverse-v6': 'Pixverse-V6',

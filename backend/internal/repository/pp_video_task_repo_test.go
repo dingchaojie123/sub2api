@@ -28,7 +28,7 @@ func TestClaimPPVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 			service.PPVideoTaskStatusProcessing, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), 1, "720p",
-			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5.041, 0.86162,
+			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5.041, 0.86162, 0.0,
 			200, "application/json", `{"status":"processing"}`,
 			"", "", "lease-token", "worker-a", leaseUntil, 1, now, now, now, now, nil, nil,
 		))
@@ -88,7 +88,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 			string(service.PPVideoOperationKlingTextToVideo), "kling-v3", service.PPVideoTaskStatusSubmitting,
 			service.PPVideoBillingStatusHeld, "payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, "USD", 5, int64(5000), int64(0), int64(0), 1, "720p",
-			0, 0, 0.0, false, "", "", 0.0, 0.0,
+			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
 		).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "ppvidtask_1", "", int64(10), int64(20), nil, int64(30),
@@ -96,7 +96,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 			service.PPVideoTaskStatusSubmitting, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(0), 1, "720p",
-			0, 0, 0.0, false, "", "", 0.0, 0.0,
+			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
 			200, "application/json", "{}",
 			"", "", "", "", nil, 0, nil, now, now, nil, nil, nil,
 		))
@@ -209,7 +209,7 @@ func TestMarkPPVideoTaskStatusPersistsMillisecondDuration(t *testing.T) {
 			service.PPVideoTaskStatusSucceeded, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), 1, "720p",
-			1280, 720, 24.0, false, "std", service.PPVideoBillingFormulaPerSecond, 5.041, 0.57419,
+			1280, 720, 24.0, false, "std", service.PPVideoBillingFormulaPerSecond, 5.041, 0.57419, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
 		))
@@ -248,7 +248,7 @@ func TestClaimPPVideoTaskSettlementUsesCompareAndSet(t *testing.T) {
 			service.PPVideoTaskStatusSucceeded, service.PPVideoBillingStatusSettling,
 			"payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5000), 1, "720p",
-			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5, 0.4,
+			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5, 0.4, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
 		))
@@ -313,6 +313,7 @@ func newPPVideoTaskRows(_ time.Time) *sqlmock.Rows {
 		"billing_formula",
 		"billing_units",
 		"billing_unit_price",
+		"billing_fallback_unit_price",
 		"response_status",
 		"response_content_type",
 		"response_body",

@@ -102,6 +102,7 @@ const platformLabel = computed(() => {
   if (props.platform === 'bytedance') return 'ByteDance'
   if (props.platform === 'wan3') return 'Wan3.0'
   if (props.platform === 'minimax-h3') return 'MiniMax-H3'
+  if (props.platform === 'minimax-h3-compshare') return 'MiniMax-H3（优云智算）'
   if (props.platform === 'minimax-speech') return 'MiniMax-Speech'
   if (props.platform === 'qwen-tts') return 'Qwen TTS'
   if (props.platform === 'pixverse-v6') return 'Pixverse-V6'
@@ -225,7 +226,7 @@ const platformClass = computed(() => {
   if (props.platform === 'wan3') {
     return 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
   }
-  if (props.platform === 'minimax-h3') {
+  if (props.platform === 'minimax-h3' || props.platform === 'minimax-h3-compshare') {
     return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
   }
   if (props.platform === 'minimax-speech') {
@@ -292,7 +293,7 @@ const typeClass = computed(() => {
   if (props.platform === 'wan3') {
     return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
   }
-  if (props.platform === 'minimax-h3') {
+  if (props.platform === 'minimax-h3' || props.platform === 'minimax-h3-compshare') {
     return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'
   }
   if (props.platform === 'minimax-speech') {

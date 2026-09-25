@@ -34,6 +34,7 @@ describe('video account platform metadata', () => {
       'bytedance',
       'wan3',
       'minimax-h3',
+      'minimax-h3-compshare',
       'pixverse-v6',
       'grok-imagine-video',
       'kuaishou'
@@ -42,7 +43,7 @@ describe('video account platform metadata', () => {
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      const expectedBaseUrl =
+      const expectedBaseUrl = platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
         platform === 'bytedance' ||
         platform === 'wan3' ||
         platform === 'minimax-h3' ||

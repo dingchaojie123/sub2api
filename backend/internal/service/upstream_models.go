@@ -80,6 +80,12 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	if account == nil {
 		return nil, newUpstreamModelSyncConfigError("Account is required", nil)
 	}
+	if account.Platform == PlatformMiniMaxH3CompShare {
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("CompShare requires an API key account", nil)
+		}
+		return []string{MiniMaxH3VideoDefaultModel, CompShareVideoLiteModel}, nil
+	}
 	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		fixedModels := byteDanceModels()
@@ -274,6 +280,9 @@ func (s *AccountTestService) buildJimengUpstreamModelsRequest(ctx context.Contex
 }
 
 func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Context, account *Account) (*http.Request, error) {
+	if account.Platform == PlatformMiniMaxH3CompShare {
+		return nil, newUpstreamModelSyncUnsupportedError("CompShare has no model-list endpoint; models are configured locally", nil)
+	}
 	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		if account.Platform == PlatformWan3 {
@@ -696,6 +705,10 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 			}
 		case PlatformMiniMaxH3:
 			if ppVideoIsMiniMaxModel(model) {
+				filtered = append(filtered, model)
+			}
+		case PlatformMiniMaxH3CompShare:
+			if ppVideoModelBelongsToPlatform(platform, model) {
 				filtered = append(filtered, model)
 			}
 		case PlatformPixverseV6:

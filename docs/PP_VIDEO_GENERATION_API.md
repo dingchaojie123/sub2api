@@ -1,6 +1,6 @@
 # 站点媒体生成接口
 
-本文档是本站对下游客户提供的媒体生成接口文档，覆盖视频生成和 Qwen TTS 语音合成。下游只需要对接本站接口，不需要关心后台使用的具体上游服务商或其凭据。
+本文档是本站对下游客户提供的媒体生成接口文档，覆盖视频生成和 Qwen TTS 语音合成。下游使用已开通对应平台的本站 API Key 调用本站接口，无需直接对接上游地址或持有上游凭据。
 
 ## 基础信息
 
@@ -107,10 +107,13 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | --- | --- | --- | --- | --- |
 | ByteDance | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` |
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
-| MiniMax-H3 | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
-| MiniMax-H3 | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
+| MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
+| MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
+| MiniMax-H3（优云智算，`minimax-h3-compshare`） | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` |
 | Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` |
 | Grok Imagine Video | `grok-imagine-video` | 图生、参考生 | 1-15 秒整数 | `480p`、`720p` |
+
+两个 MiniMax-H3 平台使用相同的本站创建和查询地址，但由 **API Key 所属分组的平台** 决定调用哪一套接口。使用优云智算时，请获取绑定 `minimax-h3-compshare` 分组的本站 API Key，`model` 仍填写 `MiniMax-H3` 或 `minimax-h3-lite`。不要把平台标识 `minimax-h3-compshare` 填入 `model`，也无需增加 `platform` 请求字段。原平台客户可以继续使用原 Key 和原请求格式。
 
 ### 创建视频任务
 
@@ -156,6 +159,8 @@ POST /v1/video/generations
 不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。K-Ling 的 `duration` 仅支持 `3` 到 `15` 秒的整数值；本站会把统一字段自动转换为 K-Ling 上游需要的 `model_name`、`image`、`image_tail`、`sound` 等字段。
 
 本文档开头列出的 ByteDance、Wan3.0、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
+
+优云智算平台以“MiniMax-H3（优云智算）”章节为准：默认分辨率为 `768P`，`duration` 使用 JSON 整数，媒体通过 `content` 传入。不要直接套用上表中的 `images`、`videos`、`audios` 或 `generate_audio` 字段。
 
 ### 新增视频模型参数
 
@@ -254,9 +259,9 @@ POST /v1/video/generations
 }
 ```
 
-#### MiniMax-H3
+#### MiniMax-H3（原平台）
 
-模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
+本节适用于平台标识为 `minimax-h3` 的原平台，不适用于优云智算。模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
 
 - 图片：`image_url`，`role` 为 `first_frame`、`last_frame` 或 `reference_image`。
 - 视频：`video_url`，`role` 固定为 `reference_video`。
@@ -293,9 +298,84 @@ POST /v1/video/generations
 }
 ```
 
+#### MiniMax-H3（优云智算）
+
+本节适用于 `minimax-h3-compshare` 分组的本站 API Key。支持模型 `MiniMax-H3` 和兼容别名 `minimax-h3-lite`，不支持 `MiniMax-Hailuo-2.3`。
+
+创建任务仍使用 `POST /v1/videos/generations`。新接入推荐使用以下顶层字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `model` | string | 建议填写 | `MiniMax-H3` 或 `minimax-h3-lite`；省略时默认使用 `MiniMax-H3`，账号模型映射可能影响实际选择。 |
+| `content` | object[] | 是 | 非空内容数组，元素结构见下表。纯文生视频必须有非空文本；有首尾帧或参考素材时允许不传文本。 |
+| `duration` | integer | 否 | `4`～`30` 秒，默认 `5`。不要传字符串或小数。 |
+| `resolution` | string | 否 | `480P`、`768P`、`1080P`、`2K`、`4K`，默认 `768P`，区分大小写。 |
+| `ratio` | string | 否 | `adaptive`、`21:9`、`16:9`、`4:3`、`1:1`、`3:4`、`9:16`，默认 `16:9`。没有图片时，`adaptive` 按 `16:9` 处理。 |
+| `use_context_ir` | boolean | 否 | 提示词优化开关，默认 `false`；需要优化时显式传 `true`。 |
+| `skill_id` | string | 否 | 已有且当前上游账号可用的 Skill ID，必须同时设置 `use_context_ir=true`。请向本站管理员确认可用 ID。 |
+| `mute_audio` | boolean | 否 | 默认 `false`；传 `true` 移除最终视频的音轨。 |
+| `aigc_watermark` | boolean | 否 | 是否添加 AIGC 水印，默认 `false`。 |
+| `callback_url` | string | 否 | 可从公网访问的绝对 HTTP/HTTPS 回调地址，最多 1024 个字符。 |
+| `callback_token` | string | 否 | 自定义回调校验 Token，最多 512 个字符；使用时必须同时提供 `callback_url`。 |
+
+每个任务仅生成一个视频；`n` 请省略或设为 `1`。`resolution` 传入 `480p`、`720P`、`1080p`、`2k`、`4k` 等非标准值时，按 `768P` 处理。`1080P`、`2K`、`4K` 是三个独立输出档位，不能互相代替。
+
+内容元素：
+
+| `type` | 内容字段 | `role` |
+| --- | --- | --- |
+| `text` | `text` 字符串；允许多段文本，按顺序合并后最多 7000 个字符 | 不传 |
+| `image_url` | `image_url: {"url": "..."}` | `first_frame`（省略时默认）、`last_frame` 或 `reference_image` |
+| `video_url` | `video_url: {"url": "..."}` | `reference_video`（省略时默认） |
+| `audio_url` | `audio_url: {"url": "..."}` | `reference_audio`（省略时默认） |
+
+- 首帧和尾帧各最多 1 张，允许只传尾帧。参考图片最多 9 张，参考视频、参考音频各最多 3 个，参考素材合计最多 12 个。
+- 首尾帧不能与参考素材混用；参考音频不能单独使用，必须同时提供参考图片或参考视频。
+- 媒体支持公网 HTTP/HTTPS URL 和 Data URL。单个图片、视频、音频的上游文件上限分别为 30、50、15 MiB；实际格式和可访问性由上游进一步校验。JSON 请求体最大为 72 MiB，站点部署可能配置更小的请求体限制。
+
+创建请求示例（其中 Key 为本站分组 Key）：
+
+```bash
+curl https://YOUR_SITE/v1/videos/generations \
+  -H "Authorization: Bearer YOUR_COMPSHARE_GROUP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: h3-compshare-request-001" \
+  -d '{
+    "model": "MiniMax-H3",
+    "content": [
+      {"type": "text", "text": "晨光照亮湖面，镜头缓慢向前推进"},
+      {"type": "text", "text": "保留自然环境声音，画面平稳"}
+    ],
+    "duration": 10,
+    "resolution": "1080P",
+    "ratio": "16:9",
+    "use_context_ir": false,
+    "mute_audio": false
+  }'
+```
+
+首帧生视频时，将 `content` 换成以下内容即可：
+
+```json
+[
+  {"type": "text", "text": "画面中的人物缓慢转头，背景树叶随风摆动"},
+  {
+    "type": "image_url",
+    "image_url": {"url": "https://example.com/first-frame.png"},
+    "role": "first_frame"
+  }
+]
+```
+
+兼容旧调用时，可以使用 `input.content`，以及 `parameters.duration`、`parameters.resolution`、`parameters.ratio` 等对应参数；纯文生视频也可只传 `prompt`。新旧位置不要重复传入相同参数。此兼容不代表所有旧平台字段都能透传，尤其是媒体数组和音频开关应按本节填写。
+
+回调参数会转交上游处理。回调正文采用 `{"task": {...}}` 结构，原始状态为 `queued`、`running`、`succeeded`、`failed` 或 `cancelled`；设置 `callback_token` 后，接收端应校验 `X-Callback-Token`，不要把本站 API Key 当作回调 Token。回调可能重复，接收端应按任务 ID 和状态做幂等处理。收到回调后仍可查询本站任务接口；本站的轮询与账单结算独立进行，回调不代表本站已经结算完成。
+
+本站当前未对下游开放此平台的 Skill 创建/修改/删除、公司任务列表、积分余额和积分套餐管理接口。下游无需也不应改为直接调用服务商接口。
+
 #### MiniMax-Hailuo-2.3
 
-模型 ID 固定为 `MiniMax-Hailuo-2.3`，与 `MiniMax-H3` 共用后台的 MiniMax-H3 平台账号，但请求参数和输入结构相互独立。
+模型 ID 固定为 `MiniMax-Hailuo-2.3`，与原平台的 `MiniMax-H3` 共用后台 `minimax-h3` 平台账号，但请求参数和输入结构相互独立。优云智算平台不支持此模型。
 
 - 文生视频：`input.prompt` 必填。
 - 图生视频：在 `input` 中增加 `first_frame_image`，支持公开 HTTP/HTTPS 图片 URL 或 `data:image/...;base64,...`。
@@ -500,6 +580,27 @@ curl https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
 
 响应中可能包含额外上游字段，客户应只依赖本文档列出的稳定字段。
 
+优云智算也使用顶层 `task_id`、`status` 和 `video_url`。创建成功先返回 `processing`；查询成功且拿到最终视频 URL 后才返回 `succeeded`。上游的 `queued`、`running` 统一映射为 `processing`，`cancelled` 映射为 `failed`。不要仅凭保留的上游状态判定本站任务成功。
+
+优云智算查询响应还保留原始 `task` 对象，可从 `task.content.url` 获取成功视频地址，从 `task.error.message` 查看失败原因。`task.resolution` 是实际交付分辨率；若请求 `1080P`、`2K` 或 `4K` 后超分失败，可能返回 `768P`。本站统一 `usage.resolution` 使用小写，如 `768p`、`2k`；请求时仍应使用本节规定的大写值。
+
+### 取消优云智算视频任务
+
+```bash
+curl -X DELETE https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
+  -H "Authorization: Bearer YOUR_COMPSHARE_GROUP_API_KEY"
+```
+
+使用创建任务时的本站 API Key 和任务 ID。已结束任务不能再次取消。本节取消能力适用于 `minimax-h3-compshare`，原 `minimax-h3` 平台不支持此操作。
+
+取消接口直接返回任务 ID、操作和上游当前状态，例如：
+
+```json
+{"task_id": "task_xxxxxxxxxxxx", "action": "delete", "status": "cancelled"}
+```
+
+若返回 `"status": "running"`，仅表示取消请求已提交，任务尚未停止。继续调用 `GET /v1/videos/{task_id}`，等待本站返回终态；此时预占余额仍保留，不能提前视为已退款。后续查询中的已取消任务使用统一状态 `failed`。
+
 ### 下载或播放视频
 
 任务成功后返回的 `video_url` 是本站或上游媒体代理地址，可能不会以 `.mp4` 结尾。客户端应根据 HTTP `Content-Type` 或播放器的媒体探测能力处理视频，不要通过文件扩展名判断格式。
@@ -520,7 +621,7 @@ URL 的完整内容：
 
 ### 计费与退款
 
-视频生成在本站按统一的站内规则计费，具体上游服务商的接口和计费实现不会暴露给下游客户。上游服务商更换、模型映射调整或接口路径变化，不要求下游客户修改本文档中的调用方式。
+视频生成按本站配置的价格计费，下游无需使用上游积分计价。本站创建和查询接口保持统一；切换平台分组时，仍需核对对应平台的模型、参数和价格规则。
 
 本站当前处理规则：
 
@@ -536,13 +637,16 @@ URL 的完整内容：
 | Happy Horse | 按输出视频秒数计费，720p/1080p 分别取本站该 API Key 所属分组的 `720p`/`1080p` 视频价格。 |
 | ByteDance | 按输出视频秒数计费。`480p`、`720p`、`1080p` 分别使用分组对应价档，`4K` 使用 `1080p` 价档。 |
 | Wan3.0 | 按输出视频秒数计费。`480P`、`720P`、`1080P` 分别使用分组对应价档。 |
-| MiniMax-H3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`2K` 使用分组 `1080p` 价档。 |
+| MiniMax-H3（原平台） | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`2K` 使用分组 `1080p` 价档。 |
+| MiniMax-H3（优云智算） | 按输出视频秒数及五档分辨率分别计费，使用当前分组配置的美元/秒售价。请求 1080P/2K/4K 后实际降级为 768P 时，按创建任务时保存的 768P 单价结算。 |
 | MiniMax-Hailuo-2.3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`1080P` 使用分组 `1080p` 价档。 |
 | Pixverse-V6 | 按输出视频秒数计费。`360p` 使用分组 `480p` 价档；`540p` 和 `720p` 使用分组 `720p` 价档；`1080p` 使用分组 `1080p` 价档。 |
 
 - K-Ling 的价格档位由请求中的 `mode` 决定；音频参数不改变本站的站内单价。
 - 上述基础费用还会叠加本站分组倍率、视频独立倍率（如果启用）和账号倍率。
 - `videos`、`audios`、`input_video_duration`、输出宽高和帧率等字段会按上游能力透传，但不会改变本站的按秒计费结果。
+
+优云智算没有预设的对外售价。所选分辨率和 768P 的分组价格未配置时，创建请求会被拒绝，请联系本站管理员配置。创建任务时保存所选档位和 768P 的单价，后续修改价格不会改变进行中任务的这两项单价；无需由下游传入价格。取消请求返回 `running` 时不会立即释放预占金额，最终取消或失败后才释放。
 
 ### Python 轮询示例
 

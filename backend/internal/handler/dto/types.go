@@ -9,9 +9,9 @@ import (
 )
 
 type User struct {
-	ID            int64      `json:"id"`
-	Email         string     `json:"email"`
-	Username      string     `json:"username"`
+	ID             int64      `json:"id"`
+	Email          string     `json:"email"`
+	Username       string     `json:"username"`
 	Role           string     `json:"role"`
 	Balance        float64    `json:"balance"`
 	DisplayBalance float64    `json:"display_balance"`
@@ -121,6 +121,8 @@ type Group struct {
 	VideoPrice480P     *float64 `json:"video_price_480p"`
 	VideoPrice720P     *float64 `json:"video_price_720p"`
 	VideoPrice1080P    *float64 `json:"video_price_1080p"`
+	VideoPrice2K       *float64 `json:"video_price_2k"`
+	VideoPrice4K       *float64 `json:"video_price_4k"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
 	WebSearchPricePerCall *float64 `json:"web_search_price_per_call"`
 

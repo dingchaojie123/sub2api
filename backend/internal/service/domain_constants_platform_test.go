@@ -29,6 +29,7 @@ func TestVideoPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
 		PlatformByteDance,
 		PlatformWan3,
 		PlatformMiniMaxH3,
+		PlatformMiniMaxH3CompShare,
 		PlatformPixverseV6,
 		PlatformGrokImagineVideo,
 		PlatformKuaishou,

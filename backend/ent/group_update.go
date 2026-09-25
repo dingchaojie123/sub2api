@@ -640,6 +640,60 @@ func (_u *GroupUpdate) ClearVideoPrice1080p() *GroupUpdate {
 	return _u
 }
 
+// SetVideoPrice2k sets the "video_price_2k" field.
+func (_u *GroupUpdate) SetVideoPrice2k(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoPrice2k()
+	_u.mutation.SetVideoPrice2k(v)
+	return _u
+}
+
+// SetNillableVideoPrice2k sets the "video_price_2k" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoPrice2k(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoPrice2k(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice2k adds value to the "video_price_2k" field.
+func (_u *GroupUpdate) AddVideoPrice2k(v float64) *GroupUpdate {
+	_u.mutation.AddVideoPrice2k(v)
+	return _u
+}
+
+// ClearVideoPrice2k clears the value of the "video_price_2k" field.
+func (_u *GroupUpdate) ClearVideoPrice2k() *GroupUpdate {
+	_u.mutation.ClearVideoPrice2k()
+	return _u
+}
+
+// SetVideoPrice4k sets the "video_price_4k" field.
+func (_u *GroupUpdate) SetVideoPrice4k(v float64) *GroupUpdate {
+	_u.mutation.ResetVideoPrice4k()
+	_u.mutation.SetVideoPrice4k(v)
+	return _u
+}
+
+// SetNillableVideoPrice4k sets the "video_price_4k" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableVideoPrice4k(v *float64) *GroupUpdate {
+	if v != nil {
+		_u.SetVideoPrice4k(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice4k adds value to the "video_price_4k" field.
+func (_u *GroupUpdate) AddVideoPrice4k(v float64) *GroupUpdate {
+	_u.mutation.AddVideoPrice4k(v)
+	return _u
+}
+
+// ClearVideoPrice4k clears the value of the "video_price_4k" field.
+func (_u *GroupUpdate) ClearVideoPrice4k() *GroupUpdate {
+	_u.mutation.ClearVideoPrice4k()
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdate) SetWebSearchPricePerCall(v float64) *GroupUpdate {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -1404,6 +1458,24 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.VideoPrice1080pCleared() {
 		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice2k(); ok {
+		_spec.SetField(group.FieldVideoPrice2k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice2k(); ok {
+		_spec.AddField(group.FieldVideoPrice2k, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice2kCleared() {
+		_spec.ClearField(group.FieldVideoPrice2k, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice4k(); ok {
+		_spec.SetField(group.FieldVideoPrice4k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice4k(); ok {
+		_spec.AddField(group.FieldVideoPrice4k, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice4kCleared() {
+		_spec.ClearField(group.FieldVideoPrice4k, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
@@ -2403,6 +2475,60 @@ func (_u *GroupUpdateOne) ClearVideoPrice1080p() *GroupUpdateOne {
 	return _u
 }
 
+// SetVideoPrice2k sets the "video_price_2k" field.
+func (_u *GroupUpdateOne) SetVideoPrice2k(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoPrice2k()
+	_u.mutation.SetVideoPrice2k(v)
+	return _u
+}
+
+// SetNillableVideoPrice2k sets the "video_price_2k" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoPrice2k(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoPrice2k(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice2k adds value to the "video_price_2k" field.
+func (_u *GroupUpdateOne) AddVideoPrice2k(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoPrice2k(v)
+	return _u
+}
+
+// ClearVideoPrice2k clears the value of the "video_price_2k" field.
+func (_u *GroupUpdateOne) ClearVideoPrice2k() *GroupUpdateOne {
+	_u.mutation.ClearVideoPrice2k()
+	return _u
+}
+
+// SetVideoPrice4k sets the "video_price_4k" field.
+func (_u *GroupUpdateOne) SetVideoPrice4k(v float64) *GroupUpdateOne {
+	_u.mutation.ResetVideoPrice4k()
+	_u.mutation.SetVideoPrice4k(v)
+	return _u
+}
+
+// SetNillableVideoPrice4k sets the "video_price_4k" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableVideoPrice4k(v *float64) *GroupUpdateOne {
+	if v != nil {
+		_u.SetVideoPrice4k(*v)
+	}
+	return _u
+}
+
+// AddVideoPrice4k adds value to the "video_price_4k" field.
+func (_u *GroupUpdateOne) AddVideoPrice4k(v float64) *GroupUpdateOne {
+	_u.mutation.AddVideoPrice4k(v)
+	return _u
+}
+
+// ClearVideoPrice4k clears the value of the "video_price_4k" field.
+func (_u *GroupUpdateOne) ClearVideoPrice4k() *GroupUpdateOne {
+	_u.mutation.ClearVideoPrice4k()
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdateOne) SetWebSearchPricePerCall(v float64) *GroupUpdateOne {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -3197,6 +3323,24 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if _u.mutation.VideoPrice1080pCleared() {
 		_spec.ClearField(group.FieldVideoPrice1080p, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice2k(); ok {
+		_spec.SetField(group.FieldVideoPrice2k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice2k(); ok {
+		_spec.AddField(group.FieldVideoPrice2k, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice2kCleared() {
+		_spec.ClearField(group.FieldVideoPrice2k, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.VideoPrice4k(); ok {
+		_spec.SetField(group.FieldVideoPrice4k, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedVideoPrice4k(); ok {
+		_spec.AddField(group.FieldVideoPrice4k, field.TypeFloat64, value)
+	}
+	if _u.mutation.VideoPrice4kCleared() {
+		_spec.ClearField(group.FieldVideoPrice4k, field.TypeFloat64)
 	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)

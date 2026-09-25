@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -103,7 +103,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}

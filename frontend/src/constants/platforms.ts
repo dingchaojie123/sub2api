@@ -9,6 +9,7 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'bytedance',
   'wan3',
   'minimax-h3',
+  'minimax-h3-compshare',
   'pixverse-v6',
   'grok-imagine-video',
   'kuaishou'
@@ -38,6 +39,7 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'bytedance',
   'wan3',
   'minimax-h3',
+  'minimax-h3-compshare',
   'minimax-speech',
   'qwen-tts',
   'pixverse-v6',
@@ -178,6 +180,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     defaultBaseUrl: 'https://api.modelverse.cn/v1',
     baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
     apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'minimax-h3-compshare': {
+    id: 'minimax-h3-compshare',
+    label: 'MiniMax-H3（优云智算）',
+    defaultBaseUrl: 'https://cp.compshare.cn',
+    baseUrlPlaceholder: 'https://cp.compshare.cn',
+    apiKeyPlaceholder: 'sk-ml-...',
     accountType: 'apikey',
     authScheme: 'bearer'
   },
