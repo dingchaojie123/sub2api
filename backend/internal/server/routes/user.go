@@ -75,6 +75,23 @@ func RegisterUserRoutes(
 			keys.DELETE("/:id", h.APIKey.Delete)
 		}
 
+		// 企业版团队空间
+		organizations := authenticated.Group("/organizations")
+		{
+			organizations.GET("", h.Organization.List)
+			organizations.POST("", h.Organization.Create)
+			organizations.DELETE("/delete", h.Organization.Delete)
+			organizations.POST("/invitations/accept", h.Organization.AcceptInvitation)
+			organizations.GET("/members", h.Organization.Members)
+			organizations.PATCH("/members", h.Organization.UpdateMember)
+			organizations.DELETE("/members", h.Organization.RemoveMember)
+			organizations.GET("/invitations", h.Organization.Invitations)
+			organizations.POST("/invitations", h.Organization.CreateInvitation)
+			organizations.POST("/fund", h.Organization.Fund)
+			organizations.GET("/usage", h.Organization.Usage)
+			organizations.GET("/audit-logs", h.Organization.AuditLogs)
+		}
+
 		// 用户可用分组（非管理员接口）
 		groups := authenticated.Group("/groups")
 		{

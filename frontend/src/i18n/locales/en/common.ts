@@ -151,8 +151,9 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+	teamWorkspace: 'Team Workspace',
     announcements: 'Announcements',
-    apiKeys: 'API Keys',
+	apiKeys: 'API Keys',
     batchImage: 'Batch Images',
     usage: 'Usage',
     modelList: 'Model List',
@@ -429,6 +430,11 @@ export default {
     verifyFailed: 'Verification failed, please try again',
     notEnabled: 'This operation requires two-factor authentication. Please enable TOTP in your profile first.',
     adminApiKeyForbidden: 'Admin API keys cannot perform this operation. Use a two-factor verified admin session.'
+  },
+
+  teams: {
+    title: 'Team Workspace',
+    description: 'Manage shared quota, members, and usage'
   },
 
   // Dashboard

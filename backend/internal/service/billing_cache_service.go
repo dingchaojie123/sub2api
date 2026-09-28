@@ -741,21 +741,36 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 		return ErrBillingServiceUnavailable
 	}
 
+	// 团队 Key 固定使用组织额度，不回退到成员个人余额或个人订阅。
+	if apiKey != nil && apiKey.Organization != nil {
+		organization := apiKey.Organization
+		if !organization.Active {
+			return ErrOrganizationForbidden
+		}
+		if organization.Balance <= 0 {
+			return ErrOrganizationBalance
+		}
+		if organization.MonthlyLimit > 0 && organization.MonthlyUsed+organization.MonthlyFrozen >= organization.MonthlyLimit {
+			return ErrOrganizationMemberLimit
+		}
+	}
+
 	// 判断计费模式
-	isSubscriptionMode := group != nil && group.IsSubscriptionType() && subscription != nil
+	isOrganizationMode := apiKey != nil && apiKey.Organization != nil
+	isSubscriptionMode := !isOrganizationMode && group != nil && group.IsSubscriptionType() && subscription != nil
 
 	if isSubscriptionMode {
 		if err := s.checkSubscriptionEligibility(ctx, user.ID, group, subscription); err != nil {
 			return err
 		}
-	} else {
+	} else if !isOrganizationMode {
 		if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
 			return err
 		}
 	}
 
 	// user × platform quota 仅在 standard（余额）模式生效；订阅模式豁免
-	if !isSubscriptionMode {
+	if !isSubscriptionMode && !isOrganizationMode {
 		if err := s.checkUserPlatformQuotaEligibility(ctx, user.ID, platform); err != nil {
 			return err
 		}

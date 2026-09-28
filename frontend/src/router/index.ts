@@ -206,6 +206,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/organizations',
+    name: 'Organizations',
+    component: () => import('@/views/user/OrganizationsView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Team Workspace',
+      titleKey: 'teams.title',
+      descriptionKey: 'teams.description'
+    }
+  },
+  {
     path: '/batch-image',
     name: 'BatchImageGuide',
     alias: '/docs/batch-image',

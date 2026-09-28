@@ -464,6 +464,17 @@
           />
         </div>
 
+        <div v-if="!showEditModal && organizations.length > 0">
+          <label class="input-label">{{ t('keys.quotaSourceLabel') }}</label>
+          <select v-model="formData.organization_id" class="input">
+            <option :value="null">{{ t('keys.personalBalance') }}</option>
+            <option v-for="organization in organizations" :key="organization.id" :value="organization.id">
+              {{ organization.name }} · {{ t('keys.teamSharedBalance') }}
+            </option>
+          </select>
+          <p class="input-hint">{{ formData.organization_id ? t('keys.teamBalanceHint') : t('keys.personalBalanceHint') }}</p>
+        </div>
+
         <div>
           <label class="input-label">{{ t('keys.groupLabel') }}</label>
           <Select
@@ -1126,6 +1137,7 @@ import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
+import { organizationsAPI, type Organization } from '@/api/organizations'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
@@ -1271,6 +1283,7 @@ const columns = computed<Column[]>(() =>
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
+const organizations = ref<Organization[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())
@@ -1330,6 +1343,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 const formData = ref({
   name: '',
   group_id: null as number | null,
+  organization_id: null as number | null,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1529,6 +1543,17 @@ const loadPublicSettings = async () => {
   }
 }
 
+const loadOrganizations = async () => {
+  try {
+    organizations.value = await organizationsAPI.list()
+    if (organizations.value.length > 0 && formData.value.organization_id === null) {
+      formData.value.organization_id = organizations.value[0].id
+    }
+  } catch (error) {
+    console.error('Failed to load organizations:', error)
+  }
+}
+
 const openUseKeyModal = (key: ApiKey) => {
   selectedKey.value = key
   showUseKeyModal.value = true
@@ -1564,6 +1589,7 @@ const editKey = (key: ApiKey) => {
   formData.value = {
     name: key.name,
     group_id: key.group_id,
+    organization_id: null,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1741,7 +1767,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        formData.value.organization_id ?? undefined
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1787,6 +1814,7 @@ const closeModals = () => {
   formData.value = {
     name: '',
     group_id: null,
+    organization_id: organizations.value[0]?.id ?? null,
     status: 'active',
     use_custom_key: false,
     custom_key: '',
@@ -1956,6 +1984,7 @@ onMounted(() => {
   loadGroups()
   loadUserGroupRates()
   loadPublicSettings()
+  loadOrganizations()
   document.addEventListener('click', closeGroupSelector)
   resetTimer = setInterval(() => { now.value = new Date() }, 60000)
 })

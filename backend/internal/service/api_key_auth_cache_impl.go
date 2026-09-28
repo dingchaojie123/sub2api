@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 15 // v15: include group web search per-call pricing
+const apiKeyAuthSnapshotVersion = 16 // v16: include organization billing subject
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -296,7 +296,8 @@ func (s *APIKeyService) lookupAPIKeyForAuth(ctx context.Context, key string) (*A
 		return nil, ErrAPIKeyNotFound
 	}
 	if s.authLookupSlots == nil {
-		return s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+		apiKey, err := s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+		return s.enrichOrganizationBilling(ctx, apiKey, err)
 	}
 	s.authLookupTotal.Add(1)
 	select {
@@ -312,7 +313,20 @@ func (s *APIKeyService) lookupAPIKeyForAuth(ctx context.Context, key string) (*A
 		s.authLookupRejected.Add(1)
 		return nil, ErrAPIKeyAuthOverloaded
 	}
-	return s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+	apiKey, err := s.apiKeyRepo.GetByKeyForAuth(ctx, key)
+	return s.enrichOrganizationBilling(ctx, apiKey, err)
+}
+
+func (s *APIKeyService) enrichOrganizationBilling(ctx context.Context, apiKey *APIKey, err error) (*APIKey, error) {
+	if err != nil || apiKey == nil || s.organizationBilling == nil {
+		return apiKey, err
+	}
+	subject, lookupErr := s.organizationBilling.GetBillingSubjectByAPIKey(ctx, apiKey.ID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	apiKey.Organization = subject
+	return apiKey, nil
 }
 
 func (s *APIKeyService) applyAuthCacheEntry(key string, entry *APIKeyAuthCacheEntry) (*APIKey, bool, error) {
@@ -336,20 +350,21 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		return nil
 	}
 	snapshot := &APIKeyAuthSnapshot{
-		Version:     apiKeyAuthSnapshotVersion,
-		APIKeyID:    apiKey.ID,
-		UserID:      apiKey.UserID,
-		GroupID:     apiKey.GroupID,
-		Name:        apiKey.Name,
-		Status:      apiKey.Status,
-		IPWhitelist: apiKey.IPWhitelist,
-		IPBlacklist: apiKey.IPBlacklist,
-		Quota:       apiKey.Quota,
-		QuotaUsed:   apiKey.QuotaUsed,
-		ExpiresAt:   apiKey.ExpiresAt,
-		RateLimit5h: apiKey.RateLimit5h,
-		RateLimit1d: apiKey.RateLimit1d,
-		RateLimit7d: apiKey.RateLimit7d,
+		Version:      apiKeyAuthSnapshotVersion,
+		APIKeyID:     apiKey.ID,
+		UserID:       apiKey.UserID,
+		GroupID:      apiKey.GroupID,
+		Organization: apiKey.Organization,
+		Name:         apiKey.Name,
+		Status:       apiKey.Status,
+		IPWhitelist:  apiKey.IPWhitelist,
+		IPBlacklist:  apiKey.IPBlacklist,
+		Quota:        apiKey.Quota,
+		QuotaUsed:    apiKey.QuotaUsed,
+		ExpiresAt:    apiKey.ExpiresAt,
+		RateLimit5h:  apiKey.RateLimit5h,
+		RateLimit1d:  apiKey.RateLimit1d,
+		RateLimit7d:  apiKey.RateLimit7d,
 		User: APIKeyAuthUserSnapshot{
 			ID:                         apiKey.User.ID,
 			Status:                     apiKey.User.Status,
@@ -429,20 +444,21 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		return nil
 	}
 	apiKey := &APIKey{
-		ID:          snapshot.APIKeyID,
-		UserID:      snapshot.UserID,
-		GroupID:     snapshot.GroupID,
-		Key:         key,
-		Name:        snapshot.Name,
-		Status:      snapshot.Status,
-		IPWhitelist: snapshot.IPWhitelist,
-		IPBlacklist: snapshot.IPBlacklist,
-		Quota:       snapshot.Quota,
-		QuotaUsed:   snapshot.QuotaUsed,
-		ExpiresAt:   snapshot.ExpiresAt,
-		RateLimit5h: snapshot.RateLimit5h,
-		RateLimit1d: snapshot.RateLimit1d,
-		RateLimit7d: snapshot.RateLimit7d,
+		ID:           snapshot.APIKeyID,
+		UserID:       snapshot.UserID,
+		GroupID:      snapshot.GroupID,
+		Organization: snapshot.Organization,
+		Key:          key,
+		Name:         snapshot.Name,
+		Status:       snapshot.Status,
+		IPWhitelist:  snapshot.IPWhitelist,
+		IPBlacklist:  snapshot.IPBlacklist,
+		Quota:        snapshot.Quota,
+		QuotaUsed:    snapshot.QuotaUsed,
+		ExpiresAt:    snapshot.ExpiresAt,
+		RateLimit5h:  snapshot.RateLimit5h,
+		RateLimit1d:  snapshot.RateLimit1d,
+		RateLimit7d:  snapshot.RateLimit7d,
 		User: &User{
 			ID:                         snapshot.User.ID,
 			Status:                     snapshot.User.Status,

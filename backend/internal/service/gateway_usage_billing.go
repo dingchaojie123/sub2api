@@ -235,6 +235,12 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		AccountType:        p.Account.Type,
 		RequestPayloadHash: strings.TrimSpace(p.RequestPayloadHash),
 	}
+	if p.APIKey.Organization != nil {
+		organizationID := p.APIKey.Organization.OrganizationID
+		memberUserID := p.APIKey.Organization.MemberUserID
+		cmd.OrganizationID = &organizationID
+		cmd.OrganizationMemberID = &memberUserID
+	}
 	if usageLog != nil {
 		cmd.Model = usageLog.Model
 		cmd.BillingType = usageLog.BillingType
@@ -258,7 +264,9 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 	// user-specific) rate multiplier consumes subscription quota at the expected
 	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
 	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
-	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
+	if p.APIKey.Organization != nil && p.Cost.ActualCost > 0 {
+		cmd.BalanceCost = p.Cost.ActualCost
+	} else if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
 		cmd.SubscriptionID = &p.Subscription.ID
 		cmd.SubscriptionCost = p.Cost.ActualCost
 	} else if p.Cost.ActualCost > 0 {
@@ -308,6 +316,11 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 			invalidator.InvalidateAuthCacheByKey(billingCtx, p.APIKey.Key)
 		}
 	}
+	if p.APIKey != nil && p.APIKey.Organization != nil {
+		if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheInvalidator); ok && p.APIKey.Key != "" {
+			invalidator.InvalidateAuthCacheByKey(billingCtx, p.APIKey.Key)
+		}
+	}
 
 	finalizePostUsageBilling(billingCtx, p, deps, result)
 	return true, nil
@@ -322,7 +335,7 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
 			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
-	} else if p.Cost.ActualCost > 0 && p.User != nil {
+	} else if p.Cost.ActualCost > 0 && p.User != nil && (p.APIKey == nil || p.APIKey.Organization == nil) {
 		syncBalanceCacheAfterDeduction(ctx, p, deps, result)
 	}
 

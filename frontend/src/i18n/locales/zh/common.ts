@@ -151,8 +151,9 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+	teamWorkspace: '团队空间',
     announcements: '公告',
-    apiKeys: 'API 密钥',
+	apiKeys: 'API 密钥',
     batchImage: '批量生图',
     usage: '使用记录',
     modelList: '模型列表',
@@ -428,6 +429,11 @@ export default {
     verifyFailed: '验证失败，请重试',
     notEnabled: '此操作需要开启二次验证，请先在个人资料中启用 TOTP。',
     adminApiKeyForbidden: '管理 API Key 无法执行此操作，请使用已通过二次验证的管理员会话。'
+  },
+
+  teams: {
+    title: '团队空间',
+    description: '企业共享额度、成员和用量管理'
   },
 
   // Dashboard

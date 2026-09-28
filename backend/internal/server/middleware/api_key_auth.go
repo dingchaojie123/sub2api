@@ -157,6 +157,21 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
 		}
+		if apiKey.Organization != nil {
+			if !apiKey.Organization.Active {
+				MarkIngressRejected(c, IngressRejectUserInactive)
+				AbortWithError(c, 403, "ORGANIZATION_ACCESS_REVOKED", "Team access has been revoked")
+				return
+			}
+			if apiKey.Organization.Balance <= 0 {
+				AbortWithError(c, 403, "ORGANIZATION_QUOTA_EXHAUSTED", "Team quota is exhausted; contact your team administrator")
+				return
+			}
+			if apiKey.Organization.MonthlyLimit > 0 && apiKey.Organization.MonthlyUsed+apiKey.Organization.MonthlyFrozen >= apiKey.Organization.MonthlyLimit {
+				AbortWithError(c, 429, "ORGANIZATION_MEMBER_QUOTA_EXHAUSTED", "Your team member quota is exhausted")
+				return
+			}
+		}
 		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
 			return
 		}
@@ -191,7 +206,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// ── 5. 按端点需要加载订阅 ───────────────────────────────────
 
 		var subscription *service.UserSubscription
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
+		isSubscriptionType := apiKey.Organization == nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 
 		// 倍率自省不需要订阅数据；/v1/usage 仍保留原有订阅读取行为。
 		if isSubscriptionType && subscriptionService != nil && !billingInfoRequest {
@@ -206,7 +221,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 					return
 				}
 				// skipBilling: 订阅不存在也放行，handler 会返回可用的数据
-			} else {
+			} else if apiKey.Organization == nil {
 				subscription = sub
 			}
 		}

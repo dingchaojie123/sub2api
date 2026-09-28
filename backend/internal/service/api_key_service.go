@@ -190,9 +190,10 @@ type CreateAPIKeyRequest struct {
 	ExpiresInDays *int    `json:"expires_in_days"` // Days until expiry (nil = never expires)
 
 	// Rate limit fields (0 = unlimited)
-	RateLimit5h float64 `json:"rate_limit_5h"`
-	RateLimit1d float64 `json:"rate_limit_1d"`
-	RateLimit7d float64 `json:"rate_limit_7d"`
+	RateLimit5h    float64 `json:"rate_limit_5h"`
+	RateLimit1d    float64 `json:"rate_limit_1d"`
+	RateLimit7d    float64 `json:"rate_limit_7d"`
+	OrganizationID *int64  `json:"organization_id"`
 }
 
 // UpdateAPIKeyRequest 更新API Key请求
@@ -223,11 +224,15 @@ type RateLimitCacheInvalidator interface {
 }
 
 type APIKeyService struct {
-	apiKeyRepo                APIKeyRepository
-	userRepo                  UserRepository
-	groupRepo                 GroupRepository
-	userSubRepo               UserSubscriptionRepository
-	userGroupRateRepo         UserGroupRateRepository
+	apiKeyRepo          APIKeyRepository
+	userRepo            UserRepository
+	groupRepo           GroupRepository
+	userSubRepo         UserSubscriptionRepository
+	userGroupRateRepo   UserGroupRateRepository
+	organizationBilling interface {
+		GetBillingSubjectByAPIKey(context.Context, int64) (*OrganizationBillingSubject, error)
+		AttachAPIKey(context.Context, int64, int64, int64) error
+	}
 	cache                     APIKeyCache
 	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
 	concurrencyService        *ConcurrencyService
@@ -249,6 +254,13 @@ type APIKeyService struct {
 	authInvalidationFailures  atomic.Uint64
 	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
 	lastUsedTouchSF           singleflight.Group
+}
+
+func (s *APIKeyService) SetOrganizationBillingResolver(resolver interface {
+	GetBillingSubjectByAPIKey(context.Context, int64) (*OrganizationBillingSubject, error)
+	AttachAPIKey(context.Context, int64, int64, int64) error
+}) {
+	s.organizationBilling = resolver
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -492,6 +504,16 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
 		return nil, fmt.Errorf("create api key: %w", err)
 	}
+	if req.OrganizationID != nil {
+		if s.organizationBilling == nil {
+			_ = s.apiKeyRepo.DeleteWithAudit(ctx, apiKey.ID)
+			return nil, fmt.Errorf("organization billing is unavailable")
+		}
+		if err := s.organizationBilling.AttachAPIKey(ctx, *req.OrganizationID, userID, apiKey.ID); err != nil {
+			_ = s.apiKeyRepo.DeleteWithAudit(ctx, apiKey.ID)
+			return nil, fmt.Errorf("attach api key to organization: %w", err)
+		}
+	}
 
 	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
 	s.compileAPIKeyIPRules(apiKey)
@@ -650,7 +672,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
 			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
+			return s.refreshOrganizationBilling(ctx, apiKey)
 		}
 	}
 
@@ -667,7 +689,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
 			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
+			return s.refreshOrganizationBilling(ctx, apiKey)
 		}
 	} else {
 		entry, err := s.loadAuthCacheEntry(ctx, key, cacheKey)
@@ -679,7 +701,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
 			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
+			return s.refreshOrganizationBilling(ctx, apiKey)
 		}
 	}
 
@@ -689,6 +711,18 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 	}
 	apiKey.Key = key
 	s.compileAPIKeyIPRules(apiKey)
+	return apiKey, nil
+}
+
+func (s *APIKeyService) refreshOrganizationBilling(ctx context.Context, apiKey *APIKey) (*APIKey, error) {
+	if apiKey == nil || apiKey.Organization == nil || s.organizationBilling == nil {
+		return apiKey, nil
+	}
+	subject, err := s.organizationBilling.GetBillingSubjectByAPIKey(ctx, apiKey.ID)
+	if err != nil {
+		return nil, fmt.Errorf("refresh organization billing: %w", err)
+	}
+	apiKey.Organization = subject
 	return apiKey, nil
 }
 
