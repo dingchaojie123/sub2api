@@ -37,6 +37,7 @@ var (
 	ErrDefaultAPIKeyPurpose       = infraerrors.BadRequest("INVALID_DEFAULT_API_KEY_PURPOSE", "purpose must be text, image, video or audio")
 	ErrDefaultAPIKeyGroupMismatch = infraerrors.BadRequest("DEFAULT_API_KEY_GROUP_MISMATCH", "API key must belong to the group configured for this default purpose")
 	ErrDefaultAPIKeyUnavailable   = infraerrors.BadRequest("DEFAULT_API_KEY_UNAVAILABLE", "default API key must be active, unexpired and have available quota")
+	ErrDefaultAPIKeyBillingSource = infraerrors.BadRequest("DEFAULT_API_KEY_BILLING_SOURCE_UNAVAILABLE", "default API key billing source is not active")
 )
 
 // UpdateDefaultAPIKey changes the default association, leaving both credentials intact.
@@ -85,10 +86,18 @@ func (s *APIKeyService) UpdateDefaultAPIKey(ctx context.Context, userID int64, p
 	if !key.IsActive() || key.IsExpired() || key.IsQuotaExhausted() {
 		return nil, ErrDefaultAPIKeyUnavailable
 	}
+	keys := []APIKey{*key}
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, err
+	}
+	if keys[0].BillingSource.Type == APIKeyBillingSourceOrganization && keys[0].BillingSource.Status != APIKeyBillingSourceActive {
+		return nil, ErrDefaultAPIKeyBillingSource
+	}
 	key, err = repo.SetDefaultAPIKey(ctx, userID, purpose, apiKeyID, group.ID)
 	if err != nil {
 		return nil, err
 	}
+	key.BillingSource = keys[0].BillingSource
 	return &DefaultAPIKey{Purpose: purpose, APIKey: key}, nil
 }
 
@@ -146,7 +155,8 @@ func defaultAPIKeyGroupMatchesPurpose(group *Group, spec struct {
 	case "image":
 		return group.AllowImageGeneration
 	case "video":
-		return IsPPVideoPlatform(group.Platform)
+		// Jimeng serves video through its own gateway, separate from PP video.
+		return group.Platform == PlatformJimeng || IsPPVideoPlatform(group.Platform)
 	case "audio":
 		return IsAudioPlatform(group.Platform)
 	default:
@@ -175,7 +185,25 @@ func (s *APIKeyService) GetDefaultAPIKeys(ctx context.Context, userID int64) ([]
 	if !ok {
 		return nil, ErrServiceUnavailable
 	}
-	return repo.ListDefaultAPIKeys(ctx, userID)
+	items, err := repo.ListDefaultAPIKeys(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	keys := make([]APIKey, 0, len(items))
+	indexes := make([]int, 0, len(items))
+	for i := range items {
+		if items[i].APIKey != nil {
+			keys = append(keys, *items[i].APIKey)
+			indexes = append(indexes, i)
+		}
+	}
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, err
+	}
+	for i := range keys {
+		items[indexes[i]].APIKey.BillingSource = keys[i].BillingSource
+	}
+	return items, nil
 }
 
 // EnsureDefaultAPIKeys only fills slots that have never been provisioned.

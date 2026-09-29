@@ -14,13 +14,46 @@ import (
 )
 
 const (
+	claimUsageBillingRequestSQL = `(?s)INSERT INTO usage_billing_dedup \(request_id, api_key_id, request_fingerprint, organization_id, member_user_id\).*VALUES \(\$1, \$2, \$3, \$4, \$5\).*RETURNING id`
 	conditionalBalanceDeductSQL = `(?s)UPDATE users\s+SET balance = balance - \$1,.*display_balance.*updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL AND balance >= \$1\s+RETURNING balance`
 	overdraftBalanceDeductSQL   = `(?s)UPDATE users\s+SET balance = balance - \$1,.*display_balance.*updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL\s+RETURNING balance`
+	resetOrganizationMemberSQL  = `UPDATE organization_members SET monthly_used=0,usage_period_start=date_trunc\('month',NOW\(\)\),updated_at=NOW\(\) WHERE organization_id=\$1 AND user_id=\$2 AND usage_period_start < date_trunc\('month',NOW\(\)\)`
+	conditionalOrgDeductSQL     = `(?s)UPDATE organizations SET balance=balance-\$1,.*updated_at=NOW\(\) WHERE id=\$2 AND balance >= \$1 RETURNING balance`
+	overdraftOrgDeductSQL       = `(?s)UPDATE organizations SET balance=balance-\$1,.*updated_at=NOW\(\) WHERE id=\$2 RETURNING balance`
+	incrementOrgMemberUsageSQL  = `UPDATE organization_members SET monthly_used=monthly_used\+\$1,updated_at=NOW\(\) WHERE organization_id=\$2 AND user_id=\$3`
+	insertOrgUsageLedgerSQL     = `(?s)INSERT INTO organization_quota_ledger\(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail\) VALUES\(\$1,\$2,\$3,\$4,'usage',\$5,\$6,jsonb_build_object\('model',\$7::text,'overdraft',true\)\)`
 	reserveBatchImageHoldSQL    = `(?s)UPDATE users\s+SET balance = balance - \$1,.*display_balance.*frozen_balance = COALESCE\(frozen_balance, 0\) \+ \$1,.*frozen_display_balance.*updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL AND balance >= \$1\s+RETURNING balance, frozen_balance`
 	captureBatchImageHoldSQL    = `(?s)UPDATE users\s+SET balance = balance\s+\+ CASE WHEN \$1 > \$2 THEN \$1 - \$2 ELSE 0 END\s+- CASE WHEN \$2 > \$1 THEN \$2 - \$1 ELSE 0 END,.*display_balance.*frozen_balance = COALESCE\(frozen_balance, 0\) - \$1,.*frozen_display_balance.*updated_at = NOW\(\)\s+WHERE id = \$3 AND deleted_at IS NULL AND COALESCE\(frozen_balance, 0\) >= \$1\s+RETURNING balance, frozen_balance`
 	releaseBatchImageHoldSQL    = `(?s)UPDATE users\s+SET balance = balance \+ \$1,.*display_balance.*frozen_balance = COALESCE\(frozen_balance, 0\) - \$1,.*frozen_display_balance.*updated_at = NOW\(\)\s+WHERE id = \$2 AND deleted_at IS NULL AND COALESCE\(frozen_balance, 0\) >= \$1\s+RETURNING balance, frozen_balance`
 	userExistsForBillingSQL     = `(?s)SELECT 1\s+FROM users\s+WHERE id = \$1 AND deleted_at IS NULL`
 )
+
+func TestClaimUsageBillingRequest_PersistsBillingSnapshot(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	organizationID, memberUserID := int64(10), int64(42)
+	mock.ExpectQuery(claimUsageBillingRequestSQL).
+		WithArgs("req-1", int64(7), "fingerprint", organizationID, memberUserID).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectQuery(`SELECT request_fingerprint\s+FROM usage_billing_dedup_archive\s+WHERE request_id = \$1 AND api_key_id = \$2`).
+		WithArgs("req-1", int64(7)).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectCommit()
+
+	applied, err := (&usageBillingRepository{}).claimUsageBillingRequest(
+		ctx, tx, "req-1", 7, "fingerprint", &organizationID, &memberUserID,
+	)
+	require.NoError(t, err)
+	require.True(t, applied)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
 
 func TestDeductUsageBillingBalance_UsesSufficientBalanceGuard(t *testing.T) {
 	ctx := context.Background()
@@ -97,6 +130,67 @@ func TestApplyUsageBillingEffects_FlagsBalanceOverdraft(t *testing.T) {
 	require.True(t, result.BalanceOverdrafted)
 	require.NoError(t, tx.Commit())
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestDeductUsageBillingOrganization_UsesSnapshotAndRecordsOverdraft(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	mock.ExpectExec(resetOrganizationMemberSQL).
+		WithArgs(int64(10), int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(conditionalOrgDeductSQL).
+		WithArgs(10.0, int64(10)).
+		WillReturnError(sql.ErrNoRows)
+	mock.ExpectQuery(overdraftOrgDeductSQL).
+		WithArgs(10.0, int64(10)).
+		WillReturnRows(sqlmock.NewRows([]string{"balance"}).AddRow(-5.0))
+	mock.ExpectExec(incrementOrgMemberUsageSQL).
+		WithArgs(10.0, int64(10), int64(42)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(insertOrgUsageLedgerSQL).
+		WithArgs(int64(10), int64(42), int64(7), "req-1", -10.0, -5.0, "gpt-test").
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+
+	organizationID, memberUserID := int64(10), int64(42)
+	newBalance, sufficient, err := deductUsageBillingOrganization(ctx, tx, &service.UsageBillingCommand{
+		RequestID:            "req-1",
+		APIKeyID:             7,
+		OrganizationID:       &organizationID,
+		OrganizationMemberID: &memberUserID,
+		Model:                "gpt-test",
+	}, 10)
+	require.NoError(t, err)
+	require.False(t, sufficient)
+	require.InDelta(t, -5.0, newBalance, 0.000001)
+	require.NoError(t, tx.Commit())
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestBatchImageOrganizationBillingOwner_UsesTaskSnapshot(t *testing.T) {
+	organizationID, memberUserID := int64(10), int64(42)
+	actualOrganizationID, actualMemberUserID, ok, err := batchImageOrganizationBillingOwner(&service.BatchImageBalanceHoldCommand{
+		BillingSource:        service.APIKeyBillingSourceOrganization,
+		OrganizationID:       &organizationID,
+		OrganizationMemberID: &memberUserID,
+	})
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, organizationID, actualOrganizationID)
+	require.Equal(t, memberUserID, actualMemberUserID)
+
+	_, _, ok, err = batchImageOrganizationBillingOwner(&service.BatchImageBalanceHoldCommand{
+		BillingSource: service.APIKeyBillingSourcePersonal,
+		APIKeyID:      7,
+	})
+	require.NoError(t, err)
+	require.False(t, ok)
 }
 
 func TestDeductUsageBillingBalance_ReturnsUserNotFoundWhenNoUserUpdated(t *testing.T) {

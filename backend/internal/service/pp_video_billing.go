@@ -207,13 +207,16 @@ func (s *OpenAIGatewayService) ReservePPVideoBalanceHold(ctx context.Context, ta
 		return nil
 	}
 	_, err := s.usageBillingRepo.ReserveBatchImageBalance(ctx, &BatchImageBalanceHoldCommand{
-		RequestID:          task.HoldID,
-		APIKeyID:           task.APIKeyID,
-		UserID:             task.UserID,
-		BatchID:            task.LocalTaskID,
-		HoldRequestID:      task.HoldID,
-		HoldAmount:         task.HoldAmount,
-		RequestPayloadHash: strings.TrimSpace(payloadHash),
+		RequestID:            task.HoldID,
+		APIKeyID:             task.APIKeyID,
+		UserID:               task.UserID,
+		BillingSource:        task.BillingSource,
+		OrganizationID:       task.BillingOrganizationID,
+		OrganizationMemberID: task.BillingMemberUserID,
+		BatchID:              task.LocalTaskID,
+		HoldRequestID:        task.HoldID,
+		HoldAmount:           task.HoldAmount,
+		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	})
 	if err != nil {
 		if errors.Is(err, ErrBatchImageInsufficientBalance) {
@@ -229,14 +232,17 @@ func (s *OpenAIGatewayService) CapturePPVideoBalanceHold(ctx context.Context, ta
 		return nil
 	}
 	_, err := s.usageBillingRepo.CaptureBatchImageBalance(ctx, &BatchImageBalanceHoldCommand{
-		RequestID:          task.CaptureID,
-		APIKeyID:           task.APIKeyID,
-		UserID:             task.UserID,
-		BatchID:            task.LocalTaskID,
-		HoldRequestID:      task.HoldID,
-		HoldAmount:         task.HoldAmount,
-		ActualAmount:       actualAmount,
-		RequestPayloadHash: strings.TrimSpace(payloadHash),
+		RequestID:            task.CaptureID,
+		APIKeyID:             task.APIKeyID,
+		UserID:               task.UserID,
+		BillingSource:        task.BillingSource,
+		OrganizationID:       task.BillingOrganizationID,
+		OrganizationMemberID: task.BillingMemberUserID,
+		BatchID:              task.LocalTaskID,
+		HoldRequestID:        task.HoldID,
+		HoldAmount:           task.HoldAmount,
+		ActualAmount:         actualAmount,
+		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	})
 	if err != nil {
 		return ErrPPVideoSettlementBillingFailed.WithCause(err)
@@ -249,13 +255,16 @@ func (s *OpenAIGatewayService) ReleasePPVideoBalanceHold(ctx context.Context, ta
 		return nil
 	}
 	_, err := s.usageBillingRepo.ReleaseBatchImageBalance(ctx, &BatchImageBalanceHoldCommand{
-		RequestID:          task.ReleaseID,
-		APIKeyID:           task.APIKeyID,
-		UserID:             task.UserID,
-		BatchID:            task.LocalTaskID,
-		HoldRequestID:      task.HoldID,
-		HoldAmount:         task.HoldAmount,
-		RequestPayloadHash: strings.TrimSpace(payloadHash),
+		RequestID:            task.ReleaseID,
+		APIKeyID:             task.APIKeyID,
+		UserID:               task.UserID,
+		BillingSource:        task.BillingSource,
+		OrganizationID:       task.BillingOrganizationID,
+		OrganizationMemberID: task.BillingMemberUserID,
+		BatchID:              task.LocalTaskID,
+		HoldRequestID:        task.HoldID,
+		HoldAmount:           task.HoldAmount,
+		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	})
 	if errors.Is(err, ErrUsageBillingRequestConflict) {
 		return nil
@@ -591,6 +600,10 @@ func (s *OpenAIGatewayService) applyPPVideoUsageAccounting(
 		BillingType:        usageLog.BillingType,
 		MediaType:          string(BillingModeVideo),
 		RequestPayloadHash: strings.TrimSpace(in.RequestPayloadHash),
+	}
+	if in.Task.BillingSource == APIKeyBillingSourceOrganization {
+		cmd.OrganizationID = in.Task.BillingOrganizationID
+		cmd.OrganizationMemberID = in.Task.BillingMemberUserID
 	}
 	if isSubscription && in.Subscription != nil {
 		cmd.SubscriptionID = &in.Subscription.ID

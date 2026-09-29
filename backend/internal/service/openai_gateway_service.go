@@ -452,6 +452,8 @@ type OpenAIGatewayService struct {
 	codexModelsManifestCache            codexModelsManifestCache
 	openaiCompatSessionResponses        sync.Map
 	openaiCompatAnthropicDigestSessions sync.Map
+	byteDanceAssetGroupOverrides        sync.Map // key: accountID:model, value: groupID
+	byteDanceAssetGroupRecoveryLocks    sync.Map // key: accountID:model, value: *sync.Mutex
 }
 
 // NewOpenAIGatewayService creates a new OpenAIGatewayService

@@ -75,9 +75,10 @@ type BatchImageReferenceInput struct {
 }
 
 type BatchImageOwner struct {
-	UserID   int64
-	APIKeyID int64
-	GroupID  *int64
+	UserID        int64
+	APIKeyID      int64
+	GroupID       *int64
+	BillingSource BillingSourceSnapshot
 }
 
 type BatchImagePublicService struct {
@@ -261,6 +262,9 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 		UserID:                  owner.UserID,
 		APIKeyID:                &apiKeyID,
 		AccountID:               &accountID,
+		BillingSource:           owner.BillingSource.Type,
+		BillingOrganizationID:   owner.BillingSource.OrganizationID,
+		BillingMemberUserID:     owner.BillingSource.OrganizationMemberID,
 		Provider:                provider.Name(),
 		Model:                   normalized.Model,
 		TaskName:                normalized.TaskName,

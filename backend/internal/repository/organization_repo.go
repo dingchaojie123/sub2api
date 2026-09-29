@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type organizationRepository struct{ db *sql.DB }
@@ -75,7 +76,7 @@ func (r *organizationRepository) Delete(ctx context.Context, organizationID, act
 	}
 
 	rows, err := tx.QueryContext(ctx, `SELECT k.key FROM api_keys k
-		JOIN organization_api_keys ok ON ok.api_key_id=k.id WHERE ok.organization_id=$1`, organizationID)
+		JOIN organization_api_keys ok ON ok.api_key_id=k.id WHERE ok.organization_id=$1 AND ok.status='active'`, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +109,10 @@ func (r *organizationRepository) Delete(ctx context.Context, organizationID, act
 		return nil, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='inactive',updated_at=NOW()
-		WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1)`, organizationID); err != nil {
+		WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1 AND status='active')`, organizationID); err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1`, organizationID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND status='active'`, organizationID); err != nil {
 		return nil, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET status='disabled',updated_at=NOW() WHERE organization_id=$1`, organizationID); err != nil {
@@ -381,10 +382,10 @@ func (r *organizationRepository) UpdateMember(ctx context.Context, organizationI
 		return err
 	}
 	if status != nil && *status == "disabled" {
-		if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='inactive',updated_at=NOW() WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1 AND member_user_id=$2)`, organizationID, memberUserID); err != nil {
+		if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='inactive',updated_at=NOW() WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1 AND member_user_id=$2 AND status='active')`, organizationID, memberUserID); err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND member_user_id=$2`, organizationID, memberUserID)
+		_, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND member_user_id=$2 AND status='active'`, organizationID, memberUserID)
 		if err != nil {
 			return err
 		}
@@ -419,7 +420,7 @@ func (r *organizationRepository) RemoveMember(ctx context.Context, organizationI
 	if actorRole != service.OrganizationRoleOwner && (actorRole != service.OrganizationRoleAdmin || targetRole != service.OrganizationRoleMember) {
 		return nil, service.ErrOrganizationForbidden
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT k.key FROM api_keys k JOIN organization_api_keys ok ON ok.api_key_id=k.id WHERE ok.organization_id=$1 AND ok.member_user_id=$2`, organizationID, memberUserID)
+	rows, err := tx.QueryContext(ctx, `SELECT k.key FROM api_keys k JOIN organization_api_keys ok ON ok.api_key_id=k.id WHERE ok.organization_id=$1 AND ok.member_user_id=$2 AND ok.status='active'`, organizationID, memberUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -437,10 +438,10 @@ func (r *organizationRepository) RemoveMember(ctx context.Context, organizationI
 		return nil, err
 	}
 	rows.Close()
-	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='inactive',updated_at=NOW() WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1 AND member_user_id=$2)`, organizationID, memberUserID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE api_keys SET status='inactive',updated_at=NOW() WHERE id IN(SELECT api_key_id FROM organization_api_keys WHERE organization_id=$1 AND member_user_id=$2 AND status='active')`, organizationID, memberUserID); err != nil {
 		return nil, err
 	}
-	if _, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND member_user_id=$2`, organizationID, memberUserID); err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND member_user_id=$2 AND status='active'`, organizationID, memberUserID); err != nil {
 		return nil, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET status='disabled',updated_at=NOW() WHERE organization_id=$1 AND user_id=$2`, organizationID, memberUserID); err != nil {
@@ -532,13 +533,97 @@ func (r *organizationRepository) AttachAPIKey(ctx context.Context, organizationI
 	return tx.Commit()
 }
 
+func (r *organizationRepository) SetAPIKeyBillingSource(ctx context.Context, apiKeyID, actorUserID int64, billingType string, organizationID *int64) (_ *service.APIKeyBillingSource, credential string, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if billingType == service.APIKeyBillingSourcePersonal {
+		var previousOrganizationID sql.NullInt64
+		err = tx.QueryRowContext(ctx, `SELECT organization_id FROM organization_api_keys WHERE api_key_id=$1`, apiKeyID).Scan(&previousOrganizationID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, "", err
+		}
+		if previousOrganizationID.Valid {
+			var lockedOrganizationID int64
+			if err = tx.QueryRowContext(ctx, `SELECT id FROM organizations WHERE id=$1 FOR UPDATE`, previousOrganizationID.Int64).Scan(&lockedOrganizationID); err != nil {
+				return nil, "", err
+			}
+			if err = insertOrganizationAudit(ctx, tx, previousOrganizationID.Int64, actorUserID, "api_key.billing_source.change", "api_key", fmt.Sprint(apiKeyID), map[string]any{"billing_type": "personal"}); err != nil {
+				return nil, "", err
+			}
+		}
+		if err = lockOwnedAPIKey(ctx, tx, apiKeyID, actorUserID, &credential); err != nil {
+			return nil, "", err
+		}
+		if previousOrganizationID.Valid {
+			if _, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='detached' WHERE api_key_id=$1`, apiKeyID); err != nil {
+				return nil, "", err
+			}
+		}
+		if err = tx.Commit(); err != nil {
+			return nil, "", err
+		}
+		return &service.APIKeyBillingSource{Type: service.APIKeyBillingSourcePersonal, Status: service.APIKeyBillingSourceActive}, credential, nil
+	}
+
+	if organizationID == nil || *organizationID <= 0 {
+		return nil, "", service.ErrOrganizationForbidden
+	}
+	if _, err = organizationActorRole(ctx, tx, *organizationID, actorUserID); err != nil {
+		return nil, "", err
+	}
+	var organizationName string
+	if err = tx.QueryRowContext(ctx, `SELECT name FROM organizations WHERE id=$1`, *organizationID).Scan(&organizationName); err != nil {
+		return nil, "", err
+	}
+	if err = insertOrganizationAudit(ctx, tx, *organizationID, actorUserID, "api_key.billing_source.change", "api_key", fmt.Sprint(apiKeyID), map[string]any{"billing_type": "organization"}); err != nil {
+		return nil, "", err
+	}
+	if err = lockOwnedAPIKey(ctx, tx, apiKeyID, actorUserID, &credential); err != nil {
+		return nil, "", err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO organization_api_keys(api_key_id,organization_id,member_user_id,status,created_at)
+		VALUES($1,$2,$3,'active',NOW())
+		ON CONFLICT(api_key_id) DO UPDATE SET organization_id=EXCLUDED.organization_id,member_user_id=EXCLUDED.member_user_id,status='active',created_at=NOW()`, apiKeyID, *organizationID, actorUserID)
+	if err != nil {
+		return nil, "", err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, "", err
+	}
+	organizationIDCopy := *organizationID
+	return &service.APIKeyBillingSource{
+		Type:             service.APIKeyBillingSourceOrganization,
+		OrganizationID:   &organizationIDCopy,
+		OrganizationName: organizationName,
+		Status:           service.APIKeyBillingSourceActive,
+	}, credential, nil
+}
+
+func lockOwnedAPIKey(ctx context.Context, tx *sql.Tx, apiKeyID, actorUserID int64, credential *string) error {
+	var ownerUserID int64
+	if err := tx.QueryRowContext(ctx, `SELECT user_id,key FROM api_keys WHERE id=$1 AND deleted_at IS NULL FOR UPDATE`, apiKeyID).Scan(&ownerUserID, credential); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return service.ErrAPIKeyNotFound
+		}
+		return err
+	}
+	if ownerUserID != actorUserID {
+		return service.ErrAPIKeyNotFound
+	}
+	return nil
+}
+
 func (r *organizationRepository) GetBillingSubjectByAPIKey(ctx context.Context, apiKeyID int64) (*service.OrganizationBillingSubject, error) {
 	var s service.OrganizationBillingSubject
 	var orgStatus, memberStatus, keyStatus string
 	err := r.db.QueryRowContext(ctx, `SELECT ok.organization_id,ok.member_user_id,o.balance,o.frozen_balance,m.monthly_limit,
 		CASE WHEN m.usage_period_start < date_trunc('month',NOW()) THEN 0 ELSE m.monthly_used END,
 		CASE WHEN m.usage_period_start < date_trunc('month',NOW()) THEN 0 ELSE m.monthly_frozen END,
-		o.status,m.status,ok.status FROM organization_api_keys ok JOIN organizations o ON o.id=ok.organization_id JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id WHERE ok.api_key_id=$1`, apiKeyID).Scan(&s.OrganizationID, &s.MemberUserID, &s.Balance, &s.FrozenBalance, &s.MonthlyLimit, &s.MonthlyUsed, &s.MonthlyFrozen, &orgStatus, &memberStatus, &keyStatus)
+		o.status,m.status,ok.status FROM organization_api_keys ok JOIN organizations o ON o.id=ok.organization_id JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id WHERE ok.api_key_id=$1 AND ok.status <> 'detached'`, apiKeyID).Scan(&s.OrganizationID, &s.MemberUserID, &s.Balance, &s.FrozenBalance, &s.MonthlyLimit, &s.MonthlyUsed, &s.MonthlyFrozen, &orgStatus, &memberStatus, &keyStatus)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -547,6 +632,44 @@ func (r *organizationRepository) GetBillingSubjectByAPIKey(ctx context.Context, 
 	}
 	s.Active = orgStatus == "active" && memberStatus == "active" && keyStatus == "active"
 	return &s, nil
+}
+
+func (r *organizationRepository) GetAPIKeyBillingSources(ctx context.Context, apiKeyIDs []int64) (map[int64]service.APIKeyBillingSource, error) {
+	sources := make(map[int64]service.APIKeyBillingSource, len(apiKeyIDs))
+	if len(apiKeyIDs) == 0 {
+		return sources, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT ok.api_key_id,o.id,o.name,o.status,m.status,ok.status
+		FROM organization_api_keys ok
+		JOIN organizations o ON o.id=ok.organization_id
+		JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id
+		WHERE ok.api_key_id = ANY($1)`, pq.Array(apiKeyIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var apiKeyID, organizationID int64
+		var name, organizationStatus, memberStatus, bindingStatus string
+		if err := rows.Scan(&apiKeyID, &organizationID, &name, &organizationStatus, &memberStatus, &bindingStatus); err != nil {
+			return nil, err
+		}
+		if bindingStatus == "detached" {
+			continue
+		}
+		status := service.APIKeyBillingSourceInactive
+		if organizationStatus == "active" && memberStatus == "active" && bindingStatus == "active" {
+			status = service.APIKeyBillingSourceActive
+		}
+		organizationIDCopy := organizationID
+		sources[apiKeyID] = service.APIKeyBillingSource{
+			Type:             service.APIKeyBillingSourceOrganization,
+			OrganizationID:   &organizationIDCopy,
+			OrganizationName: name,
+			Status:           status,
+		}
+	}
+	return sources, rows.Err()
 }
 
 func (r *organizationRepository) UsageReport(ctx context.Context, organizationID, actorUserID int64, start, end time.Time) (*service.OrganizationUsageReport, error) {

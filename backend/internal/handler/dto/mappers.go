@@ -80,6 +80,19 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 	if k == nil {
 		return nil
 	}
+	billingSource := APIKeyBillingSource{
+		Type:   service.APIKeyBillingSourcePersonal,
+		Status: service.APIKeyBillingSourceActive,
+	}
+	if k.BillingSource != nil {
+		billingSource.Type = k.BillingSource.Type
+		billingSource.OrganizationID = k.BillingSource.OrganizationID
+		billingSource.Status = k.BillingSource.Status
+		if k.BillingSource.OrganizationName != "" {
+			name := k.BillingSource.OrganizationName
+			billingSource.OrganizationName = &name
+		}
+	}
 	out := &APIKey{
 		ID:                 k.ID,
 		UserID:             k.UserID,
@@ -97,6 +110,7 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		CreatedAt:          k.CreatedAt,
 		UpdatedAt:          k.UpdatedAt,
 		CurrentConcurrency: k.CurrentConcurrency,
+		BillingSource:      billingSource,
 		RateLimit5h:        k.RateLimit5h,
 		RateLimit1d:        k.RateLimit1d,
 		RateLimit7d:        k.RateLimit7d,

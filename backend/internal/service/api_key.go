@@ -14,6 +14,21 @@ const (
 	StatusAPIKeyExpired        = "expired"
 )
 
+const (
+	APIKeyBillingSourcePersonal     = "personal"
+	APIKeyBillingSourceOrganization = "organization"
+	APIKeyBillingSourceActive       = "active"
+	APIKeyBillingSourceInactive     = "inactive"
+)
+
+// APIKeyBillingSource identifies the account charged by requests using an API key.
+type APIKeyBillingSource struct {
+	Type             string
+	OrganizationID   *int64
+	OrganizationName string
+	Status           string
+}
+
 // Rate limit window durations
 const (
 	RateLimitWindow5h = 5 * time.Hour
@@ -47,6 +62,7 @@ type APIKey struct {
 	Group               *Group
 	CurrentConcurrency  int
 	Organization        *OrganizationBillingSubject
+	BillingSource       *APIKeyBillingSource
 
 	// Quota fields
 	Quota     float64    // Quota limit in USD (0 = unlimited)

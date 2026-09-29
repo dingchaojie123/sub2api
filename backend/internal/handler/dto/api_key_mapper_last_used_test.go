@@ -44,4 +44,27 @@ func TestAPIKeyFromService_MapsNilLastUsedAt(t *testing.T) {
 	require.NotNil(t, out)
 	require.Nil(t, out.LastUsedAt)
 	require.Nil(t, out.LastUsedIP)
+	require.Equal(t, service.APIKeyBillingSourcePersonal, out.BillingSource.Type)
+	require.Equal(t, service.APIKeyBillingSourceActive, out.BillingSource.Status)
+	require.Nil(t, out.BillingSource.OrganizationID)
+	require.Nil(t, out.BillingSource.OrganizationName)
+}
+
+func TestAPIKeyFromService_MapsOrganizationBillingSource(t *testing.T) {
+	organizationID := int64(12)
+	src := &service.APIKey{
+		ID: 1,
+		BillingSource: &service.APIKeyBillingSource{
+			Type:             service.APIKeyBillingSourceOrganization,
+			OrganizationID:   &organizationID,
+			OrganizationName: "产品研发团队",
+			Status:           service.APIKeyBillingSourceInactive,
+		},
+	}
+
+	out := APIKeyFromService(src)
+	require.Equal(t, service.APIKeyBillingSourceOrganization, out.BillingSource.Type)
+	require.Equal(t, organizationID, *out.BillingSource.OrganizationID)
+	require.Equal(t, "产品研发团队", *out.BillingSource.OrganizationName)
+	require.Equal(t, service.APIKeyBillingSourceInactive, out.BillingSource.Status)
 }

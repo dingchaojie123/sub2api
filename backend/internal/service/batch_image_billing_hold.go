@@ -45,13 +45,16 @@ func buildBatchImageHoldCommand(job *BatchImageJob, requestID string, actualAmou
 		actualAmount = 0
 	}
 	return &BatchImageBalanceHoldCommand{
-		RequestID:          requestID,
-		APIKeyID:           *job.APIKeyID,
-		UserID:             job.UserID,
-		BatchID:            job.BatchID,
-		HoldAmount:         holdAmount,
-		ActualAmount:       actualAmount,
-		RequestPayloadHash: strings.TrimSpace(payloadHash),
+		RequestID:            requestID,
+		APIKeyID:             *job.APIKeyID,
+		UserID:               job.UserID,
+		BillingSource:        job.BillingSource,
+		OrganizationID:       job.BillingOrganizationID,
+		OrganizationMemberID: job.BillingMemberUserID,
+		BatchID:              job.BatchID,
+		HoldAmount:           holdAmount,
+		ActualAmount:         actualAmount,
+		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	}, nil
 }
 

@@ -747,7 +747,7 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 		if !organization.Active {
 			return ErrOrganizationForbidden
 		}
-		if organization.Balance <= 0 {
+		if s.balanceBelowEligibilityThreshold(organization.Balance) {
 			return ErrOrganizationBalance
 		}
 		if organization.MonthlyLimit > 0 && organization.MonthlyUsed+organization.MonthlyFrozen >= organization.MonthlyLimit {

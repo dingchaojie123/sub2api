@@ -185,6 +185,33 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 	})
 }
 
+// SetBillingSource switches an existing key between personal and organization billing.
+func (h *APIKeyHandler) SetBillingSource(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req struct {
+		APIKeyID       int64  `json:"api_key_id" binding:"required"`
+		Type           string `json:"type" binding:"required"`
+		OrganizationID *int64 `json:"organization_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	executeUserIdempotentJSON(c, "user.api_keys.billing_source", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		key, err := h.apiKeyService.SetBillingSource(ctx, subject.UserID, service.SetAPIKeyBillingSourceInput{
+			APIKeyID: req.APIKeyID, Type: req.Type, OrganizationID: req.OrganizationID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return dto.APIKeyFromService(key), nil
+	})
+}
+
 // Update handles updating an API key
 // PUT /api/v1/api-keys/:id
 func (h *APIKeyHandler) Update(c *gin.Context) {

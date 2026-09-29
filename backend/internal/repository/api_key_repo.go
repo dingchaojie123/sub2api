@@ -405,7 +405,6 @@ func (r *apiKeyRepository) apiKeyListByUserIDQuery(userID int64, filters service
 			q = q.Where(apikey.GroupIDEQ(*filters.GroupID))
 		}
 	}
-
 	return q
 }
 

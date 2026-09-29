@@ -22,12 +22,14 @@ func (r *usageBillingRepository) CreateJimengVideoTask(ctx context.Context, para
 		INSERT INTO jimeng_video_tasks (
 			local_task_id, user_id, api_key_id, group_id, account_id, model, status,
 			billing_status, request_hash, idempotency_key, hold_id, capture_id,
-			release_id, estimated_total_cost, hold_amount, currency, video_duration_seconds, video_resolution
+			release_id, estimated_total_cost, hold_amount, currency, video_duration_seconds, video_resolution,
+			billing_source, billing_organization_id, billing_member_user_id
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6, $7,
 			$8, $9, NULLIF($10, ''), $11, $12,
-			$13, $14, $15, $16, $17, $18
+			$13, $14, $15, $16, $17, $18,
+			$19, $20, $21
 		)
 		RETURNING `+jimengVideoTaskColumns(),
 		strings.TrimSpace(params.LocalTaskID),
@@ -48,6 +50,9 @@ func (r *usageBillingRepository) CreateJimengVideoTask(ctx context.Context, para
 		strings.TrimSpace(params.Currency),
 		params.VideoDurationSeconds,
 		strings.TrimSpace(params.VideoResolution),
+		normalizeTaskBillingSource(params.BillingSource),
+		sqlNullInt64(params.BillingOrganizationID),
+		sqlNullInt64(params.BillingMemberUserID),
 	)
 	task, err := scanJimengVideoTask(row)
 	if err != nil {
@@ -475,13 +480,14 @@ func jimengVideoTaskColumns() string {
 		estimated_total_cost, hold_amount, actual_cost, currency, video_duration_seconds,
 		video_resolution, response_status, response_content_type, response_body,
 		COALESCE(last_error_code, ''), COALESCE(last_error_message, ''),
-		created_at, updated_at, submitted_at, finished_at, settled_at
+		created_at, updated_at, submitted_at, finished_at, settled_at,
+		billing_source, billing_organization_id, billing_member_user_id
 	`
 }
 
 func scanJimengVideoTask(row jimengVideoTaskScanner) (*service.JimengVideoTask, error) {
 	var task service.JimengVideoTask
-	var groupID sql.NullInt64
+	var groupID, billingOrganizationID, billingMemberUserID sql.NullInt64
 	var actualCost sql.NullFloat64
 	var submittedAt, finishedAt, settledAt sql.NullTime
 	if err := row.Scan(
@@ -516,11 +522,20 @@ func scanJimengVideoTask(row jimengVideoTaskScanner) (*service.JimengVideoTask, 
 		&submittedAt,
 		&finishedAt,
 		&settledAt,
+		&task.BillingSource,
+		&billingOrganizationID,
+		&billingMemberUserID,
 	); err != nil {
 		return nil, err
 	}
 	if groupID.Valid {
 		task.GroupID = &groupID.Int64
+	}
+	if billingOrganizationID.Valid {
+		task.BillingOrganizationID = &billingOrganizationID.Int64
+	}
+	if billingMemberUserID.Valid {
+		task.BillingMemberUserID = &billingMemberUserID.Int64
 	}
 	if actualCost.Valid {
 		task.ActualCost = &actualCost.Float64

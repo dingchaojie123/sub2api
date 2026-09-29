@@ -6,12 +6,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -296,12 +298,21 @@ func (s *OpenAIGatewayService) prepareByteDancePrivateImageAssets(ctx context.Co
 		upstreamModel = ByteDanceVideoDefaultModel
 	}
 	groupID, err := s.ensureByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, upstreamModel)
+	if isByteDanceAssetGroupProviderUnavailable(err) {
+		groupID, err = s.recreateByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, upstreamModel, "")
+	}
 	if err != nil {
 		return nil, err
 	}
 	rewritten := body
 	for _, item := range imageURLs {
 		assetID, err := s.ensureByteDanceImageAsset(ctx, baseURL, token, proxyURL, account, groupID, item.url)
+		if isByteDanceAssetGroupProviderUnavailable(err) {
+			groupID, err = s.recreateByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, upstreamModel, groupID)
+			if err == nil {
+				assetID, err = s.ensureByteDanceImageAsset(ctx, baseURL, token, proxyURL, account, groupID, item.url)
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -351,8 +362,14 @@ const ppVideoByteDanceAssetStatusPolls = 30
 const ppVideoByteDanceAssetStatusPollInterval = 2 * time.Second
 
 func (s *OpenAIGatewayService) ensureByteDanceAIGCAssetGroup(ctx context.Context, baseURL, token, proxyURL string, account *Account, model string) (string, error) {
+	cacheKey := byteDanceAssetGroupCacheKey(account, model)
+	if cached, ok := s.byteDanceAssetGroupOverrides.Load(cacheKey); ok {
+		if groupID, _ := cached.(string); strings.TrimSpace(groupID) != "" {
+			return groupID, nil
+		}
+	}
 	groupName := ppVideoByteDanceAssetGroupName(model)
-	listBody := []byte(fmt.Sprintf(`{"filter":{"group_type":"AIGC","name":%q},"page_number":1,"page_size":100}`, groupName))
+	listBody := []byte(fmt.Sprintf(`{"filter":{"group_type":"AIGC","name":%q},"page_number":1,"page_size":100,"sort_by":"UpdateTime","sort_order":"Desc"}`, groupName))
 	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/groups/list", listBody)
 	if err != nil {
 		return "", err
@@ -364,6 +381,30 @@ func (s *OpenAIGatewayService) ensureByteDanceAIGCAssetGroup(ctx context.Context
 			}
 		}
 	}
+	return s.createByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, groupName, model)
+}
+
+func (s *OpenAIGatewayService) recreateByteDanceAIGCAssetGroup(ctx context.Context, baseURL, token, proxyURL string, account *Account, model, staleGroupID string) (string, error) {
+	cacheKey := byteDanceAssetGroupCacheKey(account, model)
+	lockValue, _ := s.byteDanceAssetGroupRecoveryLocks.LoadOrStore(cacheKey, &sync.Mutex{})
+	lock := lockValue.(*sync.Mutex)
+	lock.Lock()
+	defer lock.Unlock()
+
+	if cached, ok := s.byteDanceAssetGroupOverrides.Load(cacheKey); ok {
+		if groupID, _ := cached.(string); strings.TrimSpace(groupID) != "" && groupID != staleGroupID {
+			return groupID, nil
+		}
+	}
+	groupID, err := s.createByteDanceAIGCAssetGroup(ctx, baseURL, token, proxyURL, account, ppVideoByteDanceAssetGroupName(model), model)
+	if err != nil {
+		return "", err
+	}
+	s.byteDanceAssetGroupOverrides.Store(cacheKey, groupID)
+	return groupID, nil
+}
+
+func (s *OpenAIGatewayService) createByteDanceAIGCAssetGroup(ctx context.Context, baseURL, token, proxyURL string, account *Account, groupName, model string) (string, error) {
 	createBody, err := json.Marshal(map[string]any{
 		"name":       groupName,
 		"group_type": "AIGC",
@@ -372,7 +413,7 @@ func (s *OpenAIGatewayService) ensureByteDanceAIGCAssetGroup(ctx context.Context
 	if err != nil {
 		return "", err
 	}
-	respBody, err = s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/groups/create", createBody)
+	respBody, err := s.doByteDanceAssetRequest(ctx, baseURL, token, proxyURL, account, "/v1/volce-asset/groups/create", createBody)
 	if err != nil {
 		return "", err
 	}
@@ -380,6 +421,23 @@ func (s *OpenAIGatewayService) ensureByteDanceAIGCAssetGroup(ctx context.Context
 		return id, nil
 	}
 	return "", fmt.Errorf("ByteDance asset group response missing id")
+}
+
+func byteDanceAssetGroupCacheKey(account *Account, model string) string {
+	var accountID int64
+	if account != nil {
+		accountID = account.ID
+	}
+	return fmt.Sprintf("%d:%s", accountID, strings.ToLower(strings.TrimSpace(model)))
+}
+
+func isByteDanceAssetGroupProviderUnavailable(err error) bool {
+	var upstreamErr *PPVideoUpstreamError
+	if !errors.As(err, &upstreamErr) || upstreamErr.StatusCode < http.StatusBadRequest || upstreamErr.StatusCode >= http.StatusInternalServerError {
+		return false
+	}
+	message := strings.ToLower(strings.TrimSpace(ExtractUpstreamErrorMessage(upstreamErr.ResponseBody)))
+	return strings.Contains(message, "asset group provider unavailable")
 }
 
 func ppVideoByteDanceAssetGroupName(model string) string {

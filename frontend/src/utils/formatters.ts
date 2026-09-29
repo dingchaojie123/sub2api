@@ -1,3 +1,10 @@
+export function formatCurrencyWithoutDollar(formatter: Intl.NumberFormat, amount: number): string {
+  return formatter.formatToParts(amount)
+    .map(({ type, value }) => type === 'currency' && value.includes('$') ? '' : value)
+    .join('')
+    .trim()
+}
+
 /**
  * 格式化缓存 token 数量（1K/1M 缩写）
  */

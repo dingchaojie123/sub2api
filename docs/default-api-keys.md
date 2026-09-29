@@ -41,7 +41,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
   "code": 0,
   "message": "success",
   "data": [
-    {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型】", "group_id": 1, "status": "active"}},
+    {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
     {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "OC--ChatGPT【生图】", "group_id": 2, "status": "active"}},
     {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "OC--Seedance【视频】", "group_id": 3, "status": "active"}},
     {"purpose": "audio", "api_key": {"id": 104, "key": "sk-...", "name": "OC--Qwen-TTS【音频】", "group_id": 4, "status": "active"}}
@@ -50,6 +50,10 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
 ```
 
 通过 `purpose` 匹配用途，取 `api_key.key` 作为模型调用的 Bearer API Key。示例中的 ID 仅为占位，真实分组 ID 由服务器查询。
+
+每个非空 `api_key` 都返回 `billing_source`。`type=personal` 使用个人额度；`type=organization` 使用 `organization_id` 对应团队的统一额度，并返回 `organization_name`。下游同时检查密钥自身和计费来源的 `status`，任一不是 `active` 都应停止使用并刷新默认密钥。失效团队绑定不会被伪装成个人计费来源。
+
+注册自动创建的四个默认密钥初始使用个人额度。加入团队后，可调用 `PUT /api/v1/keys/billing-source` 将任一现有密钥切换为团队额度；密钥内容和本页的默认用途关联保持不变。完整请求样例见 [客户账户对外 API](customer-account-api.md#api-密钥计费来源)。
 
 GET 会先补齐尚未初始化的用途，再返回最新默认密钥；重复请求不会重复生成。已删除默认密钥仍保留用途记录，其 `api_key` 为 `null`，需要通过更新接口显式指定新密钥。停用或过期的密钥保持原状态。密钥改名不影响用途识别，后续手工修改分组时返回当前真实分组信息。
 
@@ -86,8 +90,9 @@ curl -X PUT 'https://YOUR_DOMAIN/api/v1/keys/defaults/text' \
 
 - 路径 `purpose` 取值为 `text`、`image`、`video`、`audio`，每次更新一个用途。
 - 请求体 `api_key_id` 为已有新密钥的正整数 ID，可从创建密钥响应或 `GET /api/v1/keys` 获得；不要传 `sk-...` 字符串。
-- 新密钥必须属于当前客户，分组需启用且客户有绑定权限。四个默认用途都不限定为初始化时的固定分组名：`text` 可使用文本平台分组，`image` 可使用已开启生图能力的分组，`video` 可使用已支持的视频平台分组，`audio` 可使用已支持的音频平台分组。
+- 新密钥必须属于当前客户，分组需启用且客户有绑定权限。四个默认用途都不限定为初始化时的固定分组名：`text` 可使用文本平台分组，`image` 可使用已开启生图能力的分组，`video` 可使用即梦（`jimeng`）及已支持的 PP 视频平台分组，`audio` 可使用已支持的音频平台分组。初始化的四个保留分组名仍只匹配各自用途，同一密钥不能同时作为多个用途的默认密钥。
 - 新密钥必须启用、未过期，且密钥总额度未耗尽。IP 限制、速率限额、账户余额等仍按原规则生效。
+- 团队计费密钥还要求 `billing_source.status=active`；成员已被移除或团队已删除时，更新返回 `DEFAULT_API_KEY_BILLING_SOURCE_UNAVAILABLE`。
 
 成功时返回单个更新后的默认项（密钥对象其他字段省略）：
 
@@ -112,6 +117,7 @@ curl -X PUT 'https://YOUR_DOMAIN/api/v1/keys/defaults/text' \
 | 400 | `INVALID_DEFAULT_API_KEY_PURPOSE` | 不支持的用途 |
 | 400 | `DEFAULT_API_KEY_GROUP_MISMATCH` | 新密钥未绑定对应用途允许的能力分组 |
 | 400 | `DEFAULT_API_KEY_UNAVAILABLE` | 新密钥停用、过期或总额度耗尽 |
+| 400 | `DEFAULT_API_KEY_BILLING_SOURCE_UNAVAILABLE` | 团队绑定、团队或成员状态已失效 |
 | 401 | 由认证中间件返回 | JWT 缺失、无效或过期 |
 | 403 | `GROUP_NOT_ALLOWED` | 客户没有绑定该分组的权限 |
 | 404 | `API_KEY_NOT_FOUND` | 密钥不存在、已删除或属于其他客户 |

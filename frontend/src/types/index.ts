@@ -643,6 +643,7 @@ export interface ApiKey {
   created_at: string
   updated_at: string
   current_concurrency: number
+  billing_source?: ApiKeyBillingSource
   group?: Group
   rate_limit_5h: number
   rate_limit_1d: number
@@ -656,6 +657,13 @@ export interface ApiKey {
   reset_5h_at: string | null
   reset_1d_at: string | null
   reset_7d_at: string | null
+}
+
+export interface ApiKeyBillingSource {
+  type: 'personal' | 'organization'
+  organization_id: number | null
+  organization_name: string | null
+  status: 'active' | 'inactive'
 }
 
 export interface CreateApiKeyRequest {

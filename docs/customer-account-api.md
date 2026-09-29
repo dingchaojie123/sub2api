@@ -2,6 +2,8 @@
 
 本文档供下游服务对接客户兑换码、账户余额和默认 API 密钥。
 
+注册、邮箱验证、登录、2FA 和凭证刷新接入方式，以及可执行的 HTTP 模拟测试样例，见 [客户注册与登录对外 API](customer-auth-api.md)。
+
 ## 认证
 
 所有接口均使用客户注册、登录或 OAuth 登录返回的 `data.access_token`：
@@ -19,6 +21,9 @@ Authorization: Bearer <access_token>
 | 兑换兑换码 | POST | `/api/v1/redeem` |
 | 查询账户余额 | GET | `/api/v1/user/balance` |
 | 查询最近兑换记录 | GET | `/api/v1/redeem/history` |
+| 获取客户 API 密钥 | GET | `/api/v1/keys` |
+| 创建个人或团队计费密钥 | POST | `/api/v1/keys` |
+| 切换已有密钥的计费来源 | PUT | `/api/v1/keys/billing-source` |
 | 获取四个默认密钥（自动检查并补齐） | GET | `/api/v1/keys/defaults` |
 | 获取单个默认密钥（自动检查并补齐） | GET | `/api/v1/keys/defaults/:purpose` |
 | 补建默认密钥 | POST | `/api/v1/keys/defaults` |
@@ -27,6 +32,90 @@ Authorization: Bearer <access_token>
 默认密钥的分组、用途和完整示例见 [默认 API 密钥文档](default-api-keys.md)。更新接口接收 `{"api_key_id":205}`，将客户已有的新密钥设为默认，旧密钥保留；更新后重新 GET 默认密钥接口即可读取最新结果。
 
 老用户首次 GET 时会自动检查四个用途：保留已有默认关联，未初始化的用途优先复用同组已有密钥，缺少时才创建。重复拉取不会重复创建；复用密钥的状态、有效期及额度限制保持不变。
+
+## API 密钥计费来源
+
+`POST /api/v1/keys`、`GET /api/v1/keys`、密钥详情、密钥更新以及所有默认密钥接口返回的密钥对象均包含 `billing_source`。下游应使用该对象展示计费账户，不应根据密钥名称、分组名称或当前个人余额推断。
+
+个人密钥：
+
+```json
+"billing_source": {
+  "type": "personal",
+  "organization_id": null,
+  "organization_name": null,
+  "status": "active"
+}
+```
+
+团队密钥：
+
+```json
+"billing_source": {
+  "type": "organization",
+  "organization_id": 12,
+  "organization_name": "产品研发团队",
+  "status": "active"
+}
+```
+
+成员使用自己的登录 JWT 创建团队计费密钥，请在 JSON 请求体中传 `organization_id`，不要拼接到 URL 路径：
+
+```bash
+curl -X POST 'https://YOUR_DOMAIN/api/v1/keys' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: create-team-key-001' \
+  -d '{"name":"Corgi Play 文本密钥","group_id":1,"organization_id":12}'
+```
+
+`organization_id` 省略时创建个人计费密钥。传入时，当前 JWT 用户必须是该团队的有效成员；密钥仍归成员个人管理，但调用费用从团队统一额度扣除。团队余额不复制到密钥响应，请通过 `GET /api/v1/organizations?organization_id=12` 获取。
+
+注册时自动创建的默认密钥和其他已有密钥都可以直接切换计费来源，无需删除或重新创建。该接口使用 JSON 请求体传参，并要求 `Idempotency-Key`；切换不会改变密钥字符串、分组、状态、额度限制或默认用途关联。
+
+切换为团队额度：
+
+```bash
+curl -X PUT 'https://YOUR_DOMAIN/api/v1/keys/billing-source' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: billing-source-team-205-001' \
+  -d '{"api_key_id":205,"type":"organization","organization_id":12}'
+```
+
+切回个人额度：
+
+```bash
+curl -X PUT 'https://YOUR_DOMAIN/api/v1/keys/billing-source' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: billing-source-personal-205-001' \
+  -d '{"api_key_id":205,"type":"personal"}'
+```
+
+`api_key_id` 必须属于当前 JWT 用户；团队模式还要求当前用户是目标团队的有效成员。成功响应为更新后的完整 Key 对象，其中 `billing_source` 已反映新来源。切换为个人模式后，历史团队关联保留为审计数据，但不会参与后续认证、计费或团队删除联动。切换请求与正在执行的请求并发时，已经建立计费上下文的请求按原来源结算，后续请求使用新来源。
+
+| HTTP 状态 | reason | 说明 |
+| --- | --- | --- |
+| 400 | `INVALID_API_KEY_BILLING_SOURCE` | `type` 不是 `personal` 或 `organization` |
+| 400 | `ORGANIZATION_ID_REQUIRED` | 团队模式缺少有效的 `organization_id` |
+| 401 | 由认证中间件返回 | JWT 缺失、无效或过期 |
+| 403 | `ORGANIZATION_FORBIDDEN` | 当前用户不是目标团队的有效成员 |
+| 404 | `API_KEY_NOT_FOUND` | Key 不存在、已删除或不属于当前用户 |
+| 409 | 幂等冲突 reason | 同一个 `Idempotency-Key` 被用于不同请求体 |
+
+下游展示规则：`type=personal` 显示“个人额度”；`type=organization` 显示 `organization_name`。只有密钥自身 `status=active` 且 `billing_source.status=active` 时才可作为可用密钥。成员被移除或团队被删除后，绑定信息仍返回为团队来源，但 `billing_source.status` 变为 `inactive`，不得回退显示或使用个人额度。
+
+设置默认 Key 时继续提交密钥 ID：
+
+```bash
+curl -X PUT 'https://YOUR_DOMAIN/api/v1/keys/defaults/text' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"api_key_id":205}'
+```
+
+服务端拒绝把失效的团队密钥设为默认，HTTP 400 的稳定 `reason` 为 `DEFAULT_API_KEY_BILLING_SOURCE_UNAVAILABLE`。模型调用遇到 `API_KEY_INACTIVE` 或团队额度错误时，下游应重新拉取 `GET /api/v1/keys/defaults`；团队额度不足可能返回 `ORGANIZATION_QUOTA_EXHAUSTED`，成员月限额不足可能返回 `ORGANIZATION_MEMBER_QUOTA_EXHAUSTED`。
 
 ## 兑换兑换码
 

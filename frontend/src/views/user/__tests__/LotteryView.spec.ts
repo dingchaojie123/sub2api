@@ -104,13 +104,13 @@ describe('LotteryView', () => {
 
     await flushPromises()
 
-    expect(wrapper.text()).toMatch(/lottery\.firstPrize\s*·\s*\$30(?!0)/)
-    expect(wrapper.text()).toMatch(/lottery\.secondPrize\s*·\s*\$10(?!0)/)
-    expect(wrapper.text()).toMatch(/lottery\.thirdPrize\s*·\s*\$5(?!0)/)
-    expect(wrapper.text()).toMatch(/lottery\.fourthPrize\s*·\s*\$2(?!0)/)
-    expect(wrapper.text()).not.toContain('lottery.firstPrize · $300')
-    expect(wrapper.text()).not.toContain('lottery.secondPrize · $100')
-    expect(wrapper.text()).not.toContain('lottery.thirdPrize · $50')
+    expect(wrapper.text()).toMatch(/lottery\.firstPrize\s*·\s*30(?!0)/)
+    expect(wrapper.text()).toMatch(/lottery\.secondPrize\s*·\s*10(?!0)/)
+    expect(wrapper.text()).toMatch(/lottery\.thirdPrize\s*·\s*5(?!0)/)
+    expect(wrapper.text()).toMatch(/lottery\.fourthPrize\s*·\s*2(?!0)/)
+    expect(wrapper.text()).not.toContain('lottery.firstPrize · 300')
+    expect(wrapper.text()).not.toContain('lottery.secondPrize · 100')
+    expect(wrapper.text()).not.toContain('lottery.thirdPrize · 50')
   })
 
   it('renders the blind box and shows a soft opening state during a draw', async () => {

@@ -147,7 +147,7 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const platformPrice = (value: number) => `¥${value} / 1M`
-const officialPrice = (value: number) => `$${value} / 1M`
+const officialPrice = (value: number) => `${value} / 1M`
 const priceRow = (
   model: string,
   platformInput: number,
@@ -308,10 +308,10 @@ function normalizePricingGroup(input: unknown): ModelPriceGroup | null {
       if (!row.model?.trim()) return null
       return {
         model: row.model,
-        platformInput: row.platform_input || '-',
-        platformOutput: row.platform_output || '-',
-        officialInput: row.official_input || '-',
-        officialOutput: row.official_output || '-',
+        platformInput: row.platform_input?.replace(/\$/g, '') || '-',
+        platformOutput: row.platform_output?.replace(/\$/g, '') || '-',
+        officialInput: row.official_input?.replace(/\$/g, '') || '-',
+        officialOutput: row.official_output?.replace(/\$/g, '') || '-',
       }
     })
     .filter((row): row is ModelPriceRow => row !== null)

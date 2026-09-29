@@ -107,6 +107,8 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.usage_billing_dedup')").Scan(&usageBillingDedupRegclass))
 	require.True(t, usageBillingDedupRegclass.Valid, "expected usage_billing_dedup table to exist")
 	requireColumn(t, tx, "usage_billing_dedup", "request_fingerprint", "character varying", 64, false)
+	requireColumn(t, tx, "usage_billing_dedup", "organization_id", "bigint", 0, true)
+	requireColumn(t, tx, "usage_billing_dedup", "member_user_id", "bigint", 0, true)
 	requireIndex(t, tx, "usage_billing_dedup", "idx_usage_billing_dedup_request_api_key")
 	requireIndex(t, tx, "usage_billing_dedup", "idx_usage_billing_dedup_created_at_brin")
 
@@ -114,7 +116,15 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.usage_billing_dedup_archive')").Scan(&usageBillingDedupArchiveRegclass))
 	require.True(t, usageBillingDedupArchiveRegclass.Valid, "expected usage_billing_dedup_archive table to exist")
 	requireColumn(t, tx, "usage_billing_dedup_archive", "request_fingerprint", "character varying", 64, false)
+	requireColumn(t, tx, "usage_billing_dedup_archive", "organization_id", "bigint", 0, true)
+	requireColumn(t, tx, "usage_billing_dedup_archive", "member_user_id", "bigint", 0, true)
 	requireIndex(t, tx, "usage_billing_dedup_archive", "usage_billing_dedup_archive_pkey")
+
+	for _, tableName := range []string{"batch_image_jobs", "pp_video_tasks", "jimeng_video_tasks"} {
+		requireColumn(t, tx, tableName, "billing_source", "character varying", 20, false)
+		requireColumn(t, tx, tableName, "billing_organization_id", "bigint", 0, true)
+		requireColumn(t, tx, tableName, "billing_member_user_id", "bigint", 0, true)
+	}
 
 	// settings table should exist
 	var settingsRegclass sql.NullString

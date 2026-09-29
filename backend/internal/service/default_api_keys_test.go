@@ -227,7 +227,7 @@ func TestUpdateDefaultAPIKeyValidatesCandidate(t *testing.T) {
 }
 
 func TestUpdateDefaultAPIKeyAllowsAnyVideoPlatformGroup(t *testing.T) {
-	for _, platform := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
+	for _, platform := range []string{PlatformJimeng, PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		t.Run(platform, func(t *testing.T) {
 			svc, repo, groups := newDefaultKeysTestService()
 			groupID := int64(99)
@@ -261,6 +261,8 @@ func TestUpdateDefaultAPIKeyAllowsPurposeCompatibleGroups(t *testing.T) {
 	}{
 		{name: "text openai", purpose: "text", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
 		{name: "text qwen", purpose: "text", group: Group{Name: "Custom Qwen Text", Platform: PlatformQwen}},
+		{name: "text jimeng", purpose: "text", group: Group{Name: "Custom Jimeng Text", Platform: PlatformJimeng}},
+		{name: "video jimeng", purpose: "video", group: Group{Name: "MH-Seedance", Platform: PlatformJimeng}},
 		{name: "image enabled", purpose: "image", group: Group{Name: "Custom Image", Platform: PlatformOpenAI, AllowImageGeneration: true}},
 		{name: "audio qwen tts", purpose: "audio", group: Group{Name: "Custom Audio", Platform: PlatformQwenTTS}},
 		{name: "audio minimax speech", purpose: "audio", group: Group{Name: "Custom MiniMax Speech", Platform: PlatformMiniMaxSpeech}},
@@ -288,6 +290,7 @@ func TestUpdateDefaultAPIKeyRejectsPurposeIncompatibleGroups(t *testing.T) {
 		group   Group
 	}{
 		{name: "video rejects text", purpose: "video", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
+		{name: "video preserves reserved text purpose", purpose: "video", group: Group{Name: "OC--ChatGPT【文本模型】", Platform: PlatformJimeng}},
 		{name: "image rejects disabled image group", purpose: "image", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
 		{name: "audio rejects text", purpose: "audio", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
 		{name: "text rejects video", purpose: "text", group: Group{Name: "Custom Video", Platform: PlatformKling}},
@@ -330,4 +333,23 @@ func TestUpdateDefaultAPIKeyChangesOnlyAssociation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(99), current[0].APIKey.ID)
 	require.Equal(t, 2, repo.writes)
+}
+
+func TestUpdateDefaultAPIKeyRejectsInactiveOrganizationBillingSource(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	groupID := groups.groups[0].ID
+	repo.candidate = &APIKey{ID: 99, UserID: 7, GroupID: &groupID, Status: StatusActive}
+	organizationID := int64(12)
+	svc.organizationBilling = &apiKeyBillingResolverStub{sources: map[int64]APIKeyBillingSource{
+		99: {
+			Type:             APIKeyBillingSourceOrganization,
+			OrganizationID:   &organizationID,
+			OrganizationName: "已停用团队",
+			Status:           APIKeyBillingSourceInactive,
+		},
+	}}
+
+	_, err := svc.UpdateDefaultAPIKey(context.Background(), 7, "text", 99)
+	require.ErrorIs(t, err, ErrDefaultAPIKeyBillingSource)
+	require.Zero(t, repo.writes)
 }

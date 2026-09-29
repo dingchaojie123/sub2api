@@ -26,13 +26,15 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 				requested_video_duration_milliseconds, input_video_duration_milliseconds,
 				generated_video_duration_milliseconds, video_count, video_resolution,
 				output_width, output_height, frame_rate, has_audio, kling_mode,
-				billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price
+				billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price,
+				billing_source, billing_organization_id, billing_member_user_id
 			)
 			VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9,
 				$10, $11, NULLIF($12, ''), $13, $14,
 				$15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30, $31, $32, $33
+				$25, $26, $27, $28, $29, $30, $31, $32, $33,
+				$34, $35, $36
 			)
 			RETURNING `+ppVideoTaskColumns(),
 		strings.TrimSpace(params.LocalTaskID),
@@ -68,6 +70,9 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 		params.BillingUnits,
 		params.BillingUnitPrice,
 		params.BillingFallbackUnitPrice,
+		normalizeTaskBillingSource(params.BillingSource),
+		sqlNullInt64(params.BillingOrganizationID),
+		sqlNullInt64(params.BillingMemberUserID),
 	)
 	task, err := scanPPVideoTask(row)
 	if err != nil {
@@ -542,13 +547,14 @@ func ppVideoTaskColumns() string {
 		response_status, response_content_type, response_body,
 		COALESCE(last_error_code, ''), COALESCE(last_error_message, ''),
 		COALESCE(poll_lease_token, ''), COALESCE(poll_lease_owner, ''), poll_lease_until, poll_attempts, last_polled_at,
-		created_at, updated_at, submitted_at, finished_at, settled_at
+		created_at, updated_at, submitted_at, finished_at, settled_at,
+		billing_source, billing_organization_id, billing_member_user_id
 	`
 }
 
 func scanPPVideoTask(row ppVideoTaskScanner) (*service.PPVideoTask, error) {
 	var task service.PPVideoTask
-	var groupID sql.NullInt64
+	var groupID, billingOrganizationID, billingMemberUserID sql.NullInt64
 	var actualCost sql.NullFloat64
 	var pollLeaseUntil, lastPolledAt, submittedAt, finishedAt, settledAt sql.NullTime
 	if err := row.Scan(
@@ -603,11 +609,20 @@ func scanPPVideoTask(row ppVideoTaskScanner) (*service.PPVideoTask, error) {
 		&submittedAt,
 		&finishedAt,
 		&settledAt,
+		&task.BillingSource,
+		&billingOrganizationID,
+		&billingMemberUserID,
 	); err != nil {
 		return nil, err
 	}
 	if groupID.Valid {
 		task.GroupID = &groupID.Int64
+	}
+	if billingOrganizationID.Valid {
+		task.BillingOrganizationID = &billingOrganizationID.Int64
+	}
+	if billingMemberUserID.Valid {
+		task.BillingMemberUserID = &billingMemberUserID.Int64
 	}
 	if actualCost.Valid {
 		task.ActualCost = &actualCost.Float64

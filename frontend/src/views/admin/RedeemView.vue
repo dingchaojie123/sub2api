@@ -78,7 +78,7 @@
               class="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 dark:border-dark-600 dark:bg-dark-700 dark:text-gray-300"
             >
               <span class="font-medium text-gray-900 dark:text-white">{{ item.prize_name }}</span>
-              <span>${{ item.value.toFixed(2) }}</span>
+              <span>{{ item.value.toFixed(2) }}</span>
               <span class="text-emerald-700 dark:text-emerald-300">
                 {{ t('admin.redeem.lottery.availableCount', { count: item.available }) }}
               </span>
@@ -165,7 +165,7 @@
 
           <template #cell-value="{ value, row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
-              <template v-if="row.type === 'balance'">${{ value.toFixed(2) }}</template>
+              <template v-if="row.type === 'balance'">{{ value.toFixed(2) }}</template>
               <template v-else-if="row.type === 'subscription'">
                 {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
                 <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"

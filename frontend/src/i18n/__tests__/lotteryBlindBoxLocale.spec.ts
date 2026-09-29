@@ -12,7 +12,7 @@ describe('lottery Chinese locale naming', () => {
   })
 
   it('uses the updated prize amounts in admin lottery eligibility hints', () => {
-    expect(zhAdminResources.redeem.lottery.ineligibleSelectedHint).toContain('$30/$10/$5/$2')
-    expect(enAdminResources.redeem.lottery.ineligibleSelectedHint).toContain('$30/$10/$5/$2')
+    expect(zhAdminResources.redeem.lottery.ineligibleSelectedHint).toContain('30/10/5/2')
+    expect(enAdminResources.redeem.lottery.ineligibleSelectedHint).toContain('30/10/5/2')
   })
 })

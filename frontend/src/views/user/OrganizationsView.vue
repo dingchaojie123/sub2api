@@ -52,10 +52,10 @@
         </div>
 
         <section v-if="current" class="grid gap-4 md:grid-cols-4">
-          <div class="stat-block"><span>可用额度</span><strong>${{ money(current.display_balance) }}</strong></div>
-          <div class="stat-block"><span>冻结额度</span><strong>${{ money(current.frozen_display_balance) }}</strong></div>
+          <div class="stat-block"><span>可用额度</span><strong>{{ money(current.display_balance) }}</strong></div>
+          <div class="stat-block"><span>冻结额度</span><strong>{{ money(current.frozen_display_balance) }}</strong></div>
           <div class="stat-block"><span>席位</span><strong>{{ current.seat_used }} / {{ current.seat_limit }}</strong></div>
-          <div class="stat-block"><span>近 30 天消耗</span><strong>${{ money(usage?.summary.total_cost || 0) }}</strong></div>
+          <div class="stat-block"><span>近 30 天消耗</span><strong>{{ money(usage?.summary.total_cost || 0) }}</strong></div>
         </section>
 
         <div class="flex gap-1 overflow-x-auto border-b border-gray-200 dark:border-dark-700">
@@ -70,12 +70,12 @@
               <button class="btn btn-primary" :disabled="busy" @click="fund">从个人余额转入</button>
             </div>
           </div>
-          <div class="overflow-x-auto"><table class="data-table"><thead><tr><th>成员</th><th>请求</th><th>输入 Token</th><th>输出 Token</th><th>费用</th></tr></thead><tbody><tr v-for="row in usage?.members || []" :key="row.user_id"><td>{{ row.username || row.email }}</td><td>{{ row.total_requests }}</td><td>{{ row.input_tokens }}</td><td>{{ row.output_tokens }}</td><td>${{ money(row.total_cost) }}</td></tr></tbody></table></div>
+          <div class="overflow-x-auto"><table class="data-table"><thead><tr><th>成员</th><th>请求</th><th>输入 Token</th><th>输出 Token</th><th>费用</th></tr></thead><tbody><tr v-for="row in usage?.members || []" :key="row.user_id"><td>{{ row.username || row.email }}</td><td>{{ row.total_requests }}</td><td>{{ row.input_tokens }}</td><td>{{ row.output_tokens }}</td><td>{{ money(row.total_cost) }}</td></tr></tbody></table></div>
         </section>
 
         <section v-else-if="tab === 'members'" class="overflow-x-auto">
           <table class="data-table"><thead><tr><th>成员</th><th>角色</th><th>状态</th><th>本月用量 / 限额</th><th v-if="canManage">操作</th></tr></thead><tbody>
-            <tr v-for="member in members" :key="member.user_id"><td><div class="font-medium">{{ member.username }}</div><div class="text-xs text-gray-500">{{ member.email }}</div></td><td><div v-if="canManage && member.role !== 'owner'" class="role-select-wrap" :class="{ 'opacity-60': busy }"><Icon :name="member.role === 'admin' ? 'shield' : 'user'" size="sm" class="role-icon" /><select :value="member.role" class="role-select" aria-label="成员角色" :disabled="busy" @change="changeRole(member, $event)"><option value="member">成员</option><option v-if="current?.role === 'owner'" value="admin">管理员</option></select><Icon name="chevronDown" size="xs" class="role-chevron" /></div><span v-else class="role-badge" :class="`role-${member.role}`"><Icon :name="member.role === 'owner' || member.role === 'admin' ? 'shield' : 'user'" size="xs" />{{ roleLabel(member.role) }}</span></td><td><span class="status-dot"><span></span>正常</span></td><td>${{ money(member.monthly_used) }} / {{ member.monthly_limit > 0 ? '$' + money(member.monthly_limit) : '不限' }}</td><td v-if="canManage"><div v-if="member.role !== 'owner'" class="flex gap-3"><button class="link-button" @click="setLimit(member)">设置限额</button><button class="link-button text-red-600 dark:text-red-400" @click="removeMember(member)">移除</button></div></td></tr>
+            <tr v-for="member in members" :key="member.user_id"><td><div class="font-medium">{{ member.username }}</div><div class="text-xs text-gray-500">{{ member.email }}</div></td><td><div v-if="canManage && member.role !== 'owner'" class="role-select-wrap" :class="{ 'opacity-60': busy }"><Icon :name="member.role === 'admin' ? 'shield' : 'user'" size="sm" class="role-icon" /><select :value="member.role" class="role-select" aria-label="成员角色" :disabled="busy" @change="changeRole(member, $event)"><option value="member">成员</option><option v-if="current?.role === 'owner'" value="admin">管理员</option></select><Icon name="chevronDown" size="xs" class="role-chevron" /></div><span v-else class="role-badge" :class="`role-${member.role}`"><Icon :name="member.role === 'owner' || member.role === 'admin' ? 'shield' : 'user'" size="xs" />{{ roleLabel(member.role) }}</span></td><td><span class="status-dot"><span></span>正常</span></td><td>{{ money(member.monthly_used) }} / {{ member.monthly_limit > 0 ? money(member.monthly_limit) : '不限' }}</td><td v-if="canManage"><div v-if="member.role !== 'owner'" class="flex gap-3"><button class="link-button" @click="setLimit(member)">设置限额</button><button class="link-button text-red-600 dark:text-red-400" @click="removeMember(member)">移除</button></div></td></tr>
           </tbody></table>
         </section>
 
@@ -85,7 +85,7 @@
           <div class="overflow-x-auto"><table class="data-table"><thead><tr><th>邮箱</th><th>角色</th><th>使用次数</th><th>到期时间</th></tr></thead><tbody><tr v-for="item in invitations" :key="item.id"><td>{{ item.email || '通用链接' }}</td><td>{{ roleLabel(item.role) }}</td><td>{{ item.used_count }} / {{ item.max_uses }}</td><td>{{ dateTime(item.expires_at) }}</td></tr></tbody></table></div>
         </section>
 
-        <section v-else-if="tab === 'usage'" class="overflow-x-auto"><table class="data-table"><thead><tr><th>模型</th><th>请求</th><th>Token</th><th>费用</th></tr></thead><tbody><tr v-for="row in usage?.models || []" :key="row.model"><td>{{ row.model }}</td><td>{{ row.total_requests }}</td><td>{{ row.total_tokens }}</td><td>${{ money(row.total_cost) }}</td></tr></tbody></table></section>
+        <section v-else-if="tab === 'usage'" class="overflow-x-auto"><table class="data-table"><thead><tr><th>模型</th><th>请求</th><th>Token</th><th>费用</th></tr></thead><tbody><tr v-for="row in usage?.models || []" :key="row.model"><td>{{ row.model }}</td><td>{{ row.total_requests }}</td><td>{{ row.total_tokens }}</td><td>{{ money(row.total_cost) }}</td></tr></tbody></table></section>
         <section v-else class="space-y-2"><div v-for="item in auditLogs" :key="item.id" class="flex flex-col gap-1 border-b border-gray-100 py-3 text-sm dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between"><div><span class="font-medium">{{ item.action }}</span><span class="ml-2 text-gray-500">{{ item.target_type }} #{{ item.target_id }}</span></div><time class="text-xs text-gray-500">{{ dateTime(item.created_at) }}</time></div></section>
       </template>
     </div>
@@ -134,7 +134,7 @@
         <ul class="mt-2 list-disc space-y-1 pl-5">
           <li>停用所有成员的团队 API 密钥</li>
           <li>撤销尚未使用的邀请</li>
-          <li>将剩余 ${{ money(current?.display_balance || 0) }} 额度退回你的个人账户</li>
+          <li>将剩余 {{ money(current?.display_balance || 0) }} 额度退回你的个人账户</li>
         </ul>
         <p class="mt-2 text-xs opacity-80">团队有未结算请求时，需要等待结算完成后再删除。</p>
       </div>

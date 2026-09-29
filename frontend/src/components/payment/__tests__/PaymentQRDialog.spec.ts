@@ -99,7 +99,7 @@ describe('PaymentQRDialog currency display', () => {
     await flushPromises()
 
     expect(pollOrderStatus).toHaveBeenCalledWith(42)
-    expect(wrapper.text()).toContain('$100.00')
+    expect(wrapper.text()).toContain('100.00')
     expect(wrapper.text()).toContain('¥108.00')
   })
 })

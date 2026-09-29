@@ -16,6 +16,7 @@ func TestClaimJimengVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 	now := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
 	leaseUntil := now.Add(2 * time.Minute)
 	submitCutoff := now.Add(-10 * time.Minute)
+	organizationID, memberUserID := int64(40), int64(10)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
@@ -28,6 +29,7 @@ func TestClaimJimengVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 			"payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, nil, "USD", 5, "720p", 200, "application/json", `{"status":"processing"}`,
 			"", "", now, now, now, nil, nil,
+			service.APIKeyBillingSourceOrganization, organizationID, memberUserID,
 		))
 
 	repo := &usageBillingRepository{db: db}
@@ -43,6 +45,9 @@ func TestClaimJimengVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 	require.Equal(t, "vidtask_poll", tasks[0].LocalTaskID)
 	require.Equal(t, "task_poll", tasks[0].TaskID)
 	require.Equal(t, service.JimengVideoBillingStatusHeld, tasks[0].BillingStatus)
+	require.Equal(t, service.APIKeyBillingSourceOrganization, tasks[0].BillingSource)
+	require.Equal(t, organizationID, *tasks[0].BillingOrganizationID)
+	require.Equal(t, memberUserID, *tasks[0].BillingMemberUserID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -96,5 +101,8 @@ func newJimengVideoTaskRows(_ time.Time) *sqlmock.Rows {
 		"submitted_at",
 		"finished_at",
 		"settled_at",
+		"billing_source",
+		"billing_organization_id",
+		"billing_member_user_id",
 	})
 }

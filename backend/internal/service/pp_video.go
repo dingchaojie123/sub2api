@@ -1188,6 +1188,11 @@ func normalizePPVideoKuaishouPayload(payload map[string]any, body []byte, public
 		return nil, fmt.Errorf("Kuaishou kling_v3_type must be t2v, i2v, or motion_control")
 	}
 	parameters["kling_v3_type"] = klingType
+	if klingType == "t2v" || klingType == "i2v" {
+		if _, ok := parameters["sound"]; !ok {
+			parameters["sound"] = "on"
+		}
+	}
 	if klingType == "motion_control" {
 		if ppVideoJSONText(body, "input.img_url", "img_url", "data.img_url") == "" || ppVideoJSONText(body, "input.video_url", "video_url", "videos.0", "data.video_url") == "" {
 			return nil, fmt.Errorf("Kuaishou motion_control requires input.img_url and input.video_url")

@@ -146,7 +146,7 @@ POST /v1/video/generations
 | `aspect_ratio` | string | 否 | 画幅比例，例如 `16:9`、`9:16`、`1:1`。 |
 | `resolution` | string | 否 | 分辨率，例如 `480p`、`720p`、`1080p`；未传默认 `720p`。 |
 | `mode` | string | 否 | 视频模式。K-Ling 可传 `std`、`pro`、`4k`，也兼容 `2x`、`2x-pro`；未传时本站按 `resolution` 自动映射。 |
-| `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际上游能力为准。 |
+| `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际上游能力为准。`kuaishou` 平台的 `kling-v3` 文生、图生视频默认开启；传 `false` 可关闭。 |
 | `input_video_duration` | number | 否 | 参考视频时长，单位秒。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
 | `output_width` | integer | 否 | 输出宽度，单位像素。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
 | `output_height` | integer | 否 | 输出高度，单位像素。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
@@ -157,6 +157,8 @@ POST /v1/video/generations
 | `n` | integer | 否 | 生成视频数量，默认 `1`。 |
 
 不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。K-Ling 的 `duration` 仅支持 `3` 到 `15` 秒的整数值；本站会把统一字段自动转换为 K-Ling 上游需要的 `model_name`、`image`、`image_tail`、`sound` 等字段。
+
+`kuaishou` 平台的 `kling-v3` 文生视频（`t2v`）和图生视频（`i2v`）在未传音频开关时，本站默认向上游发送 `parameters.sound: "on"`。也可显式传 `generate_audio: true` 开启，或通过 `generate_audio: false`、`sound: "off"`、`parameters.sound: "off"` 关闭。动作控制（`motion_control`）保留参考视频声音使用 `parameters.keep_original_sound: "yes"`，不套用此声音生成默认值。
 
 本文档开头列出的 ByteDance、Wan3.0、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
 
@@ -268,6 +270,8 @@ POST /v1/video/generations
 - 音频：`audio_url`，`role` 固定为 `reference_audio`。
 
 首帧和尾帧各最多一张，参考图最多 9 张，参考视频和参考音频各最多 3 个。首尾帧模式不能与参考媒体混用；只传参考音频无效，必须同时有参考图或参考视频。媒体仅支持可公开访问的 HTTP/HTTPS URL，不支持 Base64。
+
+图片宽、高均须在 `256`～`5760` 像素范围内；例如 `384×216` 的图片会因高度不足被拒绝。请优先上传原图，不要提交素材库缩略图；必要时先等比缩放，例如将 `384×216` 放大到 `512×288` 后重新上传。放大不能恢复原图细节。本站在提交原平台 MiniMax-H3 任务前有限度读取图片头，能确认尺寸不合规时直接返回 HTTP 400，错误中注明 `input.content` 索引和实际尺寸，且不创建任务、不预占费用。探测超时、链接暂不可访问或格式无法识别时，仍由上游完成校验。
 
 `parameters.duration` 必须是 `4` 到 `15` 的整数；`parameters.resolution` 为 `768P` 或 `2K`。`parameters.ratio` 可为 `adaptive`、`21:9`、`16:9`、`4:3`、`1:1`、`3:4` 或 `9:16`：文生视频不能使用 `adaptive`，首尾帧模式按 `adaptive` 处理。可选参数 `aigc_watermark` 为 boolean，默认 `false`。
 

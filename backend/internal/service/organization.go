@@ -121,6 +121,25 @@ type OrganizationBillingSubject struct {
 	Active         bool    `json:"active"`
 }
 
+type BillingSourceSnapshot struct {
+	Type                 string
+	OrganizationID       *int64
+	OrganizationMemberID *int64
+}
+
+func BillingSourceSnapshotFromAPIKey(apiKey *APIKey) BillingSourceSnapshot {
+	snapshot := BillingSourceSnapshot{Type: APIKeyBillingSourcePersonal}
+	if apiKey == nil || apiKey.Organization == nil {
+		return snapshot
+	}
+	organizationID := apiKey.Organization.OrganizationID
+	memberUserID := apiKey.Organization.MemberUserID
+	snapshot.Type = APIKeyBillingSourceOrganization
+	snapshot.OrganizationID = &organizationID
+	snapshot.OrganizationMemberID = &memberUserID
+	return snapshot
+}
+
 type CreateOrganizationInput struct {
 	Name      string
 	SeatLimit int
@@ -146,7 +165,9 @@ type OrganizationRepository interface {
 	RemoveMember(ctx context.Context, organizationID, actorUserID, memberUserID int64) ([]string, error)
 	FundFromUser(ctx context.Context, organizationID, actorUserID int64, amount float64) (*Organization, error)
 	AttachAPIKey(ctx context.Context, organizationID, actorUserID, apiKeyID int64) error
+	SetAPIKeyBillingSource(ctx context.Context, apiKeyID, actorUserID int64, billingType string, organizationID *int64) (*APIKeyBillingSource, string, error)
 	GetBillingSubjectByAPIKey(ctx context.Context, apiKeyID int64) (*OrganizationBillingSubject, error)
+	GetAPIKeyBillingSources(ctx context.Context, apiKeyIDs []int64) (map[int64]APIKeyBillingSource, error)
 	UsageReport(ctx context.Context, organizationID, actorUserID int64, start, end time.Time) (*OrganizationUsageReport, error)
 	ListAuditLogs(ctx context.Context, organizationID, actorUserID int64, limit int) ([]OrganizationAuditLog, error)
 }

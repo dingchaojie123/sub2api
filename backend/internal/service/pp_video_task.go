@@ -40,6 +40,9 @@ type PPVideoTask struct {
 	TaskID                             string
 	UserID                             int64
 	APIKeyID                           int64
+	BillingSource                      string
+	BillingOrganizationID              *int64
+	BillingMemberUserID                *int64
 	GroupID                            *int64
 	AccountID                          int64
 	Platform                           string
@@ -92,6 +95,9 @@ type CreatePPVideoTaskParams struct {
 	LocalTaskID                        string
 	UserID                             int64
 	APIKeyID                           int64
+	BillingSource                      string
+	BillingOrganizationID              *int64
+	BillingMemberUserID                *int64
 	GroupID                            *int64
 	AccountID                          int64
 	Platform                           string

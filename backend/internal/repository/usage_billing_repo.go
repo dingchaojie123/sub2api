@@ -15,6 +15,13 @@ type usageBillingRepository struct {
 	db *sql.DB
 }
 
+func normalizeTaskBillingSource(source string) string {
+	if strings.TrimSpace(source) == service.APIKeyBillingSourceOrganization {
+		return service.APIKeyBillingSourceOrganization
+	}
+	return service.APIKeyBillingSourcePersonal
+}
+
 func NewUsageBillingRepository(_ *dbent.Client, sqlDB *sql.DB) service.UsageBillingRepository {
 	return &usageBillingRepository{db: sqlDB}
 }
@@ -63,17 +70,17 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 }
 
 func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand) (bool, error) {
-	return r.claimUsageBillingRequest(ctx, tx, cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint)
+	return r.claimUsageBillingRequest(ctx, tx, cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint, cmd.OrganizationID, cmd.OrganizationMemberID)
 }
 
-func (r *usageBillingRepository) claimUsageBillingRequest(ctx context.Context, tx *sql.Tx, requestID string, apiKeyID int64, requestFingerprint string) (bool, error) {
+func (r *usageBillingRepository) claimUsageBillingRequest(ctx context.Context, tx *sql.Tx, requestID string, apiKeyID int64, requestFingerprint string, organizationID, memberUserID *int64) (bool, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
-		INSERT INTO usage_billing_dedup (request_id, api_key_id, request_fingerprint)
-		VALUES ($1, $2, $3)
+		INSERT INTO usage_billing_dedup (request_id, api_key_id, request_fingerprint, organization_id, member_user_id)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id
-	`, requestID, apiKeyID, requestFingerprint).Scan(&id)
+	`, requestID, apiKeyID, requestFingerprint, organizationID, memberUserID).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		var existingFingerprint string
 		if err := tx.QueryRowContext(ctx, `
@@ -147,7 +154,7 @@ func (r *usageBillingRepository) applyBatchImageBalanceHold(
 		}
 	}()
 
-	applied, err := r.claimUsageBillingRequest(ctx, tx, cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint)
+	applied, err := r.claimUsageBillingRequest(ctx, tx, cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint, cmd.OrganizationID, cmd.OrganizationMemberID)
 	if err != nil {
 		return nil, err
 	}
@@ -179,11 +186,12 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	}
 
 	if cmd.BalanceCost > 0 && cmd.OrganizationID != nil && cmd.OrganizationMemberID != nil {
-		newBalance, err := deductUsageBillingOrganization(ctx, tx, cmd, cmd.BalanceCost)
+		newBalance, sufficient, err := deductUsageBillingOrganization(ctx, tx, cmd, cmd.BalanceCost)
 		if err != nil {
 			return err
 		}
 		result.NewOrganizationBalance = &newBalance
+		result.BalanceOverdrafted = !sufficient
 	} else if cmd.BalanceCost > 0 {
 		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
@@ -218,42 +226,44 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	return nil
 }
 
-func deductUsageBillingOrganization(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, amount float64) (float64, error) {
+func deductUsageBillingOrganization(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, amount float64) (float64, bool, error) {
 	organizationID, memberUserID := *cmd.OrganizationID, *cmd.OrganizationMemberID
 	if _, err := tx.ExecContext(ctx, `UPDATE organization_members SET monthly_used=0,usage_period_start=date_trunc('month',NOW()),updated_at=NOW() WHERE organization_id=$1 AND user_id=$2 AND usage_period_start < date_trunc('month',NOW())`, organizationID, memberUserID); err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	var memberLimit, memberUsed float64
-	var memberStatus, orgStatus, keyStatus string
-	err := tx.QueryRowContext(ctx, `SELECT m.monthly_limit,m.monthly_used,m.status,o.status,ok.status FROM organization_members m JOIN organizations o ON o.id=m.organization_id JOIN organization_api_keys ok ON ok.organization_id=m.organization_id AND ok.member_user_id=m.user_id WHERE m.organization_id=$1 AND m.user_id=$2 AND ok.api_key_id=$3 FOR UPDATE OF m,o,ok`, organizationID, memberUserID, cmd.APIKeyID).Scan(&memberLimit, &memberUsed, &memberStatus, &orgStatus, &keyStatus)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, service.ErrOrganizationForbidden
-	}
-	if err != nil {
-		return 0, err
-	}
-	if memberStatus != "active" || orgStatus != "active" || keyStatus != "active" {
-		return 0, service.ErrOrganizationForbidden
-	}
-	if memberLimit > 0 && memberUsed+amount > memberLimit {
-		return 0, service.ErrOrganizationMemberLimit
-	}
+	// The organization and member are an immutable request-time billing snapshot.
+	// Do not re-check the current key binding or membership status here: either may
+	// have changed after the upstream accepted the request.
 	var balance float64
-	err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
+	err := tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
 		display_balance=CASE WHEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END)>0
 			THEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END) ELSE 0 END,
 		updated_at=NOW() WHERE id=$2 AND balance >= $1 RETURNING balance`, amount, organizationID).Scan(&balance)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, service.ErrOrganizationBalance
+		err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
+			display_balance=CASE WHEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END)>0
+				THEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END) ELSE 0 END,
+			updated_at=NOW() WHERE id=$2 RETURNING balance`, amount, organizationID).Scan(&balance)
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, false, service.ErrOrganizationNotFound
+		}
+		if err != nil {
+			return 0, false, err
+		}
+		if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET monthly_used=monthly_used+$1,updated_at=NOW() WHERE organization_id=$2 AND user_id=$3`, amount, organizationID, memberUserID); err != nil {
+			return 0, false, err
+		}
+		_, err = tx.ExecContext(ctx, `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text,'overdraft',true))`, organizationID, memberUserID, cmd.APIKeyID, cmd.RequestID, -amount, balance, cmd.Model)
+		return balance, false, err
 	}
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET monthly_used=monthly_used+$1,updated_at=NOW() WHERE organization_id=$2 AND user_id=$3`, amount, organizationID, memberUserID); err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text))`, organizationID, memberUserID, cmd.APIKeyID, cmd.RequestID, -amount, balance, cmd.Model)
-	return balance, err
+	return balance, true, err
 }
 
 func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
@@ -330,7 +340,7 @@ func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.HoldAmount <= 0 {
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
-	if organizationID, memberUserID, ok, err := organizationBillingOwner(ctx, tx, cmd.APIKeyID); err != nil {
+	if organizationID, memberUserID, ok, err := batchImageOrganizationBillingOwner(cmd); err != nil {
 		return nil, err
 	} else if ok {
 		return reserveOrganizationBalance(ctx, tx, organizationID, memberUserID, cmd)
@@ -371,7 +381,7 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.ActualAmount-cmd.HoldAmount > 0.00000001 {
 		return nil, service.ErrBatchImageSettlementCostExceedsHold
 	}
-	if organizationID, memberUserID, ok, err := organizationBillingOwner(ctx, tx, cmd.APIKeyID); err != nil {
+	if organizationID, memberUserID, ok, err := batchImageOrganizationBillingOwner(cmd); err != nil {
 		return nil, err
 	} else if ok {
 		return captureOrganizationBalance(ctx, tx, organizationID, memberUserID, cmd)
@@ -433,7 +443,7 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.HoldAmount <= 0 {
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
-	if organizationID, memberUserID, ok, err := organizationBillingOwner(ctx, tx, cmd.APIKeyID); err != nil {
+	if organizationID, memberUserID, ok, err := batchImageOrganizationBillingOwner(cmd); err != nil {
 		return nil, err
 	} else if ok {
 		return releaseOrganizationBalance(ctx, tx, organizationID, memberUserID, cmd)
@@ -482,16 +492,14 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	return nil, errors.New("batch image frozen balance is insufficient")
 }
 
-func organizationBillingOwner(ctx context.Context, tx *sql.Tx, apiKeyID int64) (int64, int64, bool, error) {
-	var organizationID, memberUserID int64
-	err := tx.QueryRowContext(ctx, `SELECT organization_id,member_user_id FROM organization_api_keys WHERE api_key_id=$1`, apiKeyID).Scan(&organizationID, &memberUserID)
-	if errors.Is(err, sql.ErrNoRows) {
+func batchImageOrganizationBillingOwner(cmd *service.BatchImageBalanceHoldCommand) (int64, int64, bool, error) {
+	if cmd == nil || strings.TrimSpace(cmd.BillingSource) != service.APIKeyBillingSourceOrganization {
 		return 0, 0, false, nil
 	}
-	if err != nil {
-		return 0, 0, false, err
+	if cmd.OrganizationID == nil || cmd.OrganizationMemberID == nil || *cmd.OrganizationID <= 0 || *cmd.OrganizationMemberID <= 0 {
+		return 0, 0, false, service.ErrOrganizationForbidden
 	}
-	return organizationID, memberUserID, true, nil
+	return *cmd.OrganizationID, *cmd.OrganizationMemberID, true, nil
 }
 
 func reserveOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID, memberUserID int64, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {

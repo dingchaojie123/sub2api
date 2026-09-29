@@ -125,7 +125,7 @@
 
               <div class="blind-box-rewards" aria-hidden="true">
                 <span v-for="segment in prizeSegments" :key="segment.key" :class="segment.chipClass">
-                  {{ t(segment.labelKey) }} · ${{ segment.amount }}
+                  {{ t(segment.labelKey) }} · {{ segment.amount }}
                 </span>
               </div>
             </div>
@@ -153,7 +153,7 @@
                   </div>
                 </div>
                 <div class="shrink-0 rounded-md bg-gray-50 px-3 py-1.5 text-sm font-bold text-gray-900 dark:bg-dark-800 dark:text-white">
-                  ${{ segment.amount }}
+                  {{ segment.amount }}
                 </div>
               </div>
             </div>
@@ -176,7 +176,7 @@
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <p class="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                      {{ record.prize_name }} · ${{ record.value }}
+                      {{ record.prize_name }} · {{ record.value }}
                     </p>
                     <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ formatDateTime(record.created_at) }}</p>
                     <p class="mt-2 truncate font-mono text-xs text-gray-500 dark:text-dark-400">{{ record.code }}</p>
@@ -215,7 +215,7 @@
             <div class="min-w-0 flex-1">
               <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('lottery.winTitle') }}</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">
-                {{ drawResult.prize_name }} · ${{ drawResult.value }}
+                {{ drawResult.prize_name }} · {{ drawResult.value }}
               </p>
             </div>
           </div>

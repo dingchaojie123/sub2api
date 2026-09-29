@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
 import { QUOTA_THRESHOLD_TYPE_FIXED, QUOTA_THRESHOLD_TYPE_PERCENTAGE, type QuotaThresholdType } from '@/constants/account'
+
+const { t } = useI18n()
 
 defineProps<{
   enabled: boolean | null
@@ -44,9 +47,9 @@ const emit = defineEmits<{
       <select
         :value="thresholdType || QUOTA_THRESHOLD_TYPE_FIXED"
         @change="emit('update:thresholdType', ($event.target as HTMLSelectElement).value as QuotaThresholdType)"
-        class="input py-1 text-xs w-[4.5rem] flex-shrink-0 text-center"
+        class="input py-1 text-xs w-24 flex-shrink-0 text-center"
       >
-        <option :value="QUOTA_THRESHOLD_TYPE_FIXED">$</option>
+        <option :value="QUOTA_THRESHOLD_TYPE_FIXED">{{ t('admin.accounts.quotaNotify.fixedAmount') }}</option>
         <option :value="QUOTA_THRESHOLD_TYPE_PERCENTAGE">%</option>
       </select>
     </template>

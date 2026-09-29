@@ -69,6 +69,7 @@ func RegisterUserRoutes(
 			keys.GET("/defaults/:purpose", h.APIKey.GetDefault)
 			keys.POST("/defaults", h.APIKey.EnsureDefaults)
 			keys.PUT("/defaults/:purpose", h.APIKey.UpdateDefault)
+			keys.PUT("/billing-source", h.APIKey.SetBillingSource)
 			keys.GET("/:id", h.APIKey.GetByID)
 			keys.POST("", h.APIKey.Create)
 			keys.PUT("/:id", h.APIKey.Update)

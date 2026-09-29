@@ -11,6 +11,7 @@ const {
   getDashboardApiKeysUsage,
   getAvailableGroups,
   getUserGroupRates,
+  listOrganizations,
   showError,
   showSuccess,
   copyToClipboard,
@@ -22,6 +23,7 @@ const {
   getDashboardApiKeysUsage: vi.fn(),
   getAvailableGroups: vi.fn(),
   getUserGroupRates: vi.fn(),
+  listOrganizations: vi.fn(),
   showError: vi.fn(),
   showSuccess: vi.fn(),
   copyToClipboard: vi.fn(),
@@ -42,6 +44,7 @@ const messages: Record<string, string> = {
   'keys.created': 'Created',
   'keys.expiresAt': 'Expires',
   'keys.group': 'Group',
+  'keys.billingSource': 'Billing source',
   'keys.id': 'ID',
   'keys.currentConcurrency': 'Current Concurrency',
   'keys.lastUsedAt': 'Last Used',
@@ -73,6 +76,10 @@ vi.mock('@/api', () => ({
     getAvailable: getAvailableGroups,
     getUserGroupRates,
   },
+}))
+
+vi.mock('@/api/organizations', () => ({
+  organizationsAPI: { list: listOrganizations },
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -122,6 +129,12 @@ const createApiKey = (): ApiKey => ({
   created_at: '2026-06-27T00:00:00Z',
   updated_at: '2026-06-27T00:00:00Z',
   current_concurrency: 3,
+  billing_source: {
+    type: 'personal',
+    organization_id: null,
+    organization_name: null,
+    status: 'active',
+  },
   rate_limit_5h: 0,
   rate_limit_1d: 0,
   rate_limit_7d: 0,
@@ -265,6 +278,7 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockReset()
     getAvailableGroups.mockReset()
     getUserGroupRates.mockReset()
+    listOrganizations.mockReset()
     showError.mockReset()
     showSuccess.mockReset()
     copyToClipboard.mockReset()
@@ -282,6 +296,7 @@ describe('user KeysView column settings', () => {
     getDashboardApiKeysUsage.mockResolvedValue({ stats: {} })
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
+    listOrganizations.mockResolvedValue([])
     isCurrentStep.mockReturnValue(false)
   })
 
@@ -292,6 +307,7 @@ describe('user KeysView column settings', () => {
       'name',
       'key',
       'group',
+      'billing_source',
       'current_concurrency',
       'usage',
       'expires_at',
@@ -358,6 +374,7 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
       'key',
+      'billing_source',
       'current_concurrency',
       'usage',
       'rate_limit',

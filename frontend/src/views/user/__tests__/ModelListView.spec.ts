@@ -66,7 +66,7 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain('openai 分组模型价格')
     expect(wrapper.text()).toContain('codex-auto-review')
     expect(wrapper.text()).toContain('¥0.04 / 1M')
-    expect(wrapper.text()).toContain('$30 / 1M')
+    expect(wrapper.text()).toContain('30 / 1M')
     expect(wrapper.findAll('[data-testid^="model-group-"]')).toHaveLength(7)
     expect(wrapper.text()).toContain('glm - 官key openai协议')
     expect(wrapper.text()).toContain('glm - 官key claude协议')
@@ -82,7 +82,7 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain('1.0x')
     expect(wrapper.text()).toContain('gemini-2.5-pro')
     expect(wrapper.text()).toContain('¥1.25 / 1M')
-    expect(wrapper.text()).toContain('$10 / 1M')
+    expect(wrapper.text()).toContain('10 / 1M')
   })
 
   it('renders ChatGPT enterprise pricing in the corrected column order', async () => {
@@ -96,8 +96,8 @@ describe('ModelListView', () => {
       'gpt-5.4',
       '¥2.5 / 1M',
       '¥15 / 1M',
-      '$3.5 / 1M',
-      '$21 / 1M',
+      '3.5 / 1M',
+      '21 / 1M',
     ])
   })
 
@@ -148,6 +148,9 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain('Server Managed')
     expect(wrapper.text()).toContain('server-model-1')
     expect(wrapper.text()).toContain('¥0.11 / 1M')
+    expect(wrapper.text()).toContain('0.33 / 1M')
+    expect(wrapper.text()).toContain('0.44 / 1M')
+    expect(wrapper.text()).not.toContain('$')
     expect(wrapper.text()).not.toContain('gpt pro')
   })
 })

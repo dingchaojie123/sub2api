@@ -136,13 +136,29 @@ export async function toggleStatus(id: number, status: 'active' | 'inactive'): P
   return update(id, { status })
 }
 
+export async function setBillingSource(
+  apiKeyId: number,
+  type: 'personal' | 'organization',
+  organizationId?: number
+): Promise<ApiKey> {
+  const { data } = await apiClient.put<ApiKey>('/keys/billing-source', {
+    api_key_id: apiKeyId,
+    type,
+    ...(type === 'organization' ? { organization_id: organizationId } : {})
+  }, {
+    headers: { 'Idempotency-Key': `key-billing-source-${apiKeyId}-${crypto.randomUUID()}` }
+  })
+  return data
+}
+
 export const keysAPI = {
   list,
   getById,
   create,
   update,
   delete: deleteKey,
-  toggleStatus
+  toggleStatus,
+  setBillingSource
 }
 
 export default keysAPI

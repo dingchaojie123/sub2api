@@ -1,3 +1,5 @@
+import { formatCurrencyWithoutDollar } from '@/utils/formatters'
+
 export const DEFAULT_PAYMENT_CURRENCY = 'CNY'
 
 const PAYMENT_CURRENCY_SYMBOLS: Record<string, string> = {
@@ -28,7 +30,7 @@ export function normalizePaymentCurrency(currency?: string | null): string {
 
 export function currencySymbol(currency?: string | null): string {
   const normalized = normalizePaymentCurrency(currency)
-  return PAYMENT_CURRENCY_SYMBOLS[normalized] || normalized
+  return (PAYMENT_CURRENCY_SYMBOLS[normalized] || normalized).replace(/\$/g, '')
 }
 
 function paymentCurrencyFractionDigits(currency: string): number {
@@ -46,13 +48,13 @@ export function formatPaymentAmount(amount: number, currency?: string | null, lo
   const normalized = normalizePaymentCurrency(currency)
   const fractionDigits = paymentCurrencyFractionDigits(normalized)
   try {
-    return new Intl.NumberFormat(locale || undefined, {
+    return formatCurrencyWithoutDollar(new Intl.NumberFormat(locale || undefined, {
       style: 'currency',
       currency: normalized,
       currencyDisplay: 'narrowSymbol',
       minimumFractionDigits: fractionDigits,
       maximumFractionDigits: fractionDigits,
-    }).format(Number.isFinite(amount) ? amount : 0)
+    }), Number.isFinite(amount) ? amount : 0)
   } catch {
     return `${normalized} ${(Number.isFinite(amount) ? amount : 0).toFixed(fractionDigits)}`
   }

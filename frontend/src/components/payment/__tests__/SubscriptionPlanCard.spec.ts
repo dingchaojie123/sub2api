@@ -83,7 +83,7 @@ describe("SubscriptionPlanCard", () => {
 
     expect(cnyPlan).toContain("¥10CNY");
     expect(cnyPlan).toContain("¥20CNY");
-    expect(mountPlanCard("openai", { currency: "USD" }).text()).toContain("$10USD");
-    expect(mountPlanCard("openai", { currency: "" }).text()).toContain("$10");
+    expect(mountPlanCard("openai", { currency: "USD" }).text()).toContain("10USD");
+    expect(mountPlanCard("openai", { currency: "" }).text()).toContain("10");
   });
 });

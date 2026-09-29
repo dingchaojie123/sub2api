@@ -316,6 +316,10 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
 			return
 		}
+		if mediaErr := service.ValidatePPVideoInputMedia(c.Request.Context(), account.Platform, body); mediaErr != nil {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", mediaErr.Error())
+			return
+		}
 		meta := service.PPVideoBillingMetadataFromRequest(account.Platform, body)
 		if meta.ValidationError != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", meta.ValidationError.Error())
@@ -343,9 +347,12 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		if subscription != nil && apiKey.Group.IsSubscriptionType() {
 			billingStatus = service.PPVideoBillingStatusNone
 		}
+		billingSource := service.BillingSourceSnapshotFromAPIKey(apiKey)
 		task, err = h.gatewayService.CreatePPVideoTask(c.Request.Context(), service.CreatePPVideoTaskParams{
 			LocalTaskID: localTaskID, UserID: subject.UserID, APIKeyID: apiKey.ID,
-			GroupID: apiKey.GroupID, AccountID: account.ID, Platform: account.Platform,
+			BillingSource: billingSource.Type, BillingOrganizationID: billingSource.OrganizationID,
+			BillingMemberUserID: billingSource.OrganizationMemberID,
+			GroupID:             apiKey.GroupID, AccountID: account.ID, Platform: account.Platform,
 			Operation: operation, Model: publicRequest.Model,
 			Status: service.PPVideoTaskStatusSubmitting, BillingStatus: billingStatus,
 			RequestHash: payloadHash, IdempotencyKey: idempotencyKey,

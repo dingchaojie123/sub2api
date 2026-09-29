@@ -528,25 +528,29 @@ func (h *OpenAIGatewayHandler) createAndReserveJimengVideoTask(
 	if subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType() {
 		billingStatus = service.JimengVideoBillingStatusNone
 	}
+	billingSource := service.BillingSourceSnapshotFromAPIKey(apiKey)
 	task, err := h.gatewayService.CreateJimengVideoTask(c.Request.Context(), service.CreateJimengVideoTaskParams{
-		LocalTaskID:          localTaskID,
-		UserID:               subject.UserID,
-		APIKeyID:             apiKey.ID,
-		GroupID:              apiKey.GroupID,
-		AccountID:            account.ID,
-		Model:                service.JimengVideoRequestedModelFromBody(body),
-		Status:               service.JimengVideoTaskStatusSubmitting,
-		BillingStatus:        billingStatus,
-		RequestHash:          strings.TrimSpace(requestPayloadHash),
-		IdempotencyKey:       strings.TrimSpace(idempotencyKey),
-		HoldID:               service.JimengVideoHoldRequestID(localTaskID),
-		CaptureID:            service.JimengVideoCaptureRequestID(localTaskID),
-		ReleaseID:            service.JimengVideoReleaseRequestID(localTaskID),
-		EstimatedTotalCost:   estimatedTotalCost,
-		HoldAmount:           holdAmount,
-		Currency:             "USD",
-		VideoDurationSeconds: meta.VideoDurationSeconds,
-		VideoResolution:      meta.VideoResolution,
+		LocalTaskID:           localTaskID,
+		UserID:                subject.UserID,
+		APIKeyID:              apiKey.ID,
+		BillingSource:         billingSource.Type,
+		BillingOrganizationID: billingSource.OrganizationID,
+		BillingMemberUserID:   billingSource.OrganizationMemberID,
+		GroupID:               apiKey.GroupID,
+		AccountID:             account.ID,
+		Model:                 service.JimengVideoRequestedModelFromBody(body),
+		Status:                service.JimengVideoTaskStatusSubmitting,
+		BillingStatus:         billingStatus,
+		RequestHash:           strings.TrimSpace(requestPayloadHash),
+		IdempotencyKey:        strings.TrimSpace(idempotencyKey),
+		HoldID:                service.JimengVideoHoldRequestID(localTaskID),
+		CaptureID:             service.JimengVideoCaptureRequestID(localTaskID),
+		ReleaseID:             service.JimengVideoReleaseRequestID(localTaskID),
+		EstimatedTotalCost:    estimatedTotalCost,
+		HoldAmount:            holdAmount,
+		Currency:              "USD",
+		VideoDurationSeconds:  meta.VideoDurationSeconds,
+		VideoResolution:       meta.VideoResolution,
 	})
 	if err != nil {
 		if errors.Is(err, service.ErrJimengVideoIdempotencyConflict) {

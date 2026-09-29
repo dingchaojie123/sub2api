@@ -231,6 +231,12 @@ func TestAPIContracts(t *testing.T) {
 					"name": "Key One",
 					"group_id": null,
 					"status": "active",
+					"billing_source": {
+						"type": "personal",
+						"organization_id": null,
+						"organization_name": null,
+						"status": "active"
+					},
 					"ip_whitelist": null,
 					"ip_blacklist": null,
 					"last_used_at": null,
@@ -282,6 +288,12 @@ func TestAPIContracts(t *testing.T) {
 							"name": "Key One",
 							"group_id": null,
 							"status": "active",
+							"billing_source": {
+								"type": "personal",
+								"organization_id": null,
+								"organization_name": null,
+								"status": "active"
+							},
 							"ip_whitelist": null,
 							"ip_blacklist": null,
 							"last_used_at": null,

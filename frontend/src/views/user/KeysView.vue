@@ -174,6 +174,37 @@
             </div>
           </template>
 
+          <template #cell-billing_source="{ row }">
+            <button
+              @click="openBillingSourceDialog(row)"
+              class="flex min-w-[150px] items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
+              :title="t('keys.setBillingSource')"
+            >
+              <span
+                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+                :class="row.billing_source?.type === 'organization'
+                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/25 dark:text-primary-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'"
+              >
+                <Icon :name="row.billing_source?.type === 'organization' ? 'users' : 'creditCard'" size="sm" />
+              </span>
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium text-gray-900 dark:text-white">
+                  {{ billingSourceLabel(row) }}
+                </span>
+                <span
+                  v-if="row.billing_source?.status === 'inactive'"
+                  class="block text-xs text-red-600 dark:text-red-400"
+                >
+                  {{ t('keys.inactiveBillingSource') }}
+                </span>
+                <span v-else class="block text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('keys.setBillingSource') }}
+                </span>
+              </span>
+            </button>
+          </template>
+
           <template #cell-current_concurrency="{ value }">
             <span
               :class="[
@@ -192,13 +223,13 @@
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                  {{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                  {{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
@@ -211,7 +242,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
+                    {{ row.quota_used?.toFixed(2) || '0.00' }} / {{ row.quota?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -241,7 +272,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
+                    {{ row.usage_5h?.toFixed(2) || '0.00' }}/{{ row.rate_limit_5h?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -269,7 +300,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
+                    {{ row.usage_1d?.toFixed(2) || '0.00' }}/{{ row.rate_limit_1d?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -297,7 +328,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
+                    {{ row.usage_7d?.toFixed(2) || '0.00' }}/{{ row.rate_limit_7d?.toFixed(2) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -633,13 +664,12 @@
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input"
                   :placeholder="t('keys.quotaAmountPlaceholder')"
                 />
               </div>
@@ -652,11 +682,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    ${{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
+                    {{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    ${{ selectedKey.quota?.toFixed(2) || '0.00' }}
+                    {{ selectedKey.quota?.toFixed(2) || '0.00' }}
                   </span>
                 </div>
                 <button
@@ -699,13 +729,12 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input"
                   :placeholder="'0'"
                 />
               </div>
@@ -719,11 +748,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
+                      {{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
+                      {{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -745,13 +774,12 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input"
                   :placeholder="'0'"
                 />
               </div>
@@ -765,11 +793,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
+                      {{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
+                      {{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -791,13 +819,12 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input"
                   :placeholder="'0'"
                 />
               </div>
@@ -811,11 +838,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
+                      {{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
+                      {{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
                     </span>
                   </div>
                 </div>
@@ -958,6 +985,45 @@
                   ? t('common.update')
                   : t('common.create')
             }}
+          </button>
+        </div>
+      </template>
+    </BaseDialog>
+
+    <BaseDialog
+      :show="showBillingSourceDialog"
+      :title="t('keys.billingSourceDialogTitle')"
+      width="narrow"
+      @close="closeBillingSourceDialog"
+    >
+      <div class="space-y-5">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ billingSourceKey?.name }}</p>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {{ t('keys.billingSourceChangeHint') }}
+          </p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('keys.quotaSourceLabel') }}</label>
+          <select v-model="billingSourceSelection" class="input">
+            <option value="personal">{{ t('keys.personalBalance') }}</option>
+            <option
+              v-for="organization in organizations"
+              :key="organization.id"
+              :value="`organization:${organization.id}`"
+            >
+              {{ organization.name }} · {{ t('keys.teamSharedBalance') }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button class="btn btn-secondary" :disabled="billingSourceSubmitting" @click="closeBillingSourceDialog">
+            {{ t('common.cancel') }}
+          </button>
+          <button class="btn btn-primary" :disabled="billingSourceSubmitting" @click="saveBillingSource">
+            {{ billingSourceSubmitting ? t('keys.saving') : t('common.save') }}
           </button>
         </div>
       </template>
@@ -1192,6 +1258,7 @@ const allColumns = computed<Column[]>(() => [
   { key: 'id', label: t('keys.id'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
+  { key: 'billing_source', label: t('keys.billingSource'), sortable: false },
   { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: true },
   { key: 'usage', label: t('keys.usage'), sortable: false },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
@@ -1309,6 +1376,7 @@ const filterGroupId = ref<string | number>('')
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
+const showBillingSourceDialog = ref(false)
 const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
@@ -1317,6 +1385,9 @@ const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
+const billingSourceKey = ref<ApiKey | null>(null)
+const billingSourceSelection = ref('personal')
+const billingSourceSubmitting = ref(false)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1546,11 +1617,53 @@ const loadPublicSettings = async () => {
 const loadOrganizations = async () => {
   try {
     organizations.value = await organizationsAPI.list()
-    if (organizations.value.length > 0 && formData.value.organization_id === null) {
-      formData.value.organization_id = organizations.value[0].id
-    }
   } catch (error) {
     console.error('Failed to load organizations:', error)
+  }
+}
+
+const billingSourceLabel = (key: ApiKey) => {
+  if (key.billing_source?.type === 'organization') {
+    return key.billing_source.organization_name || t('keys.teamSharedBalance')
+  }
+  return t('keys.personalBalance')
+}
+
+const openBillingSourceDialog = (key: ApiKey) => {
+  billingSourceKey.value = key
+  billingSourceSelection.value = key.billing_source?.type === 'organization' && key.billing_source.organization_id
+    ? `organization:${key.billing_source.organization_id}`
+    : 'personal'
+  showBillingSourceDialog.value = true
+}
+
+const closeBillingSourceDialog = () => {
+  if (billingSourceSubmitting.value) return
+  showBillingSourceDialog.value = false
+  billingSourceKey.value = null
+}
+
+const saveBillingSource = async () => {
+  if (!billingSourceKey.value) return
+  const isOrganization = billingSourceSelection.value.startsWith('organization:')
+  const organizationId = isOrganization
+    ? Number(billingSourceSelection.value.slice('organization:'.length))
+    : undefined
+  billingSourceSubmitting.value = true
+  try {
+    await keysAPI.setBillingSource(
+      billingSourceKey.value.id,
+      isOrganization ? 'organization' : 'personal',
+      organizationId
+    )
+    appStore.showSuccess(t('keys.billingSourceUpdatedSuccess'))
+    showBillingSourceDialog.value = false
+    billingSourceKey.value = null
+    await loadApiKeys()
+  } catch (error: any) {
+    appStore.showError(error.response?.data?.detail || error.message || t('keys.failedToUpdateBillingSource'))
+  } finally {
+    billingSourceSubmitting.value = false
   }
 }
 
@@ -1814,7 +1927,7 @@ const closeModals = () => {
   formData.value = {
     name: '',
     group_id: null,
-    organization_id: organizations.value[0]?.id ?? null,
+    organization_id: null,
     status: 'active',
     use_custom_key: false,
     custom_key: '',

@@ -28,6 +28,8 @@ var (
 	ErrAPIKeyExists         = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
 	ErrAPIKeyTooShort       = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
 	ErrAPIKeyInvalidChars   = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
+	ErrAPIKeyBillingSource  = infraerrors.BadRequest("INVALID_API_KEY_BILLING_SOURCE", "billing source must be personal or organization")
+	ErrOrganizationIDNeeded = infraerrors.BadRequest("ORGANIZATION_ID_REQUIRED", "organization_id is required for organization billing")
 	ErrAPIKeyRateLimited    = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
 	ErrAPIKeyAuthOverloaded = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
 	ErrInvalidIPPattern     = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
@@ -231,7 +233,9 @@ type APIKeyService struct {
 	userGroupRateRepo   UserGroupRateRepository
 	organizationBilling interface {
 		GetBillingSubjectByAPIKey(context.Context, int64) (*OrganizationBillingSubject, error)
+		GetAPIKeyBillingSources(context.Context, []int64) (map[int64]APIKeyBillingSource, error)
 		AttachAPIKey(context.Context, int64, int64, int64) error
+		SetAPIKeyBillingSource(context.Context, int64, int64, string, *int64) (*APIKeyBillingSource, string, error)
 	}
 	cache                     APIKeyCache
 	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
@@ -258,9 +262,47 @@ type APIKeyService struct {
 
 func (s *APIKeyService) SetOrganizationBillingResolver(resolver interface {
 	GetBillingSubjectByAPIKey(context.Context, int64) (*OrganizationBillingSubject, error)
+	GetAPIKeyBillingSources(context.Context, []int64) (map[int64]APIKeyBillingSource, error)
 	AttachAPIKey(context.Context, int64, int64, int64) error
+	SetAPIKeyBillingSource(context.Context, int64, int64, string, *int64) (*APIKeyBillingSource, string, error)
 }) {
 	s.organizationBilling = resolver
+}
+
+type SetAPIKeyBillingSourceInput struct {
+	APIKeyID       int64
+	Type           string
+	OrganizationID *int64
+}
+
+func (s *APIKeyService) SetBillingSource(ctx context.Context, userID int64, input SetAPIKeyBillingSourceInput) (*APIKey, error) {
+	if input.APIKeyID <= 0 {
+		return nil, ErrAPIKeyNotFound
+	}
+	input.Type = strings.ToLower(strings.TrimSpace(input.Type))
+	if input.Type != APIKeyBillingSourcePersonal && input.Type != APIKeyBillingSourceOrganization {
+		return nil, ErrAPIKeyBillingSource
+	}
+	if input.Type == APIKeyBillingSourceOrganization && (input.OrganizationID == nil || *input.OrganizationID <= 0) {
+		return nil, ErrOrganizationIDNeeded
+	}
+	if s.organizationBilling == nil {
+		return nil, ErrServiceUnavailable
+	}
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, input.APIKeyID)
+	if err != nil {
+		return nil, err
+	}
+	if apiKey.UserID != userID {
+		return nil, ErrAPIKeyNotFound
+	}
+	source, credential, err := s.organizationBilling.SetAPIKeyBillingSource(ctx, input.APIKeyID, userID, input.Type, input.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	apiKey.BillingSource = source
+	s.InvalidateAuthCacheByKey(ctx, credential)
+	return apiKey, nil
 }
 
 type APIKeyAuthLookupMetrics struct {
@@ -517,6 +559,22 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 
 	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
 	s.compileAPIKeyIPRules(apiKey)
+	if req.OrganizationID == nil {
+		apiKey.BillingSource = personalAPIKeyBillingSource()
+	} else {
+		keys := []APIKey{*apiKey}
+		// The key and binding are already committed. Preserve a truthful team source if the display-name lookup fails.
+		if err := s.fillBillingSources(ctx, keys); err == nil && keys[0].BillingSource.Type == APIKeyBillingSourceOrganization {
+			apiKey.BillingSource = keys[0].BillingSource
+		} else {
+			organizationID := *req.OrganizationID
+			apiKey.BillingSource = &APIKeyBillingSource{
+				Type:           APIKeyBillingSourceOrganization,
+				OrganizationID: &organizationID,
+				Status:         APIKeyBillingSourceActive,
+			}
+		}
+	}
 
 	return apiKey, nil
 }
@@ -532,6 +590,9 @@ func (s *APIKeyService) List(ctx context.Context, userID int64, params paginatio
 		return nil, nil, fmt.Errorf("list api keys: %w", err)
 	}
 	s.fillCurrentConcurrency(ctx, keys)
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, nil, fmt.Errorf("load api key billing sources: %w", err)
+	}
 	return keys, pagination, nil
 }
 
@@ -546,6 +607,9 @@ func (s *APIKeyService) listByCurrentConcurrency(ctx context.Context, userID int
 		return nil, nil, fmt.Errorf("list api keys: %w", err)
 	}
 	s.fillCurrentConcurrency(ctx, keys)
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, nil, fmt.Errorf("load api key billing sources: %w", err)
+	}
 	sortAPIKeysByCurrentConcurrency(keys, params.NormalizedSortOrder(pagination.SortOrderDesc))
 	return paginateAPIKeys(keys, params), apiKeyPaginationResult(int64(len(keys)), params), nil
 }
@@ -623,6 +687,37 @@ func (s *APIKeyService) fillCurrentConcurrency(ctx context.Context, keys []APIKe
 	}
 }
 
+func personalAPIKeyBillingSource() *APIKeyBillingSource {
+	return &APIKeyBillingSource{Type: APIKeyBillingSourcePersonal, Status: APIKeyBillingSourceActive}
+}
+
+func (s *APIKeyService) fillBillingSources(ctx context.Context, keys []APIKey) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(keys))
+	for i := range keys {
+		keys[i].BillingSource = personalAPIKeyBillingSource()
+		if keys[i].ID > 0 {
+			ids = append(ids, keys[i].ID)
+		}
+	}
+	if s == nil || s.organizationBilling == nil || len(ids) == 0 {
+		return nil
+	}
+	sources, err := s.organizationBilling.GetAPIKeyBillingSources(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for i := range keys {
+		if source, ok := sources[keys[i].ID]; ok {
+			sourceCopy := source
+			keys[i].BillingSource = &sourceCopy
+		}
+	}
+	return nil
+}
+
 func (s *APIKeyService) currentConcurrencyForAPIKey(ctx context.Context, apiKeyID int64) int {
 	if s == nil || s.concurrencyService == nil || apiKeyID <= 0 {
 		return 0
@@ -655,6 +750,11 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 	s.compileAPIKeyIPRules(apiKey)
 	if apiKey != nil {
 		apiKey.CurrentConcurrency = s.currentConcurrencyForAPIKey(ctx, apiKey.ID)
+		keys := []APIKey{*apiKey}
+		if err := s.fillBillingSources(ctx, keys); err != nil {
+			return nil, fmt.Errorf("load api key billing source: %w", err)
+		}
+		apiKey.BillingSource = keys[0].BillingSource
 	}
 	return apiKey, nil
 }
@@ -737,6 +837,11 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	if apiKey.UserID != userID {
 		return nil, ErrInsufficientPerms
 	}
+	keys := []APIKey{*apiKey}
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, fmt.Errorf("load api key billing source: %w", err)
+	}
+	apiKey.BillingSource = keys[0].BillingSource
 
 	// 验证 IP 白名单格式
 	if req.IPWhitelist != nil && len(*req.IPWhitelist) > 0 {
@@ -852,7 +957,6 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	if resetRateLimit && s.rateLimitCacheInvalid != nil {
 		_ = s.rateLimitCacheInvalid.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
 	}
-
 	return apiKey, nil
 }
 

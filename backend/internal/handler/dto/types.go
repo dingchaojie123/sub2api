@@ -67,7 +67,8 @@ type APIKey struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
-	CurrentConcurrency int `json:"current_concurrency"`
+	CurrentConcurrency int                 `json:"current_concurrency"`
+	BillingSource      APIKeyBillingSource `json:"billing_source"`
 
 	// Rate limit fields
 	RateLimit5h   float64    `json:"rate_limit_5h"`
@@ -85,6 +86,13 @@ type APIKey struct {
 
 	User  *User  `json:"user,omitempty"`
 	Group *Group `json:"group,omitempty"`
+}
+
+type APIKeyBillingSource struct {
+	Type             string  `json:"type"`
+	OrganizationID   *int64  `json:"organization_id"`
+	OrganizationName *string `json:"organization_name"`
+	Status           string  `json:"status"`
 }
 
 type Group struct {

@@ -319,6 +319,37 @@ func TestForwardPPVideoBufferedPreservesByteDanceAssetCreateBadRequest(t *testin
 	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/assets/create", upstream.requests[2].URL.String())
 }
 
+func TestForwardPPVideoBufferedRecreatesUnavailableByteDanceAssetGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"items":[{"id":"group-stale","name":"seedance-2.0-i2v"}]}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"items":[]}`)))},
+			{StatusCode: http.StatusBadRequest, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"error":{"message":"Invalid param: asset group provider unavailable, please recreate the group"}}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"id":"group-recreated"}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"items":[]}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"id":"Asset-recreated"}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"id":"Asset-recreated","status":"Active"}`)))},
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewReader([]byte(`{"output":{"task_id":"bd-recovered-1"}}`)))},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{ID: 11, Platform: PlatformByteDance, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "bd-token"}}
+	body := []byte(`{"model":"doubao-seedance-2-0-260128","input":{"content":[{"type":"text","text":"scene"},{"type":"image_url","image_url":{"url":"https://example.com/person.jpg"},"role":"reference_image"}]},"parameters":{"duration":5,"resolution":"720p"}}`)
+
+	result, err := svc.ForwardPPVideoBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", body)
+
+	require.NoError(t, err)
+	require.Equal(t, "bd-recovered-1", result.ResponseID)
+	require.Len(t, upstream.requests, 8)
+	require.Equal(t, "https://api.modelverse.cn/v1/volce-asset/groups/create", upstream.requests[3].URL.String())
+	require.Equal(t, "seedance-2.0-i2v", gjson.GetBytes(upstream.bodies[3], "name").String())
+	require.Equal(t, "doubao-seedance-2-0-260128", gjson.GetBytes(upstream.bodies[3], "model").String())
+	require.Equal(t, "group-recreated", gjson.GetBytes(upstream.bodies[4], "filter.group_ids.0").String())
+	require.Equal(t, "group-recreated", gjson.GetBytes(upstream.bodies[5], "group_id").String())
+	require.Equal(t, "asset://Asset-recreated", gjson.GetBytes(upstream.bodies[7], "input.content.1.image_url.url").String())
+}
+
 func TestForwardPPVideoBufferedReusesByteDancePrivateImageAssetBeforeSubmit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	upstream := &httpUpstreamRecorder{

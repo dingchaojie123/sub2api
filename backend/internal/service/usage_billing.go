@@ -126,15 +126,18 @@ type UsageBillingApplyResult struct {
 
 // BatchImageBalanceHoldCommand describes an idempotent balance hold operation.
 type BatchImageBalanceHoldCommand struct {
-	RequestID          string
-	APIKeyID           int64
-	RequestFingerprint string
-	RequestPayloadHash string
-	UserID             int64
-	BatchID            string
-	HoldRequestID      string
-	HoldAmount         float64
-	ActualAmount       float64
+	RequestID            string
+	APIKeyID             int64
+	RequestFingerprint   string
+	RequestPayloadHash   string
+	UserID               int64
+	BillingSource        string
+	OrganizationID       *int64
+	OrganizationMemberID *int64
+	BatchID              string
+	HoldRequestID        string
+	HoldAmount           float64
+	ActualAmount         float64
 }
 
 func (c *BatchImageBalanceHoldCommand) Normalize() {
@@ -154,9 +157,12 @@ func buildBatchImageBalanceHoldFingerprint(c *BatchImageBalanceHoldCommand) stri
 		return ""
 	}
 	raw := fmt.Sprintf(
-		"%d|%d|%s|%0.10f|%0.10f",
+		"%d|%d|%s|%d|%d|%s|%0.10f|%0.10f",
 		c.UserID,
 		c.APIKeyID,
+		strings.TrimSpace(c.BillingSource),
+		valueOrZero(c.OrganizationID),
+		valueOrZero(c.OrganizationMemberID),
 		strings.TrimSpace(c.BatchID),
 		c.HoldAmount,
 		c.ActualAmount,

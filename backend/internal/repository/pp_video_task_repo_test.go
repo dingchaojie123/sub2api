@@ -31,6 +31,7 @@ func TestClaimPPVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5.041, 0.86162, 0.0,
 			200, "application/json", `{"status":"processing"}`,
 			"", "", "lease-token", "worker-a", leaseUntil, 1, now, now, now, now, nil, nil,
+			service.APIKeyBillingSourcePersonal, nil, nil,
 		))
 
 	repo := &usageBillingRepository{db: db}
@@ -75,9 +76,10 @@ func TestReleasePPVideoTaskPollLeaseIsBestEffort(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
+func TestCreatePPVideoTaskPersistsPlatformOperationAccountAndBillingSnapshot(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 8, 10, 10, 0, 0, 0, time.UTC)
+	organizationID, memberUserID := int64(40), int64(10)
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
@@ -89,6 +91,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 			service.PPVideoBillingStatusHeld, "payload_hash", "idem", "hold", "capture", "release",
 			5.0, 5.0, "USD", 5, int64(5000), int64(0), int64(0), 1, "720p",
 			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
+			service.APIKeyBillingSourceOrganization, organizationID, memberUserID,
 		).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "ppvidtask_1", "", int64(10), int64(20), nil, int64(30),
@@ -99,6 +102,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
 			200, "application/json", "{}",
 			"", "", "", "", nil, 0, nil, now, now, nil, nil, nil,
+			service.APIKeyBillingSourceOrganization, organizationID, memberUserID,
 		))
 
 	repo := &usageBillingRepository{db: db}
@@ -106,6 +110,9 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 		LocalTaskID:                        "ppvidtask_1",
 		UserID:                             10,
 		APIKeyID:                           20,
+		BillingSource:                      service.APIKeyBillingSourceOrganization,
+		BillingOrganizationID:              &organizationID,
+		BillingMemberUserID:                &memberUserID,
 		AccountID:                          30,
 		Platform:                           service.PlatformKling,
 		Operation:                          service.PPVideoOperationKlingTextToVideo,
@@ -130,6 +137,9 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAndAccount(t *testing.T) {
 	require.Equal(t, service.PlatformKling, task.Platform)
 	require.Equal(t, service.PPVideoOperationKlingTextToVideo, task.Operation)
 	require.Equal(t, int64(30), task.AccountID)
+	require.Equal(t, service.APIKeyBillingSourceOrganization, task.BillingSource)
+	require.Equal(t, organizationID, *task.BillingOrganizationID)
+	require.Equal(t, memberUserID, *task.BillingMemberUserID)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -212,6 +222,7 @@ func TestMarkPPVideoTaskStatusPersistsMillisecondDuration(t *testing.T) {
 			1280, 720, 24.0, false, "std", service.PPVideoBillingFormulaPerSecond, 5.041, 0.57419, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
+			service.APIKeyBillingSourcePersonal, nil, nil,
 		))
 
 	repo := &usageBillingRepository{db: db}
@@ -251,6 +262,7 @@ func TestClaimPPVideoTaskSettlementUsesCompareAndSet(t *testing.T) {
 			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5, 0.4, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
+			service.APIKeyBillingSourcePersonal, nil, nil,
 		))
 
 	repo := &usageBillingRepository{db: db}
@@ -329,5 +341,8 @@ func newPPVideoTaskRows(_ time.Time) *sqlmock.Rows {
 		"submitted_at",
 		"finished_at",
 		"settled_at",
+		"billing_source",
+		"billing_organization_id",
+		"billing_member_user_id",
 	})
 }

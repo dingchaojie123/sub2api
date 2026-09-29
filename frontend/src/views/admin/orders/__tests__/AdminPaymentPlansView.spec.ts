@@ -101,6 +101,6 @@ describe('AdminPaymentPlansView', () => {
 
     expect(wrapper.text()).toContain('¥499.00CNY')
     expect(wrapper.text()).toContain('¥599.00')
-    expect(wrapper.text()).toContain('$10.00')
+    expect(wrapper.text()).toContain('10.00')
   })
 })

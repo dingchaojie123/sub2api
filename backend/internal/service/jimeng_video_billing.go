@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	JimengVideoTaskStatusSubmitting     = "submitting"
+	JimengVideoTaskStatusSubmitting    = "submitting"
 	JimengVideoIdempotencyKeyMaxLength = 255
 
 	JimengVideoBillingStatusHeld         = "held"
@@ -31,75 +31,81 @@ const (
 )
 
 var (
-	ErrJimengVideoTaskNotFound           = infraerrors.New(http.StatusNotFound, "JIMENG_VIDEO_TASK_NOT_FOUND", "video request not found")
-	ErrJimengVideoTaskRepositoryMissing  = infraerrors.New(http.StatusServiceUnavailable, "JIMENG_VIDEO_TASK_REPOSITORY_MISSING", "video task repository is not configured")
-	ErrJimengVideoIdempotencyRequired    = infraerrors.New(http.StatusBadRequest, "JIMENG_VIDEO_IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required for video generation")
-	ErrJimengVideoIdempotencyConflict    = infraerrors.New(http.StatusConflict, "JIMENG_VIDEO_IDEMPOTENCY_CONFLICT", "idempotency key reused with different video request")
-	ErrJimengVideoIdempotencyInProgress  = infraerrors.New(http.StatusConflict, "JIMENG_VIDEO_IDEMPOTENCY_IN_PROGRESS", "idempotent video request is still being submitted")
-	ErrJimengVideoBillingHoldFailed      = infraerrors.New(http.StatusBadGateway, "JIMENG_VIDEO_BILLING_HOLD_FAILED", "video balance hold failed")
+	ErrJimengVideoTaskNotFound            = infraerrors.New(http.StatusNotFound, "JIMENG_VIDEO_TASK_NOT_FOUND", "video request not found")
+	ErrJimengVideoTaskRepositoryMissing   = infraerrors.New(http.StatusServiceUnavailable, "JIMENG_VIDEO_TASK_REPOSITORY_MISSING", "video task repository is not configured")
+	ErrJimengVideoIdempotencyRequired     = infraerrors.New(http.StatusBadRequest, "JIMENG_VIDEO_IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key is required for video generation")
+	ErrJimengVideoIdempotencyConflict     = infraerrors.New(http.StatusConflict, "JIMENG_VIDEO_IDEMPOTENCY_CONFLICT", "idempotency key reused with different video request")
+	ErrJimengVideoIdempotencyInProgress   = infraerrors.New(http.StatusConflict, "JIMENG_VIDEO_IDEMPOTENCY_IN_PROGRESS", "idempotent video request is still being submitted")
+	ErrJimengVideoBillingHoldFailed       = infraerrors.New(http.StatusBadGateway, "JIMENG_VIDEO_BILLING_HOLD_FAILED", "video balance hold failed")
 	ErrJimengVideoSettlementBillingFailed = infraerrors.New(http.StatusBadGateway, "JIMENG_VIDEO_SETTLEMENT_BILLING_FAILED", "video settlement billing failed")
-	ErrJimengVideoInsufficientBalance    = infraerrors.New(http.StatusPaymentRequired, "JIMENG_VIDEO_INSUFFICIENT_BALANCE", "insufficient balance for video generation hold")
+	ErrJimengVideoInsufficientBalance     = infraerrors.New(http.StatusPaymentRequired, "JIMENG_VIDEO_INSUFFICIENT_BALANCE", "insufficient balance for video generation hold")
 )
 
 type JimengVideoTask struct {
-	ID                   int64
-	LocalTaskID          string
-	TaskID               string
-	UserID               int64
-	APIKeyID             int64
-	GroupID              *int64
-	AccountID            int64
-	Model                string
-	Status               string
-	BillingStatus        string
-	RequestHash          string
-	IdempotencyKey       string
-	HoldID               string
-	CaptureID            string
-	ReleaseID            string
-	EstimatedTotalCost   float64
-	HoldAmount           float64
-	ActualCost           *float64
-	Currency             string
-	VideoDurationSeconds int
-	VideoResolution      string
+	ID                    int64
+	LocalTaskID           string
+	TaskID                string
+	UserID                int64
+	APIKeyID              int64
+	BillingSource         string
+	BillingOrganizationID *int64
+	BillingMemberUserID   *int64
+	GroupID               *int64
+	AccountID             int64
+	Model                 string
+	Status                string
+	BillingStatus         string
+	RequestHash           string
+	IdempotencyKey        string
+	HoldID                string
+	CaptureID             string
+	ReleaseID             string
+	EstimatedTotalCost    float64
+	HoldAmount            float64
+	ActualCost            *float64
+	Currency              string
+	VideoDurationSeconds  int
+	VideoResolution       string
 	ResponseStatus        int
 	ResponseContentType   string
 	ResponseBody          string
 	LastErrorCode         string
 	LastErrorMessage      string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	SubmittedAt          *time.Time
-	FinishedAt           *time.Time
-	SettledAt            *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	SubmittedAt           *time.Time
+	FinishedAt            *time.Time
+	SettledAt             *time.Time
 }
 
 type CreateJimengVideoTaskParams struct {
-	LocalTaskID          string
-	UserID               int64
-	APIKeyID             int64
-	GroupID              *int64
-	AccountID            int64
-	Model                string
-	Status               string
-	BillingStatus        string
-	RequestHash          string
-	IdempotencyKey       string
-	HoldID               string
-	CaptureID            string
-	ReleaseID            string
-	EstimatedTotalCost   float64
-	HoldAmount           float64
-	Currency             string
-	VideoDurationSeconds int
-	VideoResolution      string
+	LocalTaskID           string
+	UserID                int64
+	APIKeyID              int64
+	BillingSource         string
+	BillingOrganizationID *int64
+	BillingMemberUserID   *int64
+	GroupID               *int64
+	AccountID             int64
+	Model                 string
+	Status                string
+	BillingStatus         string
+	RequestHash           string
+	IdempotencyKey        string
+	HoldID                string
+	CaptureID             string
+	ReleaseID             string
+	EstimatedTotalCost    float64
+	HoldAmount            float64
+	Currency              string
+	VideoDurationSeconds  int
+	VideoResolution       string
 }
 
 type MarkJimengVideoSubmittedParams struct {
-	LocalTaskID        string
-	TaskID             string
-	Status             string
+	LocalTaskID         string
+	TaskID              string
+	Status              string
 	ResponseStatus      int
 	ResponseContentType string
 	ResponseBody        string
@@ -373,14 +379,17 @@ func jimengVideoBalanceHoldCommand(task *JimengVideoTask, requestID string, actu
 		return nil
 	}
 	return &BatchImageBalanceHoldCommand{
-		RequestID:          strings.TrimSpace(requestID),
-		APIKeyID:           task.APIKeyID,
-		UserID:             task.UserID,
-		BatchID:            strings.TrimSpace(task.LocalTaskID),
-		HoldRequestID:      strings.TrimSpace(task.HoldID),
-		HoldAmount:         task.HoldAmount,
-		ActualAmount:       actualAmount,
-		RequestPayloadHash: strings.TrimSpace(payloadHash),
+		RequestID:            strings.TrimSpace(requestID),
+		APIKeyID:             task.APIKeyID,
+		UserID:               task.UserID,
+		BillingSource:        task.BillingSource,
+		OrganizationID:       task.BillingOrganizationID,
+		OrganizationMemberID: task.BillingMemberUserID,
+		BatchID:              strings.TrimSpace(task.LocalTaskID),
+		HoldRequestID:        strings.TrimSpace(task.HoldID),
+		HoldAmount:           task.HoldAmount,
+		ActualAmount:         actualAmount,
+		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	}
 }
 
@@ -571,29 +580,29 @@ func (s *OpenAIGatewayService) recordJimengVideoBalanceUsage(ctx context.Context
 		rateMultiplier = actualCost / totalCost
 	}
 	usageLog := &UsageLog{
-		UserID:                 task.UserID,
-		APIKeyID:               task.APIKeyID,
-		AccountID:              task.AccountID,
-		RequestID:              requestID,
-		Model:                  JimengVideoBillingModel,
-		RequestedModel:         JimengVideoBillingModel,
-		UpstreamModel:          optionalNonEqualStringPtr(JimengVideoDefaultModel, JimengVideoBillingModel),
-		InboundEndpoint:        optionalTrimmedStringPtr(in.InboundEndpoint),
-		UpstreamEndpoint:       optionalTrimmedStringPtr(in.UpstreamEndpoint),
-		VideoCount:             1,
-		VideoResolution:        &videoResolution,
-		VideoDurationSeconds:   &videoDurationSeconds,
-		OutputCost:             totalCost,
-		TotalCost:              totalCost,
-		ActualCost:             actualCost,
-		RateMultiplier:         rateMultiplier,
-		AccountRateMultiplier:  &accountRateMultiplier,
-		BillingType:            BillingTypeBalance,
-		RequestType:            RequestTypeSync,
-		BillingMode:            &billingMode,
-		UserAgent:              optionalTrimmedStringPtr(in.UserAgent),
-		IPAddress:              optionalTrimmedStringPtr(in.IPAddress),
-		CreatedAt:              time.Now(),
+		UserID:                task.UserID,
+		APIKeyID:              task.APIKeyID,
+		AccountID:             task.AccountID,
+		RequestID:             requestID,
+		Model:                 JimengVideoBillingModel,
+		RequestedModel:        JimengVideoBillingModel,
+		UpstreamModel:         optionalNonEqualStringPtr(JimengVideoDefaultModel, JimengVideoBillingModel),
+		InboundEndpoint:       optionalTrimmedStringPtr(in.InboundEndpoint),
+		UpstreamEndpoint:      optionalTrimmedStringPtr(in.UpstreamEndpoint),
+		VideoCount:            1,
+		VideoResolution:       &videoResolution,
+		VideoDurationSeconds:  &videoDurationSeconds,
+		OutputCost:            totalCost,
+		TotalCost:             totalCost,
+		ActualCost:            actualCost,
+		RateMultiplier:        rateMultiplier,
+		AccountRateMultiplier: &accountRateMultiplier,
+		BillingType:           BillingTypeBalance,
+		RequestType:           RequestTypeSync,
+		BillingMode:           &billingMode,
+		UserAgent:             optionalTrimmedStringPtr(in.UserAgent),
+		IPAddress:             optionalTrimmedStringPtr(in.IPAddress),
+		CreatedAt:             time.Now(),
 	}
 	if task.GroupID != nil {
 		usageLog.GroupID = task.GroupID
@@ -639,6 +648,10 @@ func (s *OpenAIGatewayService) applyJimengVideoBalanceAccounting(
 		BillingType:        BillingTypeBalance,
 		MediaType:          string(BillingModeVideo),
 		RequestPayloadHash: strings.TrimSpace(in.RequestPayloadHash),
+	}
+	if task.BillingSource == APIKeyBillingSourceOrganization {
+		cmd.OrganizationID = task.BillingOrganizationID
+		cmd.OrganizationMemberID = task.BillingMemberUserID
 	}
 	if usageLog != nil {
 		cmd.Model = usageLog.Model
@@ -734,18 +747,18 @@ func jimengVideoUsageResultFromTask(task *JimengVideoTask) *OpenAIForwardResult 
 		return nil
 	}
 	return &OpenAIForwardResult{
-		RequestID:             jimengVideoUsageRequestID(task),
-		ResponseID:            strings.TrimSpace(task.TaskID),
-		Model:                 JimengVideoBillingModel,
-		BillingModel:          JimengVideoBillingModel,
-		UpstreamModel:         JimengVideoDefaultModel,
-		HasUsage:              true,
-		ImageCount:            1,
-		VideoCount:            1,
-		VideoResolution:       task.VideoResolution,
-		VideoDurationSeconds:  task.VideoDurationSeconds,
-		UpstreamEndpoint:      jimengVideoUpstreamEndpoint(JimengVideoEndpointStatus),
-		TaskStatus:            JimengTaskStatusSucceeded,
+		RequestID:            jimengVideoUsageRequestID(task),
+		ResponseID:           strings.TrimSpace(task.TaskID),
+		Model:                JimengVideoBillingModel,
+		BillingModel:         JimengVideoBillingModel,
+		UpstreamModel:        JimengVideoDefaultModel,
+		HasUsage:             true,
+		ImageCount:           1,
+		VideoCount:           1,
+		VideoResolution:      task.VideoResolution,
+		VideoDurationSeconds: task.VideoDurationSeconds,
+		UpstreamEndpoint:     jimengVideoUpstreamEndpoint(JimengVideoEndpointStatus),
+		TaskStatus:           JimengTaskStatusSucceeded,
 	}
 }
 
