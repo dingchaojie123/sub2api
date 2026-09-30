@@ -407,7 +407,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			if errors.As(err, &upstreamErr) && upstreamErr.StatusCode >= http.StatusBadRequest && upstreamErr.StatusCode < http.StatusInternalServerError {
 				message := strings.TrimSpace(service.ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
 				if message == "" {
-					message = "ByteDance reference image registration failed"
+					message = "Upstream rejected the video request"
 				}
 				service.SetOpsUpstreamError(c, upstreamErr.StatusCode, message, string(upstreamErr.ResponseBody))
 				h.errorResponse(c, upstreamErr.StatusCode, "upstream_error", message)

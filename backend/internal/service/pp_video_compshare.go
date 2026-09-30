@@ -298,10 +298,20 @@ func compShareVideoURLValid(raw string, allowData bool) bool {
 
 func parseCompShareVideoResponse(body []byte) (PPVideoResponse, error) {
 	if code := gjson.GetBytes(body, "RetCode"); code.Exists() && code.Int() != 0 {
-		return PPVideoResponse{}, fmt.Errorf("CompShare: %s", extractPPVideoText(body, "Message"))
+		message := extractPPVideoText(body, "Message", "message", "msg", "error.message")
+		return PPVideoResponse{}, &PPVideoUpstreamError{
+			StatusCode:   http.StatusBadRequest,
+			ResponseBody: append([]byte(nil), body...),
+			err:          fmt.Errorf("CompShare returned RetCode %d: %s", code.Int(), message),
+		}
 	}
 	if gjson.GetBytes(body, "type").String() == "error" {
-		return PPVideoResponse{}, fmt.Errorf("CompShare: %s", extractPPVideoText(body, "error.message"))
+		message := extractPPVideoText(body, "error.message", "message", "Message", "msg")
+		return PPVideoResponse{}, &PPVideoUpstreamError{
+			StatusCode:   http.StatusBadRequest,
+			ResponseBody: append([]byte(nil), body...),
+			err:          fmt.Errorf("CompShare: %s", message),
+		}
 	}
 	result := PPVideoResponse{
 		TaskID:                         extractPPVideoText(body, "task.id", "task_id"),

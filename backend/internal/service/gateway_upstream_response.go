@@ -303,8 +303,13 @@ func extractUpstreamErrorMessage(body []byte) string {
 		return d
 	}
 
-	// 兜底：尝试顶层 message
-	return gjson.GetBytes(body, "message").String()
+	// 兜底：尝试常见的顶层错误消息字段。CompShare 使用大写 Message。
+	for _, path := range []string{"message", "Message", "msg"} {
+		if message := gjson.GetBytes(body, path).String(); strings.TrimSpace(message) != "" {
+			return message
+		}
+	}
+	return ""
 }
 
 func extractUpstreamErrorCode(body []byte) string {

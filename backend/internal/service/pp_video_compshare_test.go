@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,6 +48,33 @@ func TestCompShareVideoRequestContract(t *testing.T) {
 	require.Error(t, err, "the old provider must retain its own limits")
 }
 
+func TestCompShareVideoReferenceImagesRequestContract(t *testing.T) {
+	body := []byte(`{
+		"model":"MiniMax-H3",
+		"content":[
+			{"type":"text","text":"图一为朱棣，图二为朱元璋"},
+			{"type":"image_url","image_url":{"url":"https://example.com/zhu-di.png?signature=one"},"role":"reference_image"},
+			{"type":"image_url","image_url":{"url":"https://example.com/zhu-yuanzhang.png?signature=two"},"role":"reference_image"}
+		],
+		"duration":9,
+		"resolution":"480P",
+		"ratio":"9:16"
+	}`)
+
+	prepared, public, err := PreparePPVideoRequestBody(PlatformMiniMaxH3CompShare, PPVideoOperationGeneric, body)
+	require.NoError(t, err)
+	require.Equal(t, MiniMaxH3VideoDefaultModel, gjson.GetBytes(prepared, "model").String())
+	require.Equal(t, int64(3), gjson.GetBytes(prepared, "content.#").Int())
+	require.Equal(t, "reference_image", gjson.GetBytes(prepared, "content.1.role").String())
+	require.Equal(t, "https://example.com/zhu-di.png?signature=one", gjson.GetBytes(prepared, "content.1.image_url.url").String())
+	require.Equal(t, "reference_image", gjson.GetBytes(prepared, "content.2.role").String())
+	require.Equal(t, "https://example.com/zhu-yuanzhang.png?signature=two", gjson.GetBytes(prepared, "content.2.image_url.url").String())
+	require.Equal(t, int64(9), gjson.GetBytes(prepared, "duration").Int())
+	require.Equal(t, "480P", gjson.GetBytes(prepared, "resolution").String())
+	require.Equal(t, "9:16", gjson.GetBytes(prepared, "ratio").String())
+	require.True(t, public.HasImage)
+}
+
 func TestCompShareVideoRejectsInvalidRequests(t *testing.T) {
 	for _, body := range []string{
 		`{"prompt":"test","duration":0}`,
@@ -61,6 +89,7 @@ func TestCompShareVideoRejectsInvalidRequests(t *testing.T) {
 		`{"prompt":"test","callback_url":"file:///tmp/callback"}`,
 		`{"content":[]}`,
 		`{"content":[{"type":"audio_url","audio_url":{"url":"https://example.com/audio.mp3"}}]}`,
+		`{"content":[{"type":"image_url","image_url":{"url":"[https://example.com/frame.png](https://example.com/frame.png)"}}]}`,
 		`{"content":[{"type":"image_url","image_url":{"url":"https://example.com/frame.png"}},{"type":"image_url","image_url":{"url":"https://example.com/ref.png"},"role":"reference_image"}]}`,
 		`{"content":[{"type":"text","text":""}]}`,
 	} {
@@ -118,8 +147,14 @@ func TestCompShareVideoResponseFailuresAndPendingOutput(t *testing.T) {
 		require.Equal(t, tt.status, result.Status)
 		require.Equal(t, tt.message, result.ErrorMessage)
 	}
-	_, err := ParsePPVideoResponse(PlatformMiniMaxH3CompShare, []byte(`{"RetCode":8039,"Message":"job not found"}`))
+	responseBody := []byte(`{"RetCode":8039,"Message":"job not found"}`)
+	_, err := ParsePPVideoResponse(PlatformMiniMaxH3CompShare, responseBody)
 	require.ErrorContains(t, err, "job not found")
+	var upstreamErr *PPVideoUpstreamError
+	require.True(t, errors.As(err, &upstreamErr))
+	require.Equal(t, http.StatusBadRequest, upstreamErr.StatusCode)
+	require.Equal(t, responseBody, upstreamErr.ResponseBody)
+	require.Equal(t, "job not found", ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
 }
 
 func TestCompShareVideoPricingAndDowngrade(t *testing.T) {
