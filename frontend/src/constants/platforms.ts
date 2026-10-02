@@ -3,6 +3,7 @@ export const PROVIDER_PLATFORMS = ['doubao', 'qwen', 'kimi', 'deepseek', 'midjou
 export type ProviderPlatform = (typeof PROVIDER_PLATFORMS)[number]
 
 export const VIDEO_ACCOUNT_PLATFORMS = [
+  '88api-video',
   'kling',
   'happyhourse',
   'seedance',
@@ -22,6 +23,7 @@ export const AUDIO_ACCOUNT_PLATFORMS = ['minimax-speech', 'qwen-tts'] as const
 export type AudioAccountPlatform = (typeof AUDIO_ACCOUNT_PLATFORMS)[number]
 
 export const CHANNEL_PRICING_PLATFORMS = [
+  '88api-video',
   'anthropic',
   'openai',
   'gemini',
@@ -129,6 +131,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
   VideoAccountPlatform,
   VideoAccountPlatformMetadata
 > = {
+  '88api-video': {
+    id: '88api-video',
+    label: '88API Video',
+    defaultBaseUrl: 'https://88api.ai/v1',
+    baseUrlPlaceholder: 'https://88api.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
   kling: {
     id: 'kling',
     label: 'K-Ling',

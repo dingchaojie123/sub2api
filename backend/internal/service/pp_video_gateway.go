@@ -88,6 +88,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		return nil, fmt.Errorf("PP video api key not found in credentials")
 	}
 	baseURLRaw := account.GetOpenAIBaseURL()
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == Platform88APIVideo {
+		baseURLRaw = Video88APIDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMiniMaxH3CompShare {
 		baseURLRaw = CompShareVideoDefaultBaseURL
 	}
@@ -175,6 +178,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	parsed, err := ParsePPVideoResponse(account.Platform, respBody)
 	if err != nil {
 		return nil, err
+	}
+	if account.Platform == Platform88APIVideo && parsed.Status != PPVideoTaskStatusSucceeded {
+		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if account.Platform == PlatformMiniMaxH3CompShare && parsed.Status != PPVideoTaskStatusSucceeded {
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
@@ -657,6 +663,10 @@ func isPPVideoAccountEligibleForModel(account *Account, requestedModel string) b
 		return false
 	}
 	requestedModel = strings.TrimSpace(requestedModel)
+	if account.Platform == Platform88APIVideo {
+		_, ok := account.GetModelMapping()[requestedModel]
+		return requestedModel != "" && ok
+	}
 	if requestedModel == "" {
 		return true
 	}

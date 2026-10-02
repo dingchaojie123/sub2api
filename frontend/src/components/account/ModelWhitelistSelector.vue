@@ -202,6 +202,7 @@ const upstreamSyncPlatforms = new Set([
   'wan3',
   'minimax-h3',
   'minimax-h3-compshare',
+  '88api-video',
   'minimax-speech',
   'qwen-tts',
   'pixverse-v6',

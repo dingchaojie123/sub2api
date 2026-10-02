@@ -33,6 +33,7 @@ const MatchModeAll = "all"
 // 支持的平台常量
 const (
 	PlatformAnthropic          = "anthropic"
+	Platform88APIVideo         = "88api-video"
 	PlatformOpenAI             = "openai"
 	PlatformGemini             = "gemini"
 	PlatformAntigravity        = "antigravity"
@@ -60,6 +61,7 @@ const (
 // AllPlatforms 返回所有支持的平台列表
 func AllPlatforms() []string {
 	return []string{
+		Platform88APIVideo,
 		PlatformAnthropic,
 		PlatformOpenAI,
 		PlatformGemini,

@@ -13,8 +13,8 @@ var defaultAPIKeyGroups = [...]struct {
 	Name    string
 }{
 	{"text", "OC--ChatGPT【文本模型】"},
-	{"image", "OC--ChatGPT【生图】"},
-	{"video", "OC--Seedance【视频】"},
+	{"image", "GPT图片【聚合】"},
+	{"video", "视频【聚合】"},
 	{"audio", "OC--Qwen-TTS【音频】"},
 }
 

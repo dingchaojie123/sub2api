@@ -273,6 +273,7 @@ export default {
         'pixverse-v6': 'Pixverse-V6',
         'grok-imagine-video': 'Grok Imagine Video',
         kuaishou: 'Kuaishou',
+        '88api-video': '88API Video',
       },
       types: {
         oauth: 'OAuth',

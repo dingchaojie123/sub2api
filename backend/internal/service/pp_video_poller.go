@@ -251,7 +251,7 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 		}
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeSkipped, Status: status}, nil
 	}
-	if ppVideoTaskAge(task, now) >= opts.MaxProcessingAge {
+	if task.Platform != Platform88APIVideo && ppVideoTaskAge(task, now) >= opts.MaxProcessingAge {
 		return s.releaseAndFail(ctx, task, "processing_timeout", "video task processing timed out")
 	}
 	account, releaseFunc, err := s.resolveAccount(ctx, task.AccountID, task.Platform)

@@ -312,6 +312,9 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 	}
 
 	baseURL := strings.TrimSpace(account.GetOpenAIBaseURL())
+	if baseURL == "" && account.Platform == Platform88APIVideo {
+		baseURL = Video88APIDefaultBaseURL
+	}
 	if baseURL == "" {
 		return nil, newUpstreamModelSyncConfigError("PP video base URL is required for upstream model sync", nil)
 	}
@@ -665,6 +668,11 @@ func dedupeAndSortModelIDs(models []string) []string {
 }
 
 func filterUpstreamModelsForPlatform(platform string, models []string) []string {
+	if platform == Platform88APIVideo {
+		// Model discovery must remain open to new upstream names. Administrators
+		// select video models from the live list before saving the account.
+		return models
+	}
 	if !IsPPVideoPlatform(platform) && !IsAudioPlatform(platform) {
 		return models
 	}

@@ -87,6 +87,13 @@ describe('validateIntervals', () => {
 })
 
 describe('billingModesForPlatform', () => {
+  it('offers per-second model pricing for 88API', () => {
+    expect(billingModesForPlatform('88api-video')).toEqual(['video'])
+    expect(validateIntervals([
+      makeInterval({ tier_label: '768p', per_request_price: 0.1 }),
+      makeInterval({ tier_label: '4k', per_request_price: 0.5 }),
+    ], 'video', t)).toBeNull()
+  })
   it('does not offer channel video-per-second pricing for PP video platforms', () => {
     expect(billingModesForPlatform('kling')).not.toContain('video')
     expect(billingModesForPlatform('happyhourse')).not.toContain('video')

@@ -139,6 +139,7 @@ docs/*
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
 !docs/ASYNC_IMAGE_TASKS.md
 !docs/PP_VIDEO_GENERATION_API.md
+!docs/88api-video-integration.md
 !docs/default-api-keys.md
 !docs/customer-account-api.md
 !docs/customer-auth-api.md

@@ -39,6 +39,7 @@ const (
 // Platform constants
 const (
 	PlatformAnthropic          = domain.PlatformAnthropic
+	Platform88APIVideo         = domain.Platform88APIVideo
 	PlatformOpenAI             = domain.PlatformOpenAI
 	PlatformGemini             = domain.PlatformGemini
 	PlatformAntigravity        = domain.PlatformAntigravity
@@ -67,6 +68,7 @@ const (
 // ent/schema/user_platform_quota.go 的 Validate 函数独立维护（构建期约束），
 // 若新增平台需同步修改该 schema。
 var AllowedQuotaPlatforms = []string{
+	Platform88APIVideo,
 	PlatformAnthropic,
 	PlatformOpenAI,
 	PlatformGemini,

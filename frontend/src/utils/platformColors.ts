@@ -24,6 +24,7 @@ export type Platform =
   | 'wan3'
   | 'minimax-h3'
   | 'minimax-h3-compshare'
+  | '88api-video'
   | 'minimax-speech'
   | 'qwen-tts'
   | 'pixverse-v6'
@@ -50,6 +51,7 @@ const BADGE: Record<Platform, string> = {
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
   'minimax-h3-compshare': 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
+  '88api-video': 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
   'minimax-speech': 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300',
   'qwen-tts': 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300',
   'pixverse-v6': 'bg-lime-500/10 text-lime-700 border-lime-500/30 dark:text-lime-300',
@@ -78,6 +80,7 @@ const BADGE_LIGHT: Record<Platform, string> = {
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
   'minimax-h3-compshare': 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
+  '88api-video': 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   'minimax-speech': 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
   'qwen-tts': 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
   'pixverse-v6': 'bg-lime-500/10 text-lime-700 dark:bg-lime-500/10 dark:text-lime-300',
@@ -105,6 +108,7 @@ const BORDER: Record<Platform, string> = {
   wan3: 'border-fuchsia-500/20 dark:border-fuchsia-500/20',
   'minimax-h3': 'border-pink-500/20 dark:border-pink-500/20',
   'minimax-h3-compshare': 'border-pink-500/20 dark:border-pink-500/20',
+  '88api-video': 'border-emerald-500/20 dark:border-emerald-500/20',
   'minimax-speech': 'border-violet-500/20 dark:border-violet-500/20',
   'qwen-tts': 'border-amber-500/20 dark:border-amber-500/20',
   'pixverse-v6': 'border-lime-500/20 dark:border-lime-500/20',
@@ -133,6 +137,7 @@ const ACCENT_BAR: Record<Platform, string> = {
   wan3: 'bg-gradient-to-r from-fuchsia-400 to-fuchsia-600',
   'minimax-h3': 'bg-gradient-to-r from-pink-400 to-pink-600',
   'minimax-h3-compshare': 'bg-gradient-to-r from-pink-400 to-pink-600',
+  '88api-video': 'bg-gradient-to-r from-emerald-400 to-emerald-600',
   'minimax-speech': 'bg-gradient-to-r from-violet-400 to-violet-600',
   'qwen-tts': 'bg-gradient-to-r from-amber-400 to-orange-500',
   'pixverse-v6': 'bg-gradient-to-r from-lime-400 to-lime-600',
@@ -161,6 +166,7 @@ const TEXT: Record<Platform, string> = {
   wan3: 'text-fuchsia-700 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-700 dark:text-pink-300',
   'minimax-h3-compshare': 'text-pink-700 dark:text-pink-300',
+  '88api-video': 'text-emerald-700 dark:text-emerald-300',
   'minimax-speech': 'text-violet-700 dark:text-violet-300',
   'qwen-tts': 'text-amber-700 dark:text-amber-300',
   'pixverse-v6': 'text-lime-700 dark:text-lime-300',
@@ -189,6 +195,7 @@ const ICON: Record<Platform, string> = {
   wan3: 'text-fuchsia-500 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-500 dark:text-pink-300',
   'minimax-h3-compshare': 'text-pink-500 dark:text-pink-300',
+  '88api-video': 'text-emerald-500 dark:text-emerald-300',
   'minimax-speech': 'text-violet-500 dark:text-violet-300',
   'qwen-tts': 'text-amber-500 dark:text-amber-300',
   'pixverse-v6': 'text-lime-500 dark:text-lime-300',
@@ -217,6 +224,7 @@ const BUTTON: Record<Platform, string> = {
   wan3: 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 active:bg-fuchsia-800 dark:bg-fuchsia-600/80 dark:hover:bg-fuchsia-600',
   'minimax-h3': 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
   'minimax-h3-compshare': 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
+  '88api-video': 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
   'minimax-speech': 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 dark:bg-violet-600/80 dark:hover:bg-violet-600',
   'qwen-tts': 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 dark:bg-amber-600/80 dark:hover:bg-amber-600',
   'pixverse-v6': 'bg-lime-600 text-white hover:bg-lime-700 active:bg-lime-800 dark:bg-lime-600/80 dark:hover:bg-lime-600',
@@ -245,6 +253,7 @@ const DISCOUNT: Record<Platform, string> = {
   wan3: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
   'minimax-h3-compshare': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
+  '88api-video': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   'minimax-speech': 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   'qwen-tts': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   'pixverse-v6': 'bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300',
@@ -273,6 +282,7 @@ const GRADIENT: Record<Platform, string> = {
   wan3: 'from-fuchsia-500 to-fuchsia-600',
   'minimax-h3': 'from-pink-500 to-pink-600',
   'minimax-h3-compshare': 'from-pink-500 to-pink-600',
+  '88api-video': 'from-emerald-500 to-emerald-600',
   'minimax-speech': 'from-violet-500 to-violet-600',
   'qwen-tts': 'from-amber-500 to-orange-600',
   'pixverse-v6': 'from-lime-500 to-lime-600',
@@ -301,6 +311,7 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   wan3: 'text-fuchsia-100',
   'minimax-h3': 'text-pink-100',
   'minimax-h3-compshare': 'text-pink-100',
+  '88api-video': 'text-emerald-100',
   'minimax-speech': 'text-violet-100',
   'qwen-tts': 'text-amber-100',
   'pixverse-v6': 'text-lime-100',
@@ -328,6 +339,7 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   wan3: 'text-fuchsia-200',
   'minimax-h3': 'text-pink-200',
   'minimax-h3-compshare': 'text-pink-200',
+  '88api-video': 'text-emerald-200',
   'minimax-speech': 'text-violet-200',
   'qwen-tts': 'text-amber-200',
   'pixverse-v6': 'text-lime-200',
@@ -339,7 +351,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
+  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -405,6 +417,7 @@ export function platformLabel(p: string): string {
     case 'bytedance': return 'ByteDance'
     case 'wan3': return 'Wan3.0'
     case 'minimax-h3': return 'MiniMax-H3'
+    case '88api-video': return '88API Video'
     case 'minimax-h3-compshare': return 'MiniMax-H3（优云智算）'
     case 'minimax-speech': return 'MiniMax-Speech'
     case 'qwen-tts': return 'Qwen TTS'

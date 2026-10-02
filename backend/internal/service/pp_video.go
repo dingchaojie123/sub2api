@@ -99,6 +99,8 @@ type PPVideoPublicRequest struct {
 
 func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
+	case Platform88APIVideo:
+		return true
 	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
@@ -150,6 +152,14 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 
 	var err error
 	switch platform {
+	case Platform88APIVideo:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("88API only supports video generation")
+		}
+		payload, err = normalize88APIVideoPayload(payload, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 	case PlatformKling:
 		if err := normalizePPVideoKlingPayload(payload, operation, body, &public); err != nil {
 			return nil, PPVideoPublicRequest{}, err
@@ -1998,6 +2008,14 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
+	case Platform88APIVideo:
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("88API does not support operation %q", operation)
+		}
+		if taskID != "" {
+			return "/v1/videos/" + url.PathEscape(taskID), nil
+		}
+		return "/v1/videos", nil
 	case PlatformMiniMaxH3CompShare:
 		if operation == PPVideoOperationCancel && taskID != "" {
 			return "/minimax/v2/video_generation/" + url.PathEscape(taskID), nil
@@ -2082,6 +2100,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 	}
 	if !gjson.ValidBytes(body) {
 		return PPVideoResponse{}, fmt.Errorf("parse PP video response: invalid JSON")
+	}
+	if platform == Platform88APIVideo {
+		return parse88APIVideoResponse(body)
 	}
 	if platform == PlatformMiniMaxH3CompShare {
 		return parseCompShareVideoResponse(body)
@@ -2272,10 +2293,20 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 		model = ppVideoUpstreamModel(platform, public)
 	}
 	payload["model"] = model
-	if videoURL := ppVideoExtractVideoURL(raw); videoURL != "" {
+	videoURL := ppVideoExtractVideoURL(raw)
+	if platform == Platform88APIVideo {
+		videoURL = extractPPVideoText(raw, "url", "video_url", "result_url")
+	}
+	if videoURL != "" {
 		ppVideoSetPublicVideoURL(payload, videoURL)
 	}
 	usage := ppVideoPublicUsage(raw, public, parsed)
+	if platform == Platform88APIVideo && public.Resolution != "" {
+		if usage == nil {
+			usage = make(map[string]any)
+		}
+		usage["resolution"] = public.Resolution
+	}
 	if len(usage) > 0 {
 		payload["usage"] = usage
 	}
@@ -2392,6 +2423,9 @@ func NormalizePPVideoTaskStatus(status string) string {
 }
 
 func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBillingMetadata {
+	if platform == Platform88APIVideo {
+		return video88APIBillingMetadata(body)
+	}
 	metadata := PPVideoBillingMetadata{
 		Platform:   platform,
 		VideoCount: 1,
@@ -2851,6 +2885,8 @@ func ppVideoIsPublicDefaultAlias(model string) bool {
 
 func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 	switch platform {
+	case Platform88APIVideo:
+		return strings.TrimSpace(model) != ""
 	case PlatformMiniMaxH3CompShare:
 		return model == MiniMaxH3VideoDefaultModel || model == CompShareVideoLiteModel
 	case PlatformKling:
@@ -2877,6 +2913,9 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 }
 
 func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
+	if platform == Platform88APIVideo {
+		return false
+	}
 	model = strings.TrimSpace(model)
 	if model == "" || ppVideoIsPublicDefaultAlias(model) {
 		return false

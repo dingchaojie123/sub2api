@@ -19,6 +19,7 @@ const (
 // Platform constants
 const (
 	PlatformAnthropic          = "anthropic"
+	Platform88APIVideo         = "88api-video"
 	PlatformOpenAI             = "openai"
 	PlatformGemini             = "gemini"
 	PlatformAntigravity        = "antigravity"

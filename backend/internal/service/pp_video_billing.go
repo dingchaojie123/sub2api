@@ -178,7 +178,13 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	if s != nil {
 		billingAPIKey = s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey)
 	}
-	quote, err := s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)
+	var quote PPVideoBillingQuote
+	var err error
+	if meta.Platform == Platform88APIVideo {
+		quote, err = s.calculate88APIVideoCost(ctx, meta, billingAPIKey)
+	} else {
+		quote, err = s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -506,7 +512,7 @@ func (s *OpenAIGatewayService) recordPPVideoUsage(
 		videoCount = 1
 	}
 	resolution := normalizePPVideoResolution(task.VideoResolution)
-	if task.Platform == PlatformMiniMaxH3CompShare {
+	if task.Platform == PlatformMiniMaxH3CompShare || task.Platform == Platform88APIVideo {
 		resolution = strings.ToLower(task.VideoResolution)
 	}
 	if resolution == "" {

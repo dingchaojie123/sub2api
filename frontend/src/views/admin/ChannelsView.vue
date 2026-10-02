@@ -423,6 +423,7 @@
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
                 <div class="flex items-center gap-2">
                   <button
+                    v-if="section.platform !== '88api-video'"
                     type="button"
                     @click="syncLatestModels(sIdx)"
                     :disabled="syncingPlatform === section.platform"
@@ -851,7 +852,7 @@ function toggleGroupInSection(sectionIdx: number, groupId: number) {
 function addPricingEntry(sectionIdx: number) {
   form.platforms[sectionIdx].model_pricing.push({
     models: [],
-    billing_mode: 'token',
+    billing_mode: form.platforms[sectionIdx].platform === '88api-video' ? 'video' : 'token',
     input_price: null,
     output_price: null,
     cache_write_price: null,
@@ -884,7 +885,7 @@ async function syncLatestModels(sectionIdx: number) {
     // Add new models as a single new pricing entry (user fills in prices)
     form.platforms[sectionIdx].model_pricing.push({
       models: newModels,
-      billing_mode: 'token',
+      billing_mode: platform === '88api-video' ? 'video' : 'token',
       input_price: null,
       output_price: null,
       cache_write_price: null,

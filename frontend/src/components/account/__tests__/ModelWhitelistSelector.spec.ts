@@ -67,6 +67,17 @@ function mountSelector(props: Record<string, unknown> = {}) {
 }
 
 describe('ModelWhitelistSelector jimeng mode', () => {
+  it('syncs new 88API model names without a local allowlist', async () => {
+    syncUpstreamModelsPreviewMock.mockResolvedValue({ models: ['SD2.5 720P', 'future-model-4k'] })
+    const wrapper = mountSelector({ platform: '88api-video', syncCredentials: {
+      platform: '88api-video', type: 'apikey', base_url: 'https://88api.ai/v1', api_key: 'test-key',
+    } })
+    const button = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.syncUpstreamModels'))
+    expect(button).toBeDefined()
+    await button!.trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')?.[0]?.[0]).toEqual(['SD2.5 720P', 'future-model-4k'])
+  })
   beforeEach(() => {
     syncUpstreamModelsMock.mockReset()
     syncUpstreamModelsPreviewMock.mockReset()

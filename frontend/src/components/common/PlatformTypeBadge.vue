@@ -103,6 +103,7 @@ const platformLabel = computed(() => {
   if (props.platform === 'wan3') return 'Wan3.0'
   if (props.platform === 'minimax-h3') return 'MiniMax-H3'
   if (props.platform === 'minimax-h3-compshare') return 'MiniMax-H3（优云智算）'
+  if (props.platform === '88api-video') return '88API Video'
   if (props.platform === 'minimax-speech') return 'MiniMax-Speech'
   if (props.platform === 'qwen-tts') return 'Qwen TTS'
   if (props.platform === 'pixverse-v6') return 'Pixverse-V6'

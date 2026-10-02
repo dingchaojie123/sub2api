@@ -24,7 +24,7 @@ func TestDefaultAPIKeysExistingUserAutomaticallyFillsMissing(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.client.ExecContext(ctx, strings.ReplaceAll(string(ddl), "'text', 'image', 'video'", "'text', 'image', 'video', 'audio'"))
 			require.NoError(t, err)
-			names := []string{"OC--ChatGPT【文本模型】", "OC--ChatGPT【生图】", "OC--Seedance【视频】", "OC--Qwen-TTS【音频】"}
+			names := []string{"OC--ChatGPT【文本模型】", "GPT图片【聚合】", "视频【聚合】", "OC--Qwen-TTS【音频】"}
 			existingIDs := make(map[int]int64)
 			for i, name := range names {
 				group, err := f.client.Group.Create().SetName(name).Save(ctx)
@@ -90,20 +90,20 @@ func TestDefaultAPIKeysUpdateAndFreshRead(t *testing.T) {
 	require.NoError(t, err)
 	textGroup, err := f.client.Group.Create().SetName("OC--ChatGPT【文本模型】").Save(ctx)
 	require.NoError(t, err)
-	imageGroup, err := f.client.Group.Create().SetName("OC--ChatGPT【生图】").Save(ctx)
+	imageGroup, err := f.client.Group.Create().SetName("GPT图片【聚合】").Save(ctx)
 	require.NoError(t, err)
 	customTextGroup, err := f.client.Group.Create().SetName("Custom Qwen Text").SetPlatform(service.PlatformQwen).Save(ctx)
 	require.NoError(t, err)
 	customImageGroup, err := f.client.Group.Create().SetName("Custom Image").SetPlatform(service.PlatformOpenAI).SetAllowImageGeneration(true).Save(ctx)
 	require.NoError(t, err)
-	videoGroup, err := f.client.Group.Create().SetName("OC--Seedance【视频】").SetPlatform(service.PlatformSeedance).Save(ctx)
+	videoGroup, err := f.client.Group.Create().SetName("视频【聚合】").SetPlatform(service.PlatformSeedance).Save(ctx)
 	require.NoError(t, err)
 	customVideoGroup, err := f.client.Group.Create().SetName("Custom Kling Video").SetPlatform(service.PlatformKling).Save(ctx)
 	require.NoError(t, err)
 	customAudioGroup, err := f.client.Group.Create().SetName("Custom Qwen TTS").SetPlatform(service.PlatformQwenTTS).Save(ctx)
 	require.NoError(t, err)
-	for _, name := range []string{"OC--Seedance【视频】", "OC--Qwen-TTS【音频】"} {
-		if name == "OC--Seedance【视频】" {
+	for _, name := range []string{"视频【聚合】", "OC--Qwen-TTS【音频】"} {
+		if name == "视频【聚合】" {
 			continue
 		}
 		_, err := f.client.Group.Create().SetName(name).Save(ctx)
@@ -158,7 +158,7 @@ func TestDefaultAPIKeysUpdateAndFreshRead(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &videoBody))
 	require.Equal(t, "video", videoBody.Data.Purpose)
 	require.NotNil(t, videoBody.Data.APIKey)
-	require.Equal(t, "OC--Seedance【视频】", videoBody.Data.APIKey.Name)
+	require.Equal(t, "视频【聚合】", videoBody.Data.APIKey.Name)
 	w = f.request(http.MethodGet, "/api/v1/keys/defaults/unknown", f.token, "")
 	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	require.Contains(t, w.Body.String(), "INVALID_DEFAULT_API_KEY_PURPOSE")

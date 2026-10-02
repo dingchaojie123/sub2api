@@ -4,6 +4,7 @@ import { platformBadgeClass, platformLabel } from '../platformColors'
 
 describe('video account platform colors', () => {
   it.each([
+    ['88api-video', '88API Video', 'emerald'],
     ['kling', 'K-Ling', 'sky'],
     ['happyhourse', 'Happy-Hourse', 'emerald'],
     ['seedance', 'Seedance', 'teal'],

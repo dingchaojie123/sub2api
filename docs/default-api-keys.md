@@ -7,8 +7,8 @@
 | purpose | 分组名称（精确匹配） |
 | --- | --- |
 | `text` | `OC--ChatGPT【文本模型】` |
-| `image` | `OC--ChatGPT【生图】` |
-| `video` | `OC--Seedance【视频】` |
+| `image` | `GPT图片【聚合】` |
+| `video` | `视频【聚合】` |
 | `audio` | `OC--Qwen-TTS【音频】` |
 
 密钥名称初始与分组名称一致，状态为 active，无额外密钥额度上限和有效期；实际调用仍受客户余额、订阅、分组以及平台额度限制。正常密钥列表 `/api/v1/keys` 也会显示它们。
@@ -42,8 +42,8 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
   "message": "success",
   "data": [
     {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
-    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "OC--ChatGPT【生图】", "group_id": 2, "status": "active"}},
-    {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "OC--Seedance【视频】", "group_id": 3, "status": "active"}},
+    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "GPT图片【聚合】", "group_id": 2, "status": "active"}},
+    {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "视频【聚合】", "group_id": 3, "status": "active"}},
     {"purpose": "audio", "api_key": {"id": 104, "key": "sk-...", "name": "OC--Qwen-TTS【音频】", "group_id": 4, "status": "active"}}
   ]
 }
@@ -64,7 +64,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults/video' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
 ```
 
-该接口同样会先补齐默认密钥，再返回对应用途的单个对象。路径 `purpose` 取值为 `text`、`image`、`video`、`audio`；例如 `video` 返回 `OC--Seedance【视频】` 分组对应的默认密钥。
+该接口同样会先补齐默认密钥，再返回对应用途的单个对象。路径 `purpose` 取值为 `text`、`image`、`video`、`audio`；例如 `video` 返回 `视频【聚合】` 分组对应的默认密钥。
 
 ## 补建与重试
 

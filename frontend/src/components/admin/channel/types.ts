@@ -36,7 +36,9 @@ export function billingModesForPlatform(
   const normalizedPlatform = platform?.trim().toLowerCase()
   let modes: BillingMode[]
 
-  if (normalizedPlatform === 'minimax-speech' || normalizedPlatform === 'qwen-tts') {
+  if (normalizedPlatform === '88api-video') {
+    modes = ['video']
+  } else if (normalizedPlatform === 'minimax-speech' || normalizedPlatform === 'qwen-tts') {
     // Audio providers return consumed text characters; expose only token
     // billing so each platform uses one consistent channel price unit.
     modes = ['token']

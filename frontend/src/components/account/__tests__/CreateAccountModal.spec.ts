@@ -256,7 +256,7 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(platformSelector.classes()).toContain('flex-wrap')
     expect(platformSelector.classes()).not.toContain('flex-nowrap')
     expect(platformSelector.classes()).not.toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(23)
+    expect(platformButtons).toHaveLength(24)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')
       expect(button.classes()).not.toContain('flex-1')

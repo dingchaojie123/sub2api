@@ -84,6 +84,7 @@
       platform === 'wan3' ||
       platform === 'minimax-h3' ||
       platform === 'minimax-h3-compshare' ||
+      platform === '88api-video' ||
       platform === 'pixverse-v6' ||
       platform === 'grok-imagine-video' ||
       platform === 'kuaishou'

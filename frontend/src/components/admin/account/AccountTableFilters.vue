@@ -45,6 +45,7 @@ const pOpts = computed(() => [
   { value: 'wan3', label: t('admin.accounts.platforms.wan3') },
   { value: 'minimax-h3', label: t('admin.accounts.platforms.minimax-h3') },
   { value: 'minimax-h3-compshare', label: t('admin.accounts.platforms.minimax-h3-compshare') },
+  { value: '88api-video', label: '88API Video' },
   { value: 'minimax-speech', label: t('admin.accounts.platforms.minimax-speech') },
   { value: 'qwen-tts', label: t('admin.accounts.platforms.qwen-tts') },
   { value: 'pixverse-v6', label: t('admin.accounts.platforms.pixverse-v6') },
