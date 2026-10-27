@@ -66,9 +66,9 @@ type GeminiGenerationConfig struct {
 	TopP            *float64              `json:"topP,omitempty"`
 	TopK            *int                  `json:"topK,omitempty"`
 	ThinkingConfig  *GeminiThinkingConfig `json:"thinkingConfig,omitempty"`
-	StopSequences      []string           `json:"stopSequences,omitempty"`
-	ResponseModalities []string           `json:"responseModalities,omitempty"`
-	ImageConfig        *GeminiImageConfig `json:"imageConfig,omitempty"`
+	StopSequences      []string              `json:"stopSequences,omitempty"`
+	ResponseModalities []string              `json:"responseModalities,omitempty"`
+	ImageConfig        *GeminiImageConfig    `json:"imageConfig,omitempty"`
 }
 
 // GeminiImageConfig Gemini 图片生成配置（gemini-3-pro-image / gemini-3.1-flash-image 等图片模型支持）
@@ -175,6 +175,13 @@ func (m *GeminiUsageMetadata) ImageOutputTokens() int {
 		}
 	}
 	return 0
+}
+
+func (m *GeminiUsageMetadata) UncachedInputTokens() int {
+	if m == nil {
+		return 0
+	}
+	return max(m.PromptTokenCount-m.CachedContentTokenCount, 0)
 }
 
 // GeminiGroundingMetadata Gemini grounding 元数据（Web Search）

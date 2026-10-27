@@ -185,6 +185,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		// authenticated key and must remain available after the completed
 		// generation consumes the key's remaining balance.
 		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
+		// Listing models does not consume billable resources. Keep expiry, key
+		// quota, and subscription checks, but do not reject solely on user balance.
+		skipBalanceCheck := isModelsListRead(c.Request.Method, c.Request.URL.Path)
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -275,7 +278,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				}
 			} else {
 				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				if !skipBalanceCheck && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return
 				}
@@ -353,6 +356,18 @@ func isAsyncImageTaskRead(method, path string) bool {
 		return false
 	}
 	return strings.HasPrefix(path, "/v1/images/tasks/") || strings.HasPrefix(path, "/images/tasks/")
+}
+
+func isModelsListRead(method, path string) bool {
+	if method != http.MethodGet {
+		return false
+	}
+	switch strings.TrimRight(path, "/") {
+	case "/v1/models", "/models", "/api/model-proxy/v1/models", "/api/model-proxy/models":
+		return true
+	default:
+		return false
+	}
 }
 
 // GetAPIKeyFromContext 从上下文中获取API key

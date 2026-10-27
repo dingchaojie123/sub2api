@@ -24,7 +24,7 @@ func TestDefaultAPIKeysExistingUserAutomaticallyFillsMissing(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.client.ExecContext(ctx, strings.ReplaceAll(string(ddl), "'text', 'image', 'video'", "'text', 'image', 'video', 'audio'"))
 			require.NoError(t, err)
-			names := []string{"OC--ChatGPT【文本模型】", "GPT图片【聚合】", "视频【聚合】", "OC--Qwen-TTS【音频】"}
+			names := []string{"OC--ChatGPT【文本模型，官key】", "OC--ChatGPT【生图】", "视频【聚合】", "OC--Qwen-TTS【音频】"}
 			existingIDs := make(map[int]int64)
 			for i, name := range names {
 				group, err := f.client.Group.Create().SetName(name).Save(ctx)
@@ -88,9 +88,9 @@ func TestDefaultAPIKeysUpdateAndFreshRead(t *testing.T) {
 	// SQLite fixtures use the final constraint instead of PostgreSQL ALTER CONSTRAINT.
 	_, err = f.client.ExecContext(ctx, strings.ReplaceAll(string(ddl), "'text', 'image', 'video'", "'text', 'image', 'video', 'audio'"))
 	require.NoError(t, err)
-	textGroup, err := f.client.Group.Create().SetName("OC--ChatGPT【文本模型】").Save(ctx)
+	textGroup, err := f.client.Group.Create().SetName("OC--ChatGPT【文本模型，官key】").Save(ctx)
 	require.NoError(t, err)
-	imageGroup, err := f.client.Group.Create().SetName("GPT图片【聚合】").Save(ctx)
+	imageGroup, err := f.client.Group.Create().SetName("OC--ChatGPT【生图】").Save(ctx)
 	require.NoError(t, err)
 	customTextGroup, err := f.client.Group.Create().SetName("Custom Qwen Text").SetPlatform(service.PlatformQwen).Save(ctx)
 	require.NoError(t, err)

@@ -703,6 +703,15 @@ func TestExtractGeminiUsage(t *testing.T) {
 				CacheReadInputTokens: 0,
 			},
 		},
+		{
+			name:    "缓存计数大于提示计数时非缓存输入不为负数",
+			input:   `{"usageMetadata":{"promptTokenCount":10,"cachedContentTokenCount":20}}`,
+			wantNil: false,
+			wantUsage: &ClaudeUsage{
+				InputTokens:          0,
+				CacheReadInputTokens: 20,
+			},
+		},
 	}
 
 	for _, tt := range tests {

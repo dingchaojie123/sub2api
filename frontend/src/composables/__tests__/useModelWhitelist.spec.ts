@@ -27,6 +27,10 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gpt-5.4-2026-03-05')
     expect(models).toContain('codex-auto-review')
     expect(models).toContain('gpt-5.6')
+    expect(models).toContain('gpt-6-astra')
+    expect(models).toContain('gpt-6-luna')
+    expect(models).toContain('gpt-6-sol')
+    expect(models).toContain('gpt-6.1-sol')
   })
 
   it('jimeng 模型列表固定为当前默认 Seedance 模型', () => {

@@ -230,7 +230,7 @@ describe('UseKeyModal', () => {
     expect(codeBlocks).toContain('$env:SUB2API_API_KEY="sk-grok-codex-test"')
   })
 
-  it('keeps legacy OpenAI Codex config as the default', () => {
+  it('renders API Key Mode OpenAI Codex config by default', () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -251,27 +251,31 @@ describe('UseKeyModal', () => {
     })
 
     const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+    const configToml = codeBlocks.find((content) => content.includes('model_provider = "CorgiPlay"'))
 
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('[model_providers.CorgiPlay]')
+    expect(configToml).toContain('name = "CorgiPlay"')
+    expect(configToml).toContain('model = "gpt-6.1-sol"')
+    expect(configToml).toContain('review_model = "gpt-6.1-sol"')
+    expect(configToml).toContain('base_url = "https://example.com/v1"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
-    expect(configToml).toContain('requires_openai_auth = true')
+    expect(configToml).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(configToml).not.toContain('requires_openai_auth')
     expect(configToml).not.toContain('x-openai-actor-authorization')
-    expect(configToml).not.toContain('env_key')
     expect(configToml).not.toContain('image_generation')
     expect(configToml).not.toContain('supports_websockets')
     expect(configToml).not.toContain('responses_websockets_v2')
     expect(configToml).toContain('[features]\ngoals = true')
-    expect(codeBlocks).toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
-    expect(wrapper.text()).toContain('auth.json')
-    expect(wrapper.find('[data-testid="codex-api-key-restart-notice"]').exists()).toBe(false)
+    expect(codeBlocks).toContain('export CorgiPlay_API_KEY="sk-test"')
+    expect(wrapper.text()).not.toContain('auth.json')
+    expect(wrapper.find('[data-testid="codex-api-key-restart-notice"]').exists()).toBe(true)
   })
 
-  it('renders API Key Mode authorization in OpenAI Codex config', async () => {
+  it('renders legacy OpenAI Codex auth.json config when selected', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -291,37 +295,37 @@ describe('UseKeyModal', () => {
       }
     })
 
-    const apiKeyMode = wrapper.get('[data-testid="codex-auth-mode-api-key"]')
-    await apiKeyMode.trigger('click')
+    const legacyMode = wrapper.get('[data-testid="codex-auth-mode-legacy"]')
+    await legacyMode.trigger('click')
     await nextTick()
 
-    const codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
-    const configToml = codeBlocks.find((content) => content.includes('model_provider = "OpenAI"'))
+    let codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    let configToml = codeBlocks.find((content) => content.includes('model_provider = "CorgiPlay"'))
 
-    expect(apiKeyMode.attributes('aria-checked')).toBe('true')
+    expect(legacyMode.attributes('aria-checked')).toBe('true')
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('requires_openai_auth = false')
-    expect(configToml).toContain('http_headers = { "x-openai-actor-authorization" = "local-image-extension" }')
+    expect(configToml).toContain('[model_providers.CorgiPlay]')
+    expect(configToml).toContain('name = "CorgiPlay"')
+    expect(configToml).toContain('requires_openai_auth = true')
     expect(configToml).not.toContain('env_key')
     expect(configToml).not.toContain('image_generation')
     expect(codeBlocks).toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
     expect(wrapper.text()).toContain('auth.json')
+    expect(wrapper.find('[data-testid="codex-api-key-restart-notice"]').exists()).toBe(false)
 
-    const restartNotice = wrapper.get('[data-testid="codex-api-key-restart-notice"]')
-    expect(restartNotice.text()).toContain(
-      'keys.useKeyModal.openai.authModeApiKeyRestartNotice'
-    )
-
-    await wrapper.get('[data-testid="codex-auth-mode-legacy"]').trigger('click')
+    await wrapper.get('[data-testid="codex-auth-mode-api-key"]').trigger('click')
     await nextTick()
 
-    expect(wrapper.find('[data-testid="codex-api-key-restart-notice"]').exists()).toBe(false)
-    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain(
-      'x-openai-actor-authorization'
-    )
+    codeBlocks = wrapper.findAll('pre code').map((code) => code.text())
+    configToml = codeBlocks.find((content) => content.includes('model_provider = "CorgiPlay"'))
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
+    expect(configToml).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(configToml).not.toContain('requires_openai_auth')
+    expect(codeBlocks).toContain('export CorgiPlay_API_KEY="sk-test"')
+    expect(wrapper.text()).not.toContain('auth.json')
   })
 
-  it('keeps legacy OpenAI Codex WebSocket config as the default', async () => {
+  it('renders API Key Mode OpenAI Codex WebSocket config by default', async () => {
     const wrapper = mount(UseKeyModal, {
       props: {
         show: true,
@@ -353,19 +357,23 @@ describe('UseKeyModal', () => {
     const configToml = codeBlocks.find((content) => content.includes('supports_websockets = true'))
 
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('model = "gpt-5.5"')
-    expect(configToml).toContain('review_model = "gpt-5.5"')
+    expect(configToml).toContain('model_provider = "CorgiPlay"')
+    expect(configToml).toContain('[model_providers.CorgiPlay]')
+    expect(configToml).toContain('name = "CorgiPlay"')
+    expect(configToml).toContain('model = "gpt-6.1-sol"')
+    expect(configToml).toContain('review_model = "gpt-6.1-sol"')
+    expect(configToml).toContain('base_url = "https://example.com/v1"')
     expect(configToml).not.toContain('model = "gpt-5.4"')
     expect(configToml).not.toContain('model_context_window')
     expect(configToml).not.toContain('model_auto_compact_token_limit')
-    expect(configToml).toContain('requires_openai_auth = true')
+    expect(configToml).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(configToml).not.toContain('requires_openai_auth')
     expect(configToml).not.toContain('x-openai-actor-authorization')
-    expect(configToml).not.toContain('env_key')
     expect(configToml).not.toContain('image_generation')
     expect(configToml).toContain('supports_websockets = true')
     expect(configToml).toContain('[features]\nresponses_websockets_v2 = true\ngoals = true')
-    expect(codeBlocks).toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
-    expect(wrapper.text()).toContain('auth.json')
+    expect(codeBlocks).toContain('export CorgiPlay_API_KEY="sk-test"')
+    expect(wrapper.text()).not.toContain('auth.json')
   })
 
   it('preserves API Key Mode when switching to OpenAI Codex WebSocket config', async () => {
@@ -403,13 +411,17 @@ describe('UseKeyModal', () => {
 
     expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
     expect(configToml).toBeDefined()
-    expect(configToml).toContain('requires_openai_auth = false')
-    expect(configToml).toContain('http_headers = { "x-openai-actor-authorization" = "local-image-extension" }')
-    expect(configToml).not.toContain('env_key')
+    expect(configToml).toContain('model_provider = "CorgiPlay"')
+    expect(configToml).toContain('[model_providers.CorgiPlay]')
+    expect(configToml).toContain('name = "CorgiPlay"')
+    expect(configToml).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(configToml).not.toContain('requires_openai_auth')
+    expect(configToml).not.toContain('x-openai-actor-authorization')
     expect(configToml).not.toContain('image_generation')
     expect(configToml).toContain('supports_websockets = true')
     expect(configToml).toContain('[features]\nresponses_websockets_v2 = true\ngoals = true')
-    expect(codeBlocks).toContain('{\n  "OPENAI_API_KEY": "sk-test"\n}')
+    expect(codeBlocks).toContain('export CorgiPlay_API_KEY="sk-test"')
+    expect(wrapper.text()).not.toContain('auth.json')
   })
 
   it('resets Codex authentication mode when the modal reopens or platform changes', async () => {
@@ -432,21 +444,23 @@ describe('UseKeyModal', () => {
       }
     })
 
-    await wrapper.get('[data-testid="codex-auth-mode-api-key"]').trigger('click')
+    await wrapper.get('[data-testid="codex-auth-mode-legacy"]').trigger('click')
     await wrapper.setProps({ show: false })
     await wrapper.setProps({ show: true })
     await nextTick()
 
-    expect(wrapper.get('[data-testid="codex-auth-mode-legacy"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('requires_openai_auth = true')
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain('requires_openai_auth = true')
 
-    await wrapper.get('[data-testid="codex-auth-mode-api-key"]').trigger('click')
+    await wrapper.get('[data-testid="codex-auth-mode-legacy"]').trigger('click')
     await wrapper.setProps({ platform: 'gemini' })
     await wrapper.setProps({ platform: 'openai' })
     await nextTick()
 
-    expect(wrapper.get('[data-testid="codex-auth-mode-legacy"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain('x-openai-actor-authorization')
+    expect(wrapper.get('[data-testid="codex-auth-mode-api-key"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).toContain('env_key = "CorgiPlay_API_KEY"')
+    expect(wrapper.findAll('pre code').map((code) => code.text()).join('\n')).not.toContain('auth.json')
   })
 
   it('renders GPT-5.4 mini entry in OpenCode config', async () => {
@@ -512,6 +526,16 @@ describe('UseKeyModal', () => {
 
     const parsed = JSON.parse(wrapper.find('pre code').text())
     const models = parsed.provider.openai.models
+    for (const model of ['gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol', 'gpt-6.1-sol']) {
+      expect(models[model]).toBeDefined()
+      expect(models[model].limit).toEqual({ context: 1050000, output: 128000 })
+      expect(models[model].variants).toHaveProperty('max')
+      expect(models[model].variants).toHaveProperty('xhigh')
+    }
+    expect(models['gpt-6-astra'].variants).not.toHaveProperty('none')
+    expect(models['gpt-6-luna'].variants).toHaveProperty('none')
+    expect(models['gpt-6-sol'].variants).toHaveProperty('none')
+    expect(models['gpt-6.1-sol'].variants).not.toHaveProperty('none')
     for (const model of ['gpt-5.6', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
       expect(models[model]).toBeDefined()
       expect(models[model].variants).toHaveProperty('max')

@@ -120,7 +120,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		if len(upstreamBody) == 0 {
 			return nil, fmt.Errorf("PP video request body is empty")
 		}
-		if strings.TrimSpace(publicRequest.Model) == "" {
+		if strings.TrimSpace(publicRequest.Model) == "" || account.Platform == PlatformMiniMaxH3CompShare {
 			var prepared []byte
 			prepared, publicRequest, err = PreparePPVideoRequestBodyForAccount(account, operation, upstreamBody)
 			if err != nil {

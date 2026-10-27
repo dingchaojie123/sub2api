@@ -15,6 +15,50 @@ import (
 
 var _ service.DefaultAPIKeyRepository = (*apiKeyRepository)(nil)
 var _ service.DefaultAPIKeyUpdater = (*apiKeyRepository)(nil)
+var _ service.AvailableGroupAPIKeyProvisioner = (*apiKeyRepository)(nil)
+
+func (r *apiKeyRepository) EnsureAPIKeysForGroups(ctx context.Context, userID int64, keys []service.APIKey) error {
+	tx, err := r.client.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	client := tx.Client()
+	txCtx := dbent.NewTxContext(ctx, tx)
+	release, err := lockRepositoryScopedKeys(txCtx, client, client, fmt.Sprintf("default-api-keys:%d", userID))
+	if err != nil {
+		return err
+	}
+	defer release()
+	if _, err := client.User.Query().Where(user.IDEQ(userID), user.DeletedAtIsNil(), user.StatusEQ(service.StatusActive)).Only(txCtx); err != nil {
+		return err
+	}
+
+	existing, err := (&apiKeyRepository{client: client, sql: client}).activeQuery().
+		Where(apikey.UserIDEQ(userID)).
+		All(txCtx)
+	if err != nil {
+		return err
+	}
+	existingGroups := make(map[int64]bool, len(existing))
+	for _, key := range existing {
+		if key.GroupID != nil {
+			existingGroups[*key.GroupID] = true
+		}
+	}
+	txRepo := &apiKeyRepository{client: client, sql: client}
+	for i := range keys {
+		key := &keys[i]
+		if key.GroupID == nil || existingGroups[*key.GroupID] {
+			continue
+		}
+		if err := txRepo.Create(txCtx, key); err != nil {
+			return err
+		}
+		existingGroups[*key.GroupID] = true
+	}
+	return tx.Commit()
+}
 
 func (r *apiKeyRepository) SetDefaultAPIKey(ctx context.Context, userID int64, purpose string, apiKeyID, groupID int64) (*service.APIKey, error) {
 	tx, err := r.client.Tx(ctx)

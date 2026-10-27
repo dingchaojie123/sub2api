@@ -99,11 +99,11 @@ func (s *AccountTestService) testCompShareVideoAccount(c *gin.Context, account *
 func compShareVideoUpstreamModel(public PPVideoPublicRequest, account *Account) string {
 	if account != nil {
 		if model, ok := account.ResolveMappedModel(public.Model); ok && compShareVideoModelAllowed(model) && !ppVideoIsPublicDefaultAlias(model) {
+			if model == CompShareVideoLiteModel {
+				return MiniMaxH3VideoDefaultModel
+			}
 			return model
 		}
-	}
-	if public.Model == CompShareVideoLiteModel {
-		return CompShareVideoLiteModel
 	}
 	return MiniMaxH3VideoDefaultModel
 }
@@ -115,11 +115,14 @@ func normalizePPVideoCompSharePayload(body []byte, public *PPVideoPublicRequest)
 	if !compShareVideoModelAllowed(public.Model) {
 		return nil, fmt.Errorf("model %q is not supported by CompShare", public.Model)
 	}
-	duration := public.DurationMilliseconds
+	duration, err := compShareVideoDurationFromRequest(body, public.DurationMilliseconds)
+	if err != nil {
+		return nil, err
+	}
 	if err := validateCompShareVideoDuration(duration); err != nil {
 		return nil, err
 	}
-	for _, path := range []string{"duration", "parameters.duration"} {
+	for _, path := range []string{"duration", "parameters.duration", "Duration", "parameters.Duration"} {
 		if value := gjson.GetBytes(body, path); value.Exists() && (value.Type != gjson.Number || value.Float() != float64(duration)/1000) {
 			return nil, fmt.Errorf("CompShare duration must be an integer from 4 to 30")
 		}
@@ -165,8 +168,22 @@ func normalizePPVideoCompSharePayload(body []byte, public *PPVideoPublicRequest)
 		"model": public.UpstreamModel, "content": items,
 		"duration": duration / 1000, "resolution": resolution, "ratio": ratio,
 	}
+	booleanFields := map[string][]string{
+		"use_context_ir": []string{
+			"use_context_ir",
+			"parameters.use_context_ir",
+			"UseContextIR",
+			"parameters.UseContextIR",
+			"UseContextIr",
+			"parameters.UseContextIr",
+			"UseContextlR",
+			"parameters.UseContextlR",
+		},
+		"mute_audio":     []string{"mute_audio", "parameters.mute_audio"},
+		"aigc_watermark": []string{"aigc_watermark", "parameters.aigc_watermark"},
+	}
 	for _, name := range []string{"use_context_ir", "mute_audio", "aigc_watermark"} {
-		value, exists := ppVideoJSONValue(body, name, "parameters."+name)
+		value, exists := ppVideoJSONValue(body, booleanFields[name]...)
 		if !exists {
 			continue
 		}
@@ -208,6 +225,18 @@ func validateCompShareVideoDuration(duration int64) error {
 		return fmt.Errorf("CompShare duration must be an integer from 4 to 30 seconds")
 	}
 	return nil
+}
+
+func compShareVideoDurationFromRequest(body []byte, fallback int64) (int64, error) {
+	value, exists := ppVideoJSONValue(body, "duration", "parameters.duration", "Duration", "parameters.Duration")
+	if !exists {
+		return fallback, nil
+	}
+	seconds, ok := value.(float64)
+	if !ok || seconds != float64(int64(seconds)) {
+		return 0, fmt.Errorf("CompShare duration must be an integer from 4 to 30")
+	}
+	return int64(seconds) * 1000, nil
 }
 
 func normalizeCompShareVideoContent(source []any) ([]any, string, bool, error) {

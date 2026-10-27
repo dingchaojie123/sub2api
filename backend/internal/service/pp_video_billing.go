@@ -195,11 +195,10 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 		baseMultiplier = apiKey.Group.RateMultiplier
 	}
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
-	accountMultiplier := account.BillingRateMultiplier()
 	return &CostBreakdown{
 		TotalCost:                quote.Cost,
 		OutputCost:               quote.Cost,
-		ActualCost:               quote.Cost * videoMultiplier * accountMultiplier,
+		ActualCost:               quote.Cost * videoMultiplier,
 		BillingMode:              string(BillingModeVideo),
 		BillingFormula:           quote.Formula,
 		BillingUnits:             quote.Units,

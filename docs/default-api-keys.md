@@ -4,10 +4,12 @@
 
 新客户完成邮箱注册、第三方首次登录或 OAuth 注册确认后，系统自动创建以下密钥：
 
-| purpose | 分组名称（精确匹配） |
+除四个默认用途外，系统还会为该客户当前可用的其他分组各创建一个独立 API 密钥；这些额外密钥不会绑定到 `text`、`image`、`video` 或 `audio` 默认用途。后续客户获得新分组权限时，调用默认密钥接口会按需补齐对应密钥。
+
+| purpose | 首选分组名称 |
 | --- | --- |
-| `text` | `OC--ChatGPT【文本模型】` |
-| `image` | `GPT图片【聚合】` |
+| `text` | `OC--ChatGPT【文本模型，官key】` |
+| `image` | `OC--ChatGPT【生图】` |
 | `video` | `视频【聚合】` |
 | `audio` | `OC--Qwen-TTS【音频】` |
 
@@ -15,9 +17,9 @@
 
 ## 部署要求
 
-部署新版后端并完成迁移 `192_user_default_api_keys.sql` 和 `193_user_default_api_keys_audio.sql`。四个分组必须已经存在、启用且客户有权绑定。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
+部署新版后端并完成迁移 `192_user_default_api_keys.sql` 和 `193_user_default_api_keys_audio.sql`。系统优先使用上表分组；如果分组不存在或客户无权绑定，会按对应能力选择其他已启用且客户可绑定的分组。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
 
-所有缺失密钥在同一事务中写入。分组缺失、禁用、无权限或数据库故障时，不会留下本次创建的部分密钥。客户账号仍可注册和登录，服务端记录失败原因；修复配置后，可由客户调用下方补建接口重试。
+可用分组对应的缺失密钥在同一事务中写入。某个分组缺失、禁用或当前客户无权限时，会跳过该用途并记录原因，其余可用用途仍会创建；修复配置后，可由客户调用下方补建接口重试。只有没有任何可用默认分组时，本次补建才会失败。
 
 已有客户在调用 GET 或 POST `/api/v1/keys/defaults` 时自动检查四个用途并补齐，无需重新注册。此操作按当前客户触发，不会在部署时批量扫描全部客户。
 
@@ -41,8 +43,8 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
   "code": 0,
   "message": "success",
   "data": [
-    {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
-    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "GPT图片【聚合】", "group_id": 2, "status": "active"}},
+    {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型，官key】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
+    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "OC--ChatGPT【生图】", "group_id": 2, "status": "active"}},
     {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "视频【聚合】", "group_id": 3, "status": "active"}},
     {"purpose": "audio", "api_key": {"id": 104, "key": "sk-...", "name": "OC--Qwen-TTS【音频】", "group_id": 4, "status": "active"}}
   ]

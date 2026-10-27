@@ -141,7 +141,7 @@
           </div>
 
           <EmailOAuthButtons
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :github-enabled="githubOAuthEnabled"
             :google-enabled="googleOAuthEnabled"
             :show-divider="false"
@@ -149,22 +149,22 @@
 
           <LinuxDoOAuthSection
             v-if="linuxdoOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :show-divider="false"
           />
           <DingTalkOAuthSection
             v-if="dingtalkOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :show-divider="false"
           />
           <WechatOAuthSection
             v-if="wechatOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :show-divider="false"
           />
           <OidcOAuthSection
             v-if="oidcOAuthEnabled"
-            :disabled="authActionDisabled"
+            :disabled="oauthActionDisabled"
             :provider-name="oidcOAuthProviderName"
             :show-divider="false"
           />
@@ -283,7 +283,11 @@ const agreementGateActive = computed(
 )
 
 const authActionDisabled = computed(
-  () => isLoading.value || !publicSettingsLoaded.value || agreementGateActive.value
+  () => isLoading.value || !publicSettingsLoaded.value
+)
+
+const oauthActionDisabled = computed(
+  () => authActionDisabled.value || agreementGateActive.value
 )
 
 const showOAuthLogin = computed(

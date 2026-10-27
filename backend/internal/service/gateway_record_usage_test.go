@@ -193,6 +193,51 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
 }
 
+func TestGatewayServiceRecordUsage_IdentityChannelMappingBillsActualUpstreamModel(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+	)
+
+	groupID := int64(91)
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:    "anthropic-upstream-model-billing",
+			Model:        "claude-3-haiku",
+			UpstreamModel: "claude-opus-4-6",
+			Usage:        ClaudeUsage{InputTokens: 1_000_000},
+			Duration:     time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      81,
+			GroupID: &groupID,
+			Group: &Group{
+				ID:             groupID,
+				RateMultiplier: 0.7,
+			},
+		},
+		User:    &User{ID: 71},
+		Account: &Account{ID: 61},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "claude-3-haiku",
+			ChannelMappedModel: "claude-3-haiku",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 3.5, billingRepo.lastCmd.BalanceCost, 1e-9,
+		"1M Opus input tokens at 0.7x must be billed from the actual upstream model")
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 5.0, usageRepo.lastLog.TotalCost, 1e-9)
+	require.InDelta(t, 3.5, usageRepo.lastLog.ActualCost, 1e-9)
+}
+
 func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersistence(t *testing.T) {
 	imagePrice2K := 0.19
 	groupID := int64(901)

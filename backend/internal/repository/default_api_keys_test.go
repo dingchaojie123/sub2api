@@ -180,7 +180,7 @@ func TestDefaultAPIKeysRepositoryAddsAudioWithoutReplacingExistingKeys(t *testin
 func TestDefaultAPIKeysRepositoryConcurrentReassignment(t *testing.T) {
 	repo, userID := setupDefaultKeysRepo(t)
 	ctx := context.Background()
-	group, err := repo.client.Group.Create().SetName("OC--ChatGPT【文本模型】").Save(ctx)
+	group, err := repo.client.Group.Create().SetName("OC--ChatGPT【文本模型，官key】").Save(ctx)
 	require.NoError(t, err)
 	keys := make([]*service.APIKey, 2)
 	for i := range keys {

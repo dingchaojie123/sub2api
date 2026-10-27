@@ -12,8 +12,8 @@ var defaultAPIKeyGroups = [...]struct {
 	Purpose string
 	Name    string
 }{
-	{"text", "OC--ChatGPT【文本模型】"},
-	{"image", "GPT图片【聚合】"},
+	{"text", "OC--ChatGPT【文本模型，官key】"},
+	{"image", "OC--ChatGPT【生图】"},
 	{"video", "视频【聚合】"},
 	{"audio", "OC--Qwen-TTS【音频】"},
 }
@@ -31,6 +31,10 @@ type DefaultAPIKeyRepository interface {
 
 type DefaultAPIKeyUpdater interface {
 	SetDefaultAPIKey(ctx context.Context, userID int64, purpose string, apiKeyID, groupID int64) (*APIKey, error)
+}
+
+type AvailableGroupAPIKeyProvisioner interface {
+	EnsureAPIKeysForGroups(ctx context.Context, userID int64, keys []APIKey) error
 }
 
 var (
@@ -214,11 +218,12 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 		return nil, err
 	}
 	seen := make(map[string]bool, len(existing))
+	usedGroups := make(map[int64]bool, len(existing))
 	for _, item := range existing {
 		seen[item.Purpose] = true
-	}
-	if len(seen) == len(defaultAPIKeyGroups) {
-		return existing, nil
+		if item.APIKey != nil && item.APIKey.GroupID != nil {
+			usedGroups[*item.APIKey.GroupID] = true
+		}
 	}
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -231,6 +236,12 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 	if err != nil {
 		return nil, err
 	}
+	availableGroups := make([]Group, 0, len(groups))
+	for i := range groups {
+		if s.canUserBindGroup(ctx, user, &groups[i]) {
+			availableGroups = append(availableGroups, groups[i])
+		}
+	}
 	byName := make(map[string][]Group, len(groups))
 	for _, group := range groups {
 		byName[group.Name] = append(byName[group.Name], group)
@@ -240,26 +251,90 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 		if seen[spec.Purpose] {
 			continue
 		}
-		matches := byName[spec.Name]
-		if len(matches) != 1 {
-			return nil, infraerrors.ServiceUnavailable("DEFAULT_API_KEY_GROUP_UNAVAILABLE", fmt.Sprintf("default API key group must exist and be active: %s", spec.Name))
-		}
-		group := matches[0]
-		if !s.canUserBindGroup(ctx, user, &group) {
-			return nil, infraerrors.Forbidden("DEFAULT_API_KEY_GROUP_NOT_ALLOWED", fmt.Sprintf("user cannot bind default API key group: %s", spec.Name))
+		group, ok := selectDefaultAPIKeyGroup(ctx, s, user, groups, byName, spec, usedGroups)
+		if !ok {
+			logger.LegacyPrintf("service.api_key", "[APIKey] Skipping unavailable default group: user_id=%d purpose=%s preferred_group=%s", userID, spec.Purpose, spec.Name)
+			continue
 		}
 		key, err := s.GenerateKey()
 		if err != nil {
 			return nil, err
 		}
 		keys = append(keys, DefaultAPIKey{Purpose: spec.Purpose, APIKey: &APIKey{
-			UserID: userID, Key: key, Name: spec.Name, GroupID: &group.ID, Status: StatusActive,
+			UserID: userID, Key: key, Name: group.Name, GroupID: &group.ID, Status: StatusActive,
 		}})
+		usedGroups[group.ID] = true
 	}
-	if err := s.apiKeyRepo.(DefaultAPIKeyRepository).CreateDefaultAPIKeys(ctx, userID, keys); err != nil {
+	if len(keys) > 0 {
+		if err := s.apiKeyRepo.(DefaultAPIKeyRepository).CreateDefaultAPIKeys(ctx, userID, keys); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.ensureAvailableGroupAPIKeys(ctx, userID, availableGroups); err != nil {
 		return nil, err
 	}
+	if len(keys) == 0 && len(seen) < len(defaultAPIKeyGroups) {
+		return nil, infraerrors.ServiceUnavailable("DEFAULT_API_KEY_GROUP_UNAVAILABLE", fmt.Sprintf("no default API key groups are available for user: %d", userID))
+	}
 	return s.GetDefaultAPIKeys(ctx, userID)
+}
+
+func (s *APIKeyService) ensureAvailableGroupAPIKeys(ctx context.Context, userID int64, groups []Group) error {
+	provisioner, ok := s.apiKeyRepo.(AvailableGroupAPIKeyProvisioner)
+	if !ok {
+		return nil
+	}
+	keys := make([]APIKey, 0, len(groups))
+	for _, group := range groups {
+		key, err := s.GenerateKey()
+		if err != nil {
+			return err
+		}
+		groupID := group.ID
+		keys = append(keys, APIKey{
+			UserID: userID,
+			Key:    key,
+			Name:   group.Name,
+			GroupID: &groupID,
+			Status: StatusActive,
+		})
+	}
+	return provisioner.EnsureAPIKeysForGroups(ctx, userID, keys)
+}
+
+func selectDefaultAPIKeyGroup(
+	ctx context.Context,
+	s *APIKeyService,
+	user *User,
+	groups []Group,
+	byName map[string][]Group,
+	spec struct {
+		Purpose string
+		Name    string
+	},
+	usedGroups map[int64]bool,
+) (Group, bool) {
+	// Keep the configured names as the primary mapping for stable deployments.
+	if matches := byName[spec.Name]; len(matches) > 1 {
+		// Duplicate reserved names are ambiguous; require an admin to fix them.
+		return Group{}, false
+	} else if len(matches) == 1 {
+		group := matches[0]
+		if !usedGroups[group.ID] && s.canUserBindGroup(ctx, user, &group) {
+			return group, true
+		}
+	}
+	// Fall back to a group with the requested capability, while keeping one
+	// group per default slot. The configured group remains the first choice.
+	for _, group := range groups {
+		if usedGroups[group.ID] || !defaultAPIKeyGroupMatchesPurpose(&group, spec) {
+			continue
+		}
+		if s.canUserBindGroup(ctx, user, &group) {
+			return group, true
+		}
+	}
+	return Group{}, false
 }
 
 func (s *AuthService) provisionSignupAPIKeys(ctx context.Context, userID int64) {

@@ -11,6 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTransformGeminiToClaudeClampsNegativeUncachedInputTokens(t *testing.T) {
+	input := []byte(`{"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":10,"cachedContentTokenCount":20}}`)
+
+	_, usage, err := TransformGeminiToClaude(input, "gemini-test")
+
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, 0, usage.InputTokens)
+	require.Equal(t, 20, usage.CacheReadInputTokens)
+}
+
 // --- Task 7: 验证 generateRandomID 和降级碰撞防护 ---
 
 func TestGenerateRandomID_Uniqueness(t *testing.T) {

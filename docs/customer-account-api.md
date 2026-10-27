@@ -204,8 +204,47 @@ curl 'https://YOUR_DOMAIN/api/v1/redeem/history' \
 
 `data` 为当前客户最近 25 条记录数组，记录格式与兑换成功返回值相同；无记录时为空数组。历史记录还可能包含管理员调整等类型。兑换和历史响应包含兑换码，客户端不要将完整响应写入公开日志。
 
+## 图片和视频积分报价
+
+`POST /api/v1/billing/quotes` 根据当前 JWT 客户自己的 API Key、计费来源、分组价目、用户专属倍率及展示余额折算比例返回非锁定报价。当前仅支持 `image` 和 `video`，不支持文本报价。
+
+图片请求：
+
+```bash
+curl -X POST 'https://YOUR_DOMAIN/api/v1/billing/quotes' \
+  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"api_key_id":101,"task_type":"image","model":"grok-imagine-image","quantity":2,"resolution":"2K"}'
+```
+
+视频请求需额外提供 1 至 15 秒的 `duration_seconds`：
+
+```json
+{
+  "api_key_id": 101,
+  "task_type": "video",
+  "model": "grok-imagine-video",
+  "quantity": 1,
+  "resolution": "720p",
+  "duration_seconds": 8
+}
+```
+
+图片分辨率支持 `1K`、`2K`、`4K`；视频支持 `480p`、`720p`、`1080p`；`quantity` 范围为 1 至 1000。成功响应的 `data` 包含：
+
+- `status=estimate`：报价采用当前价格及折算快照，不代表余额预占；
+- `settlement_amount`：现有计费规则计算的内部 USD 结算金额；
+- `estimated_credits`：按本次 `conversion_snapshot` 折算的预计展示积分；
+- `pricing_snapshot`：单价、倍率、规范化分辨率、数量、时长和公式；
+- `pricing_snapshot.pricing_source`：价格来源，`group` 表示分组媒体单价，`channel` 表示渠道模型价格，`default` 表示模型表或系统默认价格；
+- `pricing_snapshot.billing_mode`：本次报价采用的实际计费模式；
+- `billing_source`：`personal` 或 `organization`，团队模式同时返回 `organization_id`；
+- `quote_id`、`expires_at`：报价标识和五分钟有效期。
+
+图片公式为 `单张价格 × 数量 × 倍率`；视频公式为 `每秒价格 × 秒数 × 数量 × 倍率`。真正提交和最终结算仍以生成任务为准。API Key 不属于当前 JWT 客户时返回 404；禁用或失效的计费来源返回 409；订阅等不适用积分折算的计费模式返回 `MEDIA_QUOTE_BILLING_NOT_APPLICABLE`。
+
 ## 部署
 
-兑换和历史接口沿用现有路由。余额接口需要部署本次后端更新，本次余额与兑换接口接入不新增数据库迁移。它们受现有客户功能模式限制，后台禁用相关客户功能时可能返回 403。
+兑换和历史接口沿用现有路由。余额和媒体报价接口需要部署对应后端更新，不新增数据库迁移。它们受现有客户功能模式限制，后台禁用相关客户功能时可能返回 403。
 
 本文档为仓库内对接文档。前台文档入口由后台 `doc_url` 配置，发布时需同步到该文档站。

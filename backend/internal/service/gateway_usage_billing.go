@@ -695,8 +695,18 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, timezone.Now())
 
 	// 确定计费模型
-	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
-	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
+	// Claude/Gemini-compatible gateways bill the model that actually reached
+	// the provider. Explicit requested/channel policies below can override it.
+	billingModel := strings.TrimSpace(result.UpstreamModel)
+	if billingModel == "" {
+		billingModel = strings.TrimSpace(result.Model)
+	}
+	// channel_mapped only overrides the actual upstream model when the channel
+	// really changed the requested model. With an identity channel mapping, an
+	// account-level mapping may still route to a different (and more expensive)
+	// model; billing that request as the original model can sell below cost.
+	if input.BillingModelSource == BillingModelSourceChannelMapped &&
+		input.ChannelMappedModel != "" && input.ChannelMappedModel != input.OriginalModel {
 		billingModel = input.ChannelMappedModel
 	}
 	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {

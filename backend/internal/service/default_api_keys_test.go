@@ -16,6 +16,7 @@ type defaultKeysRepoStub struct {
 	writes    int
 	err       error
 	candidate *APIKey
+	groupKeys []APIKey
 }
 
 func (r *defaultKeysRepoStub) ListDefaultAPIKeys(context.Context, int64) ([]DefaultAPIKey, error) {
@@ -42,6 +43,11 @@ func (r *defaultKeysRepoStub) SetDefaultAPIKey(_ context.Context, _ int64, purpo
 	}
 	r.items = append(r.items, DefaultAPIKey{Purpose: purpose, APIKey: r.candidate})
 	return r.candidate, nil
+}
+
+func (r *defaultKeysRepoStub) EnsureAPIKeysForGroups(_ context.Context, _ int64, keys []APIKey) error {
+	r.groupKeys = append(r.groupKeys, keys...)
+	return nil
 }
 
 type defaultKeysUserRepo struct {
@@ -107,6 +113,7 @@ func TestEnsureDefaultAPIKeysCreatesFourAndPreservesExistingSlots(t *testing.T) 
 		credentials[item.APIKey.Key] = true
 	}
 	require.Len(t, credentials, 4)
+	require.Len(t, repo.groupKeys, 4)
 	repo.items[0].APIKey = nil
 	repo.items[1].APIKey.Status = "inactive"
 	repo.items[2].APIKey.Name = "renamed"
@@ -119,18 +126,12 @@ func TestEnsureDefaultAPIKeysCreatesFourAndPreservesExistingSlots(t *testing.T) 
 }
 
 func TestEnsureDefaultAPIKeysValidatesEveryGroupBeforeWriting(t *testing.T) {
-	for _, mode := range []string{"missing", "duplicate", "exclusive", "subscription", "repository_error", "inactive_user"} {
+	for _, mode := range []string{"duplicate", "repository_error", "inactive_user"} {
 		t.Run(mode, func(t *testing.T) {
 			svc, repo, groups := newDefaultKeysTestService()
 			switch mode {
-			case "missing":
-				groups.groups = groups.groups[:3]
 			case "duplicate":
 				groups.groups = append(groups.groups, groups.groups[3])
-			case "exclusive":
-				groups.groups[3].IsExclusive = true
-			case "subscription":
-				groups.groups[3].SubscriptionType = SubscriptionTypeSubscription
 			case "repository_error":
 				repo.err = errors.New("unavailable")
 			case "inactive_user":
@@ -141,6 +142,46 @@ func TestEnsureDefaultAPIKeysValidatesEveryGroupBeforeWriting(t *testing.T) {
 			require.Zero(t, repo.writes)
 		})
 	}
+}
+
+func TestEnsureDefaultAPIKeysCreatesAvailableGroupsWhenOneIsMissing(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	groups.groups = groups.groups[:3]
+
+	keys, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.Len(t, keys, 3)
+	require.Equal(t, 1, repo.writes)
+	for i, item := range keys {
+		require.Equal(t, defaultAPIKeyGroups[i].Purpose, item.Purpose)
+	}
+}
+
+func TestEnsureDefaultAPIKeysFallsBackToCapabilityGroup(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	groups.groups[1].Name = "custom-image"
+	groups.groups[1].AllowImageGeneration = true
+
+	keys, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.Len(t, keys, 4)
+	require.Equal(t, "custom-image", keys[1].APIKey.Name)
+	require.Equal(t, 1, repo.writes)
+}
+
+func TestEnsureDefaultAPIKeysFallsBackToOtherTextGroup(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	groups.groups[0].Name = "custom-text"
+	groups.groups[0].Platform = PlatformOpenAI
+
+	keys, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.Len(t, keys, 4)
+	require.Equal(t, "custom-text", keys[0].APIKey.Name)
+	require.Equal(t, 1, repo.writes)
 }
 
 func TestEnsureDefaultAPIKeysHonorsGroupGrants(t *testing.T) {
@@ -290,7 +331,7 @@ func TestUpdateDefaultAPIKeyRejectsPurposeIncompatibleGroups(t *testing.T) {
 		group   Group
 	}{
 		{name: "video rejects text", purpose: "video", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
-		{name: "video preserves reserved text purpose", purpose: "video", group: Group{Name: "OC--ChatGPT【文本模型】", Platform: PlatformJimeng}},
+		{name: "video preserves reserved text purpose", purpose: "video", group: Group{Name: "OC--ChatGPT【文本模型，官key】", Platform: PlatformJimeng}},
 		{name: "image rejects disabled image group", purpose: "image", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
 		{name: "audio rejects text", purpose: "audio", group: Group{Name: "Custom Text", Platform: PlatformOpenAI}},
 		{name: "text rejects video", purpose: "text", group: Group{Name: "Custom Video", Platform: PlatformKling}},

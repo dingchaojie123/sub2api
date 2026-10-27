@@ -151,6 +151,10 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 		"/v1/images/edits",
 		"/images/generations",
 		"/images/edits",
+		"/api/model-proxy/v1/images/generations",
+		"/api/model-proxy/v1/images/edits",
+		"/api/model-proxy/images/generations",
+		"/api/model-proxy/images/edits",
 	} {
 		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{"model":"gpt-image-2","prompt":"draw a cat"}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -214,7 +218,26 @@ func TestGatewayRoutesAsyncImagesPathsAreRegistered(t *testing.T) {
 		"POST /images/edits/async",
 		"GET /images/tasks/:task_id",
 		"POST /api/model-proxy/v1/images/generations/async",
+		"POST /api/model-proxy/v1/images/edits/async",
+		"POST /api/model-proxy/images/generations/async",
+		"POST /api/model-proxy/images/edits/async",
 		"GET /api/model-proxy/v1/images/tasks/:task_id",
+		"GET /api/model-proxy/images/tasks/:task_id",
+	} {
+		require.True(t, registered[route], "%s should be registered", route)
+	}
+}
+
+func TestGatewayRoutesModelProxyModelsPathsAreRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter()
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	for _, route := range []string{
+		"GET /api/model-proxy/v1/models",
+		"GET /api/model-proxy/models",
 	} {
 		require.True(t, registered[route], "%s should be registered", route)
 	}
@@ -275,6 +298,16 @@ func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T
 		"POST /videos/generations",
 		"GET /videos/:request_id",
 		"DELETE /videos/:request_id",
+		"POST /api/model-proxy/v1/video/generations",
+		"GET /api/model-proxy/v1/video/generations/:request_id",
+		"POST /api/model-proxy/video/generations",
+		"GET /api/model-proxy/video/generations/:request_id",
+		"POST /api/model-proxy/v1/videos/generations",
+		"POST /api/model-proxy/videos/generations",
+		"GET /api/model-proxy/v1/videos/:request_id",
+		"GET /api/model-proxy/videos/:request_id",
+		"DELETE /api/model-proxy/v1/videos/:request_id",
+		"DELETE /api/model-proxy/videos/:request_id",
 	} {
 		require.True(t, registered[route], "%s should be registered", route)
 	}

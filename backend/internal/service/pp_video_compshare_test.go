@@ -28,6 +28,9 @@ func TestCompShareVideoRequestContract(t *testing.T) {
 			require.Equal(t, "16:9", gjson.GetBytes(prepared, "ratio").String())
 			require.Equal(t, "skill-1", gjson.GetBytes(prepared, "skill_id").String())
 			require.True(t, gjson.GetBytes(prepared, "mute_audio").Bool())
+			require.False(t, gjson.GetBytes(prepared, "parameters").Exists())
+			require.False(t, gjson.GetBytes(prepared, "Duration").Exists())
+			require.False(t, gjson.GetBytes(prepared, "UseContextlR").Exists())
 			if resolution == "4k" {
 				resolution = "768P"
 			}
@@ -39,13 +42,50 @@ func TestCompShareVideoRequestContract(t *testing.T) {
 			require.Equal(t, int64(30000), meta.RequestedDurationMilliseconds)
 		})
 	}
-	prepared, _, err := PreparePPVideoRequestBody(PlatformMiniMaxH3CompShare, PPVideoOperationGeneric, []byte(`{"model":"minimax-h3-lite","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,YQ=="}}]}`))
+	prepared, public, err := PreparePPVideoRequestBody(PlatformMiniMaxH3CompShare, PPVideoOperationGeneric, []byte(`{"model":"minimax-h3-lite","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,YQ=="}}]}`))
 	require.NoError(t, err)
-	require.Equal(t, "minimax-h3-lite", gjson.GetBytes(prepared, "model").String())
+	require.Equal(t, CompShareVideoLiteModel, public.Model)
+	require.Equal(t, MiniMaxH3VideoDefaultModel, public.UpstreamModel)
+	require.Equal(t, MiniMaxH3VideoDefaultModel, gjson.GetBytes(prepared, "model").String())
 	require.Equal(t, "first_frame", gjson.GetBytes(prepared, "content.0.role").String())
 	require.Equal(t, int64(5), gjson.GetBytes(prepared, "duration").Int())
 	_, _, err = PreparePPVideoRequestBody(PlatformMiniMaxH3, PPVideoOperationGeneric, []byte(`{"model":"MiniMax-H3","prompt":"test","duration":30}`))
 	require.Error(t, err, "the old provider must retain its own limits")
+}
+
+func TestCompShareVideoLiteAliasUsesPrimaryUpstreamModel(t *testing.T) {
+	account := &Account{
+		Platform: PlatformMiniMaxH3CompShare,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{CompShareVideoLiteModel: CompShareVideoLiteModel},
+		},
+	}
+	prepared, public, err := PreparePPVideoRequestBodyForAccount(
+		account,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"minimax-h3-lite","prompt":"test","duration":30,"use_context_ir":true}`),
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, CompShareVideoLiteModel, public.Model)
+	require.Equal(t, MiniMaxH3VideoDefaultModel, public.UpstreamModel)
+	require.Equal(t, MiniMaxH3VideoDefaultModel, gjson.GetBytes(prepared, "model").String())
+	require.Equal(t, int64(30), gjson.GetBytes(prepared, "duration").Int())
+	require.True(t, gjson.GetBytes(prepared, "use_context_ir").Bool())
+}
+
+func TestCompShareVideoNormalizesLegacyCaseAliases(t *testing.T) {
+	prepared, public, err := PreparePPVideoRequestBody(
+		PlatformMiniMaxH3CompShare,
+		PPVideoOperationGeneric,
+		[]byte(`{"model":"MiniMax-H3","prompt":"test","Duration":30,"UseContextlR":true}`),
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(30000), public.DurationMilliseconds)
+	require.Equal(t, int64(30), gjson.GetBytes(prepared, "duration").Int())
+	require.True(t, gjson.GetBytes(prepared, "use_context_ir").Bool())
+	require.False(t, gjson.GetBytes(prepared, "Duration").Exists())
+	require.False(t, gjson.GetBytes(prepared, "UseContextlR").Exists())
 }
 
 func TestCompShareVideoReferenceImagesRequestContract(t *testing.T) {
@@ -110,7 +150,7 @@ func TestCompShareVideoForwardLifecycle(t *testing.T) {
 	}
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
 	account := &Account{ID: 9, Platform: PlatformMiniMaxH3CompShare, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-ml-test"}}
-	body := []byte(`{"model":"MiniMax-H3","prompt":"test","resolution":"4K"}`)
+	body := []byte(`{"model":"MiniMax-H3","prompt":"test","Duration":30,"UseContextlR":true,"resolution":"4K"}`)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", bytes.NewReader(body))
 	result, err := svc.ForwardPPVideoBuffered(context.Background(), c, account, PPVideoOperationGeneric, "", body)
@@ -119,7 +159,12 @@ func TestCompShareVideoForwardLifecycle(t *testing.T) {
 	require.Equal(t, PPVideoTaskStatusProcessing, result.TaskStatus)
 	require.Equal(t, "https://cp.compshare.cn/minimax/v2/video_generation", upstream.requests[0].URL.String())
 	require.Equal(t, "Bearer sk-ml-test", upstream.requests[0].Header.Get("Authorization"))
+	require.Equal(t, int64(30), gjson.GetBytes(upstream.bodies[0], "duration").Int())
+	require.True(t, gjson.GetBytes(upstream.bodies[0], "use_context_ir").Bool())
 	require.Equal(t, "4K", gjson.GetBytes(upstream.bodies[0], "resolution").String())
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "parameters").Exists())
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "Duration").Exists())
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "UseContextlR").Exists())
 	result, err = svc.ForwardPPVideoBuffered(context.Background(), c, account, PPVideoOperationCancel, "task-1", nil)
 	require.NoError(t, err)
 	require.Equal(t, PPVideoTaskStatusProcessing, result.TaskStatus)
@@ -133,6 +178,35 @@ func TestCompShareVideoForwardLifecycle(t *testing.T) {
 	require.Equal(t, int64(5000), result.VideoDurationMilliseconds)
 	require.Equal(t, int64(2000), result.VideoInputDurationMilliseconds)
 	require.Equal(t, "https://cdn.example.com/final.mp4", gjson.GetBytes(result.ResponseBody, "video_url").String())
+}
+
+func TestCompShareVideoForwardRenormalizesWhenPublicRequestProvided(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstream := &httpUpstreamRecorder{
+		responses: []*http.Response{
+			{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"task_id":"task-1"}`))},
+		},
+	}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{ID: 9, Platform: PlatformMiniMaxH3CompShare, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-ml-test"}}
+	body := []byte(`{"model":"MiniMax-H3","prompt":"test","Duration":30,"UseContextlR":true}`)
+
+	result, err := svc.ForwardPPVideoBuffered(
+		context.Background(),
+		nil,
+		account,
+		PPVideoOperationGeneric,
+		"",
+		body,
+		PPVideoPublicRequest{Model: "MiniMax-H3", UpstreamModel: "MiniMax-H3", DurationMilliseconds: 30000, VideoCount: 1, Resolution: "768p"},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "task-1", result.ResponseID)
+	require.Equal(t, int64(30), gjson.GetBytes(upstream.bodies[0], "duration").Int())
+	require.True(t, gjson.GetBytes(upstream.bodies[0], "use_context_ir").Bool())
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "Duration").Exists())
+	require.False(t, gjson.GetBytes(upstream.bodies[0], "UseContextlR").Exists())
 }
 
 func TestCompShareVideoResponseFailuresAndPendingOutput(t *testing.T) {

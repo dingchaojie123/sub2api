@@ -107,6 +107,7 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | --- | --- | --- | --- | --- |
 | ByteDance | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` |
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
+| 88API Video | `SD2.0`、`SD2.5`、`gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0-turbo`、Seedance 2.0/2.5 官方版、Veo 3.1、Wan 3.0 Video 系列 | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`2K`、`4K`，按模型限制 |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
 | MiniMax-H3（优云智算，`minimax-h3-compshare`） | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` |
@@ -144,6 +145,7 @@ POST /v1/video/generations
 | `videos` | string[] | 否 | 参考视频 URL 列表，会透传给支持该能力的上游。 |
 | `audios` | string[] | 否 | 参考音频 URL 列表，会透传给支持该能力的上游。 |
 | `aspect_ratio` | string | 否 | 画幅比例，例如 `16:9`、`9:16`、`1:1`。 |
+| `ratio` | string | 否 | 模型专用的画幅比例字段。88API Video 新接入推荐使用该字段，不要与 `aspect_ratio` 或 `size` 重复传入不同值。 |
 | `resolution` | string | 否 | 分辨率，例如 `480p`、`720p`、`1080p`；未传默认 `720p`。 |
 | `mode` | string | 否 | 视频模式。K-Ling 可传 `std`、`pro`、`4k`，也兼容 `2x`、`2x-pro`；未传时本站按 `resolution` 自动映射。 |
 | `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际上游能力为准。`kuaishou` 平台的 `kling-v3` 文生、图生视频默认开启；传 `false` 可关闭。 |
@@ -160,7 +162,7 @@ POST /v1/video/generations
 
 `kuaishou` 平台的 `kling-v3` 文生视频（`t2v`）和图生视频（`i2v`）在未传音频开关时，本站默认向上游发送 `parameters.sound: "on"`。也可显式传 `generate_audio: true` 开启，或通过 `generate_audio: false`、`sound: "off"`、`parameters.sound: "off"` 关闭。动作控制（`motion_control`）保留参考视频声音使用 `parameters.keep_original_sound: "yes"`，不套用此声音生成默认值。
 
-本文档开头列出的 ByteDance、Wan3.0、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
+本文档开头列出的 ByteDance、Wan3.0、88API Video、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
 
 优云智算平台以“MiniMax-H3（优云智算）”章节为准：默认分辨率为 `768P`，`duration` 使用 JSON 整数，媒体通过 `content` 传入。不要直接套用上表中的 `images`、`videos`、`audios` 或 `generate_audio` 字段。
 
@@ -261,6 +263,55 @@ POST /v1/video/generations
 }
 ```
 
+#### 88API Video
+
+本节适用于绑定 `88api-video` 分组的本站 API Key。模型必须从该 Key 的 `GET /v1/models` 响应中选择；上游可能增减模型，以下表格描述当前已适配型号。创建和查询仍使用本站统一的 `POST /v1/videos/generations` 与 `GET /v1/videos/{task_id}`，下游不直接访问 88API 上游地址。
+
+新接入统一使用顶层 `resolution` 和 `ratio`。本站兼容接收 `aspect_ratio`、`size` 及 `metadata.resolution`，但会在转发前归一为单一的顶层字段。调用方不要同时发送互相矛盾的 `ratio`、`aspect_ratio` 或 `size`，否则返回 HTTP 400。
+
+| 模型 | 时长 | 分辨率 | 比例 |
+| --- | --- | --- | --- |
+| `SD2.0` | 4-15 秒 | `480p`、`720p`、`1080p`、`4K` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`21:9`；默认 `1:1` |
+| `SD2.5` | 4-30 秒 | `480p`、`720p`、`1080p` | 同上，必须显式填写比例 |
+| `gemini-omni-flash` | 3-10 秒 | 固定 `720p` | `16:9`、`9:16` |
+| `gemini-omni-flash-1.1` | 3-10 秒 | `720p`、`1080p`、`4K` | `16:9`、`9:16` |
+| `grok-imagine-video` | 1-15 秒 | `480p`、`720p` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`3:2`、`2:3` |
+| `grok-imagine-video-1.5` | 1-15 秒 | `480p`、`720p`、`1080p` | 同上 |
+| `kling-3.0-turbo` | 4-15 秒 | `720p`、`1080p`、`2K`、`4K` | `16:9`、`9:16`、`1:1` |
+| `seedance-2.0官方版`、`seedance-2.0-fast官方版` | 4-15 秒 | 固定 `720p` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`21:9` |
+| `seedance-2.0-mini官方版` | 4-15 秒 | `480p`、`720p` | 同上；不支持首尾帧 |
+| `seedance-2.5官方版` | 4-30 秒 | 固定 `720p` | 同上 |
+| `veo-3.1`、`veo-3.1-fast` | 仅 `4`、`6`、`8` 秒 | `720p`、`1080p`、`4K` | `16:9`、`9:16` |
+| `wan3.0-video`、`wan3.0-video-prime` | 2-30 秒 | `480p`、`720p`、`1080p`；默认 `1080p` | 上述六种常用比例及 `adaptive`；默认 `adaptive` |
+
+Gemini Omni Flash 的最小请求示例：
+
+```json
+{
+  "model": "gemini-omni-flash",
+  "prompt": "海边日落，一只柯基在沙滩上奔跑，镜头缓慢推进",
+  "duration": 5,
+  "resolution": "720p",
+  "ratio": "9:16"
+}
+```
+
+参考图片使用顶层 `images`。Google 视频模型的图片可使用公网 HTTPS 地址或 Base64；Veo 内联图片限 JPEG/PNG，Gemini 另支持 WebP。Google 模型的参考视频使用顶层 `video` 或 `videos`。其他支持参考视频的模型也可使用顶层 `video`/`videos`，本站会转换为对应上游字段。参考音频使用 `metadata.referenceAudios`。首尾帧可使用顶层或 `metadata` 内的 `firstFrame`、`lastFrame`，尾帧不能脱离首帧单独提交。
+
+Wan 3.0 Video 还支持顶层 `media` 数组：
+
+```json
+{
+  "model": "wan3.0-video",
+  "duration": 5,
+  "media": [
+    {"type": "reference_image", "url": "https://example.com/reference.jpg"}
+  ]
+}
+```
+
+`media[].type` 可为 `first_frame`、`last_frame`、`reference_image`、`reference_video` 或 `reference_audio`。首尾帧不能与其他参考媒体混用。每个 88API 任务只生成一条视频，`n` 请省略或设为 `1`；本站使用轮询查询任务，不接受非空 `callback_url`。`generate_audio` 仅可用于上表中实际上游支持音频开关的型号。
+
 #### MiniMax-H3（原平台）
 
 本节适用于平台标识为 `minimax-h3` 的原平台，不适用于优云智算。模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
@@ -304,13 +355,13 @@ POST /v1/video/generations
 
 #### MiniMax-H3（优云智算）
 
-本节适用于 `minimax-h3-compshare` 分组的本站 API Key。支持模型 `MiniMax-H3` 和兼容别名 `minimax-h3-lite`，不支持 `MiniMax-Hailuo-2.3`。
+本节适用于 `minimax-h3-compshare` 分组的本站 API Key。支持模型 `MiniMax-H3` 和兼容别名 `minimax-h3-lite`，不支持 `MiniMax-Hailuo-2.3`。`minimax-h3-lite` 仅作为本站兼容别名接收，网关提交优云智算上游时会归一为 `MiniMax-H3`，避免上游 lite 能力集不一致导致 `Duration/UseContextIR not available`。
 
 创建任务仍使用 `POST /v1/videos/generations`。新接入推荐使用以下顶层字段：
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `model` | string | 建议填写 | `MiniMax-H3` 或 `minimax-h3-lite`；省略时默认使用 `MiniMax-H3`，账号模型映射可能影响实际选择。 |
+| `model` | string | 建议填写 | `MiniMax-H3` 或 `minimax-h3-lite`；省略时默认使用 `MiniMax-H3`。`minimax-h3-lite` 会按兼容别名处理并归一提交为 `MiniMax-H3`。 |
 | `content` | object[] | 是 | 非空内容数组，元素结构见下表。纯文生视频必须有非空文本；有首尾帧或参考素材时允许不传文本。 |
 | `duration` | integer | 否 | `4`～`30` 秒，默认 `5`。不要传字符串或小数。 |
 | `resolution` | string | 否 | `480P`、`768P`、`1080P`、`2K`、`4K`，默认 `768P`，区分大小写。 |

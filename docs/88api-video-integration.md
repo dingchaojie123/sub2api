@@ -42,13 +42,17 @@ Content-Type: application/json
   "model": "SD2.5 720P",
   "prompt": "海岸日出，镜头缓慢推进",
   "duration": 8,
-  "size": "16:9",
+  "ratio": "16:9",
   "images": ["https://your-cdn.example/reference.jpg"],
   "generate_audio": true
 }
 ```
 
-动态分辨率模型使用 `metadata.resolution`，例如 `grok-imagine-video` 配合 `"metadata":{"resolution":"720p"}`。本接口也接受顶层 `resolution` 并规范化。
+动态分辨率模型使用顶层 `resolution`，例如 `grok-imagine-video` 配合 `"resolution":"720p"`。兼容输入中的 `metadata.resolution` 会规范化为顶层字段。
+
+画面比例统一转发为顶层 `ratio`。下游仍可提交 `ratio`、`aspect_ratio` 或兼容字段 `size`，但多个字段必须表达同一比例；像素尺寸会拆分为 `resolution` 与 `ratio`，避免上游同时收到冲突的比例参数。
+
+当前按官方能力校验 `SD2.0`、`SD2.5`、Gemini Omni Flash、Grok Imagine Video、Kling 3.0 Turbo、Seedance 2.0/2.5 官方版、Veo 3.1 以及 Wan 3.0 Video 系列。校验内容包括各型号允许的分辨率、时长、比例、参考素材数量、首尾帧组合及音频开关。
 
 仅 `88api-video` 对以下精确模型名（不区分大小写）强制使用固定分辨率：
 
@@ -62,7 +66,7 @@ Content-Type: application/json
 
 固定模型忽略顶层 `resolution`、`parameters.resolution`、`metadata.resolution`，不因它们与模型档位不一致而报错；转发时通过模型名确定档位，并保留画面比例。已支持的像素尺寸 `size` 转换为对应画面比例，避免覆盖固定档位。请求规范化、计费及返回的 `usage.resolution` 均采用固定分辨率。
 
-其余模型（包括 Gemini Omni、无固定档位的 Grok、Veo、`minimax-h3-768p` 和新同步模型）采用下游传入的分辨率，不根据模型后缀自动锁定。目前可识别 `480p`、`720p`、`768p`、`1080p`、`2k`、`4k`；仍需配置对应渠道价格，且最终生成能力以上游为准。模型同步仍为在线同步，上表不是账号模型白名单。
+其余动态分辨率模型（包括 Gemini Omni、无固定档位的 Grok、Veo 和新同步模型）采用下游传入的分辨率，不根据模型后缀自动锁定。目前可识别 `480p`、`720p`、`768p`、`1080p`、`2k`、`4k`；仍需配置对应渠道价格，且最终生成能力以上游为准。模型同步仍为在线同步，上表不是账号模型白名单。
 
 88API 同时兼容既有下游的 `input + parameters` 格式，客户无需改为顶层字段：
 
@@ -81,7 +85,7 @@ Content-Type: application/json
 }
 ```
 
-仅在 `88api-video` 分支，将 `input.prompt`、`input.img_url`、`parameters.duration`、`parameters.resolution`、`parameters.aspect_ratio` 分别转换为 `prompt`、`images`、`duration`、`metadata.resolution`、`size`。文生视频可以省略 `img_url`。转换发生在参数校验及计费之前，示例按 720p、5 秒报价；相同内容的两种格式规范化后具有相同请求哈希。
+仅在 `88api-video` 分支，将 `input.prompt`、`input.img_url`、`parameters.duration`、`parameters.resolution`、`parameters.aspect_ratio` 分别转换为 `prompt`、`images`、`duration`、`resolution`、`ratio`。文生视频可以省略 `img_url`。转换发生在参数校验及计费之前，示例按 720p、5 秒报价；相同内容的两种格式规范化后具有相同请求哈希。
 
 不要在两种格式里重复指定同一目标字段，或同时填写 `parameters.duration` 与 `seconds`；固定模型被忽略的分辨率字段除外。动态模型多个分辨率字段冲突仍会报错。图片仍须为原始 HTTPS URL，签名参数原样保留，不接受 Markdown 链接包装，也不会修复过期签名。模型时长和参考素材校验不因格式转换而放宽。
 
@@ -92,9 +96,9 @@ Content-Type: application/json
 ## 支持边界
 
 - 首版使用轮询，拒绝非空 `callback_url`，不提供取消、上传凭证代理或自动归档。
-- 每任务仅一条视频，时长必须显式填写，`duration` 与 `seconds` 二选一。
-- 已知型号校验时长、比例、参考数量、首尾帧组合及音频开关；未公开的 H3 能力由上游校验。
-- Veo 显式图片模式要求 PNG/JPEG Base64；普通视频/音频参考要求匿名公网 HTTPS 地址。
+- 每任务仅一条视频。建议显式填写时长；已知型号缺省时采用官方默认值，`duration` 与 `seconds` 二选一。
+- 已知型号校验时长、比例、参考数量、首尾帧组合及音频开关；新同步型号由上游继续校验特殊能力。
+- Google 视频模型的图片可使用匿名公网 HTTPS 地址或 Base64；Veo 内联图片限 PNG/JPEG，Gemini 另支持 WebP。普通视频/音频参考要求匿名公网 HTTPS 地址。
 - `queued` / `in_progress` / `unknown` 保持处理中。仅 `completed` 且有 HTTPS 结果地址才成功；进度 100 或预览 URL 不代表成功。
 - 已获得上游 ID 的任务不会仅因本地等待超时而退款；持续轮询原任务。需关注长期未终态任务及冻结金额。
 - 提交超时且未取得上游 ID 时不能断定上游未受理。现有提交失败流程释放本地冻结，并保留幂等记录；不要换幂等标识盲目重发，须先向上游核对。

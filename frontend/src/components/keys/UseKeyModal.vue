@@ -238,7 +238,9 @@ const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
 type CodexAuthMode = 'legacy' | 'api-key'
-const codexAuthMode = ref<CodexAuthMode>('legacy')
+const codexAuthMode = ref<CodexAuthMode>('api-key')
+const openAICodexProviderName = 'CorgiPlay'
+const openAICodexApiKeyEnv = 'CorgiPlay_API_KEY'
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
@@ -264,12 +266,12 @@ const defaultClientTab = computed(() => {
 watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
-  codexAuthMode.value = 'legacy'
+  codexAuthMode.value = 'api-key'
 }, { immediate: true })
 
 watch(() => props.show, (show) => {
   if (show) {
-    codexAuthMode.value = 'legacy'
+    codexAuthMode.value = 'api-key'
   }
 })
 
@@ -554,9 +556,9 @@ const currentFiles = computed((): FileConfig[] => {
         return generateAnthropicFiles(baseUrl, apiKey)
       }
       if (activeClientTab.value === 'codex-ws') {
-        return generateOpenAIWsFiles(baseUrl, apiKey)
+        return generateOpenAIWsFiles(apiBase, apiKey)
       }
-      return generateOpenAIFiles(baseUrl, apiKey)
+      return generateOpenAIFiles(apiBase, apiKey)
     case 'gemini':
       return [generateGeminiCliContent(baseUrl, apiKey)]
     case 'antigravity':
@@ -739,16 +741,16 @@ function generateOpenAIFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
   // config.toml content
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
+  const configContent = `model_provider = "${openAICodexProviderName}"
+model = "gpt-6.1-sol"
+review_model = "gpt-6.1-sol"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
 network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.${openAICodexProviderName}]
+name = "${openAICodexProviderName}"
 base_url = "${baseUrl}"
 wire_api = "responses"
 ${generateCodexProviderAuthConfig()}
@@ -756,28 +758,39 @@ ${generateCodexProviderAuthConfig()}
 [features]
 goals = true`
 
-  // auth.json content
-  const authContent = `{
-  "OPENAI_API_KEY": "${apiKey}"
-}`
-
   return [
     {
       path: `${configDir}/config.toml`,
       content: configContent,
       hint: t('keys.useKeyModal.openai.configTomlHint')
     },
-    {
-      path: `${configDir}/auth.json`,
-      content: authContent
-    }
+    generateOpenAICodexCredentialFile(apiKey, isWindows)
   ]
+}
+
+function generateOpenAICodexCredentialFile(apiKey: string, isWindows: boolean): FileConfig {
+  if (codexAuthMode.value === 'api-key') {
+    return {
+      path: isWindows ? 'PowerShell' : 'Terminal',
+      content: isWindows
+        ? `$env:${openAICodexApiKeyEnv}="${apiKey}"`
+        : `export ${openAICodexApiKeyEnv}="${apiKey}"`
+    }
+  }
+
+  const authContent = `{
+  "OPENAI_API_KEY": "${apiKey}"
+}`
+
+  return {
+    path: `${isWindows ? '%userprofile%\\.codex' : '~/.codex'}/auth.json`,
+    content: authContent
+  }
 }
 
 function generateCodexProviderAuthConfig(): string {
   if (codexAuthMode.value === 'api-key') {
-    return `requires_openai_auth = false
-http_headers = { "x-openai-actor-authorization" = "local-image-extension" }`
+    return `env_key = "${openAICodexApiKeyEnv}"`
   }
 
   return 'requires_openai_auth = true'
@@ -848,16 +861,16 @@ function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
 
   // config.toml content with WebSocket v2
-  const configContent = `model_provider = "OpenAI"
-model = "gpt-5.5"
-review_model = "gpt-5.5"
+  const configContent = `model_provider = "${openAICodexProviderName}"
+model = "gpt-6.1-sol"
+review_model = "gpt-6.1-sol"
 model_reasoning_effort = "xhigh"
 disable_response_storage = true
 network_access = "enabled"
 windows_wsl_setup_acknowledged = true
 
-[model_providers.OpenAI]
-name = "OpenAI"
+[model_providers.${openAICodexProviderName}]
+name = "${openAICodexProviderName}"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true
@@ -867,21 +880,13 @@ ${generateCodexProviderAuthConfig()}
 responses_websockets_v2 = true
 goals = true`
 
-  // auth.json content
-  const authContent = `{
-  "OPENAI_API_KEY": "${apiKey}"
-}`
-
   return [
     {
       path: `${configDir}/config.toml`,
       content: configContent,
       hint: t('keys.useKeyModal.openai.configTomlHint')
     },
-    {
-      path: `${configDir}/auth.json`,
-      content: authContent
-    }
+    generateOpenAICodexCredentialFile(apiKey, isWindows)
   ]
 }
 
@@ -895,6 +900,76 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     }
   }
   const openaiModels = {
+    'gpt-6-astra': {
+      name: 'GPT-6 Astra',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6-luna': {
+      name: 'GPT-6 Luna',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        none: {},
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6-sol': {
+      name: 'GPT-6 Sol',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        none: {},
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-6.1-sol': {
+      name: 'GPT-6.1 Sol',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-5.2': {
       name: 'GPT-5.2',
       limit: {

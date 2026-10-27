@@ -159,9 +159,9 @@ func TestBatchImageSettlementService_UsesSubmittedPricingSnapshot(t *testing.T) 
 	job.FailCount = 0
 	job.ItemCount = 2
 	job.PricingSnapshotVersion = 1
-	job.BaseUnitPrice = 0.25
-	job.GroupRateMultiplier = 1
-	job.AccountRateMultiplier = 1
+	job.BaseUnitPrice = 0.5
+	job.GroupRateMultiplier = 0.5
+	job.AccountRateMultiplier = 1.25
 	job.BatchDiscountMultiplier = 1
 	job.HoldMultiplier = 1.1
 	job.BillableUnitPrice = 0.25
@@ -171,7 +171,11 @@ func TestBatchImageSettlementService_UsesSubmittedPricingSnapshot(t *testing.T) 
 	job.EstimatedCost = 0.5
 	repo.jobs[job.BatchID] = job
 	billing := &fakeBatchImageBillingRepo{}
-	svc := &BatchImageSettlementService{Repo: repo, BillingRepo: billing, Pricing: &fakeBatchImagePricingResolver{unitPrice: 0.50}}
+	usageLogRepo := &ppVideoUsageLogRepoStub{}
+	svc := &BatchImageSettlementService{
+		Repo: repo, BillingRepo: billing, UsageLogRepo: usageLogRepo,
+		Pricing: &fakeBatchImagePricingResolver{unitPrice: 0.50},
+	}
 
 	result, err := svc.Settle(context.Background(), job.BatchID)
 	require.NoError(t, err)
@@ -179,6 +183,10 @@ func TestBatchImageSettlementService_UsesSubmittedPricingSnapshot(t *testing.T) 
 	require.Len(t, billing.captures, 1)
 	require.InDelta(t, 0.5, billing.captures[0].ActualAmount, 1e-12)
 	require.InDelta(t, 0.55, billing.captures[0].HoldAmount, 1e-12)
+	require.NotNil(t, usageLogRepo.lastLog)
+	require.InDelta(t, 1.0, usageLogRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 0.5, usageLogRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, 1.25, *usageLogRepo.lastLog.AccountRateMultiplier, 1e-12)
 }
 
 func TestBatchImageSettlementService_BillingFailureLeavesSettlingAndRecordsError(t *testing.T) {

@@ -128,17 +128,17 @@ func TestCalculatePPVideoCostValidatesByteDanceDurationsByModel(t *testing.T) {
 	svc := &OpenAIGatewayService{billingService: newTestBillingService()}
 
 	tests := []struct {
-		name      string
-		model     string
-		duration  int64
-		wantRate  float64
-		wantErr   string
+		name     string
+		model    string
+		duration int64
+		wantRate float64
+		wantErr  string
 	}{
 		{
-			name:      "Seedance 2.0 rejects 30 seconds",
-			model:     ByteDanceVideoDefaultModel,
-			duration:  30000,
-			wantErr:   "from 4 to 15",
+			name:     "Seedance 2.0 rejects 30 seconds",
+			model:    ByteDanceVideoDefaultModel,
+			duration: 30000,
+			wantErr:  "from 4 to 15",
 		},
 		{
 			name:     "Seedance 2.0 keeps the configured unit price",
@@ -384,6 +384,35 @@ func TestCalculatePPVideoCostIgnoresChannelVideoPricing(t *testing.T) {
 	require.NoError(t, err)
 	require.InDelta(t, groupVideoPrice, cost.TotalCost, 1e-12)
 	require.InDelta(t, groupVideoPrice*3, cost.ActualCost, 1e-12)
+}
+
+func TestCalculatePPVideoCostAccountRateDoesNotAffectUserCharge(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(105)
+	accountRate := 0.4
+	apiKey := &APIKey{
+		GroupID: &groupID,
+		Group: &Group{
+			RateMultiplier:       1,
+			VideoRateIndependent: true,
+			VideoRateMultiplier:  0.7,
+		},
+	}
+	meta := PPVideoBillingMetadata{
+		Platform:                      PlatformKling,
+		KlingMode:                     "std",
+		VideoResolution:               VideoBillingResolution720P,
+		RequestedDurationMilliseconds: 1000,
+		VideoCount:                    1,
+	}
+
+	cost, err := (&OpenAIGatewayService{
+		billingService: newTestBillingService(),
+	}).CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{RateMultiplier: &accountRate}, meta)
+
+	require.NoError(t, err)
+	require.InDelta(t, cost.TotalCost*0.7, cost.ActualCost, 1e-12)
 }
 
 func TestCalculateJimengVideoCostUsesGroupVideoPrice(t *testing.T) {

@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -24,31 +25,101 @@ type video88APICapabilities struct {
 	frames, exclusive, audio bool
 }
 
+func video88APIModel(model string) string {
+	return strings.ToLower(strings.TrimSpace(model))
+}
+
+func video88APIIsSD25(model string) bool {
+	m := video88APIModel(model)
+	return m == "sd2.5" || strings.HasPrefix(m, "sd2.5 ")
+}
+
+func video88APIIsSD20(model string) bool {
+	m := video88APIModel(model)
+	return m == "sd2.0" || strings.HasPrefix(m, "sd2.0 ")
+}
+
+func video88APIIsSeedanceOfficial25(model string) bool {
+	m := video88APIModel(model)
+	return m == "seedance-2.5官方版" || strings.HasPrefix(m, "seedance-2.5-")
+}
+
+func video88APIIsSeedanceOfficial20(model string) bool {
+	m := video88APIModel(model)
+	return m == "seedance-2.0官方版" || m == "seedance-2.0-fast官方版" || m == "seedance-2.0-mini官方版" || strings.HasPrefix(m, "seedance-2.0-")
+}
+
+func video88APIIsSeedanceMini(model string) bool {
+	return strings.Contains(video88APIModel(model), "seedance-2.0-mini")
+}
+
+func video88APIIsSeedanceMulti(model string) bool {
+	m := video88APIModel(model)
+	return strings.HasPrefix(m, "doubao-seedance-2.0") || strings.HasPrefix(m, "doubao-seedance-2-0") || strings.HasPrefix(m, "doubao-seedance-2.5") || strings.HasPrefix(m, "doubao-seedance-2-5")
+}
+
+func video88APIIsSeedanceMulti25(model string) bool {
+	m := video88APIModel(model)
+	return strings.HasPrefix(m, "doubao-seedance-2.5") || strings.HasPrefix(m, "doubao-seedance-2-5")
+}
+
+func video88APIIsWan(model string) bool {
+	m := video88APIModel(model)
+	return m == "wan3.0-video" || m == "wan3.0-video-prime" || strings.HasPrefix(m, "wan3.0-video-")
+}
+
+func video88APIIsKling(model string) bool {
+	m := video88APIModel(model)
+	return m == "kling-3.0-turbo" || strings.HasPrefix(m, "kling-3.0-turbo-")
+}
+
+func video88APIIsGrok(model string) bool {
+	return strings.HasPrefix(video88APIModel(model), "grok-imagine-video")
+}
+
+func video88APIIsVeo(model string) bool {
+	return strings.HasPrefix(video88APIModel(model), "veo-3.1")
+}
+
+func video88APIIsGemini(model string) bool {
+	m := video88APIModel(model)
+	return m == "gemini-omni-flash" || m == "gemini-omni-flash-1.1"
+}
+
 func video88APICaps(model string) video88APICapabilities {
-	m := strings.ToLower(model)
+	m := video88APIModel(model)
 	c := video88APICapabilities{1, 0, -1, -1, -1, true, false, false}
 	switch {
-	case strings.HasPrefix(m, "sd2.5 "):
+	case video88APIIsSD25(m):
 		c = video88APICapabilities{4, 30, 30, 10, 10, true, true, true}
-	case strings.HasPrefix(m, "sd2.0 "):
+	case video88APIIsSD20(m):
 		c = video88APICapabilities{4, 15, 9, 3, 3, true, true, false}
-	case strings.HasPrefix(m, "seedance-2.5-"):
-		c = video88APICapabilities{4, 30, 30, 10, 10, true, false, false}
-	case strings.HasPrefix(m, "seedance-2.0-"):
-		c = video88APICapabilities{4, 15, 9, 3, 3, !strings.Contains(m, "-mini-"), true, false}
-	case strings.HasPrefix(m, "wan3.0-video-"):
+	case video88APIIsSeedanceOfficial25(m):
+		c = video88APICapabilities{4, 30, 30, 10, 10, true, true, false}
+	case video88APIIsSeedanceOfficial20(m):
+		c = video88APICapabilities{4, 15, 9, 3, 3, !video88APIIsSeedanceMini(m), true, false}
+	case video88APIIsSeedanceMulti25(m):
+		c = video88APICapabilities{4, 30, 30, 10, 10, true, true, true}
+	case video88APIIsSeedanceMulti(m):
+		c = video88APICapabilities{4, 15, 9, 3, 3, true, true, true}
+	case video88APIIsWan(m):
 		c = video88APICapabilities{4, 30, 10, 5, 5, true, true, false}
 		if strings.HasSuffix(m, "-480p") {
 			c.images, c.videos, c.audios, c.exclusive = 30, 10, 10, false
 		}
-	case strings.HasPrefix(m, "kling-3.0-turbo-"):
+		if m == "wan3.0-video" || m == "wan3.0-video-prime" {
+			c.minSeconds = 2
+		}
+	case video88APIIsKling(m):
 		c = video88APICapabilities{4, 15, 30, 10, 0, true, false, true}
-	case strings.HasPrefix(m, "grok-imagine-video"):
+	case video88APIIsGrok(m):
 		c = video88APICapabilities{1, 15, 1, 0, 0, false, false, false}
 	case m == "gemini-omni-flash":
-		c = video88APICapabilities{3, 10, 10, 1, 0, false, false, false}
-	case strings.HasPrefix(m, "veo-3.1"):
-		c = video88APICapabilities{4, 8, 3, 0, 0, false, false, false}
+		c = video88APICapabilities{3, 10, 10, 1, 0, true, false, false}
+	case m == "gemini-omni-flash-1.1":
+		c = video88APICapabilities{3, 10, 10, 3, 0, true, false, false}
+	case video88APIIsVeo(m):
+		c = video88APICapabilities{4, 8, 3, 0, 0, true, false, true}
 	}
 	return c
 }
@@ -61,6 +132,8 @@ func video88APITier(value string) string {
 		return "720p"
 	case "1920x1080", "1080x1920":
 		return "1080p"
+	case "3840x2160", "2160x3840":
+		return "4k"
 	}
 	return ""
 }
@@ -82,6 +155,81 @@ func video88APIFixedTier(model string) string {
 	return ""
 }
 
+func video88APIDefaultTier(model string) string {
+	m := video88APIModel(model)
+	switch {
+	case video88APIIsSD25(m), video88APIIsSD20(m):
+		return "480p"
+	case m == "seedance-2.0-mini官方版":
+		return "480p"
+	case video88APIIsSeedanceOfficial25(m), video88APIIsSeedanceOfficial20(m), video88APIIsSeedanceMulti(m), video88APIIsKling(m), video88APIIsGrok(m), video88APIIsVeo(m), video88APIIsGemini(m):
+		return "720p"
+	case video88APIIsWan(m):
+		return "1080p"
+	}
+	return ""
+}
+
+func video88APITierAllowed(model, tier string) bool {
+	m := video88APIModel(model)
+	allowed := ""
+	switch {
+	case video88APIIsSD25(m):
+		allowed = "480p 720p 1080p"
+	case video88APIIsSD20(m):
+		allowed = "480p 720p 1080p 4k"
+	case m == "seedance-2.0-mini官方版":
+		allowed = "480p 720p"
+	case video88APIIsSeedanceOfficial25(m), video88APIIsSeedanceOfficial20(m):
+		allowed = "720p"
+	case video88APIIsSeedanceMulti25(m):
+		allowed = "480p 720p 1080p"
+	case video88APIIsSeedanceMulti(m):
+		if strings.Contains(m, "mini") || strings.Contains(m, "fast") {
+			allowed = "480p 720p"
+		} else {
+			allowed = "480p 720p 1080p 4k"
+		}
+	case m == "gemini-omni-flash":
+		allowed = "720p"
+	case m == "gemini-omni-flash-1.1", video88APIIsVeo(m):
+		allowed = "720p 1080p 4k"
+	case video88APIIsKling(m):
+		allowed = "720p 1080p 2k 4k"
+	case video88APIIsWan(m):
+		allowed = "480p 720p 1080p"
+	case m == "grok-imagine-video":
+		allowed = "480p 720p"
+	case strings.HasPrefix(m, "grok-imagine-video-1.5"):
+		allowed = "480p 720p 1080p"
+	default:
+		return true
+	}
+	for _, candidate := range strings.Fields(allowed) {
+		if candidate == tier {
+			return true
+		}
+	}
+	return false
+}
+
+func video88APIDefaultDuration(model string) int {
+	m := video88APIModel(model)
+	switch {
+	case video88APIIsSD25(m), video88APIIsSD20(m), video88APIIsKling(m), video88APIIsWan(m), video88APIIsSeedanceMulti(m):
+		return 5
+	case m == "seedance-2.0-mini官方版":
+		return 5
+	case video88APIIsSeedanceOfficial25(m), video88APIIsSeedanceOfficial20(m):
+		return 4
+	case video88APIIsVeo(m), video88APIIsGrok(m):
+		return 8
+	case video88APIIsGemini(m):
+		return 3
+	}
+	return 0
+}
+
 func video88APIResolution(payload map[string]any, model string) (string, error) {
 	if tier := video88APIFixedTier(model); tier != "" {
 		return tier, nil
@@ -96,7 +244,7 @@ func video88APIResolution(payload map[string]any, model string) (string, error) 
 		if !ok {
 			return "", fmt.Errorf("88API resolution and size must be strings")
 		}
-		if strings.Contains(s, ":") || s == "auto" {
+		if strings.Contains(s, ":") || s == "auto" || s == "adaptive" {
 			continue
 		}
 		candidate := video88APITier(s)
@@ -109,7 +257,13 @@ func video88APIResolution(payload map[string]any, model string) (string, error) 
 		tier = candidate
 	}
 	if tier == "" {
+		tier = video88APIDefaultTier(model)
+	}
+	if tier == "" {
 		return "", fmt.Errorf("88API requires an explicit resolution for model %q", model)
+	}
+	if !video88APITierAllowed(model, tier) {
+		return "", fmt.Errorf("unsupported 88API resolution %q for model %q", tier, model)
 	}
 	return tier, nil
 }
@@ -149,6 +303,102 @@ func normalize88APIDownstreamFields(payload map[string]any) error {
 	return nil
 }
 
+func normalize88APIAspectFields(payload map[string]any, model string) error {
+	ratio, pixelSize := "", ""
+	meta, _ := payload["metadata"].(map[string]any)
+	fields := []struct {
+		name  string
+		value any
+	}{
+		{"size", payload["size"]},
+		{"ratio", payload["ratio"]},
+		{"aspect_ratio", payload["aspect_ratio"]},
+		{"metadata.ratio", meta["ratio"]},
+		{"metadata.aspect_ratio", meta["aspect_ratio"]},
+	}
+	for _, field := range fields {
+		value := field.value
+		if value == nil {
+			continue
+		}
+		s, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("88API %s must be a string", field.name)
+		}
+		s = strings.ToLower(strings.TrimSpace(s))
+		if field.name == "size" {
+			switch s {
+			case "1280x720", "1920x1080", "3840x2160":
+				pixelSize, s = s, "16:9"
+			case "720x1280", "1080x1920", "2160x3840":
+				pixelSize, s = s, "9:16"
+			default:
+				if video88APITier(s) != "" {
+					continue
+				}
+			}
+		}
+		if ratio != "" && s != ratio {
+			return fmt.Errorf("88API aspect ratio fields conflict: %q and %q", ratio, s)
+		}
+		ratio = s
+	}
+	delete(payload, "size")
+	delete(payload, "ratio")
+	delete(payload, "aspect_ratio")
+	delete(meta, "ratio")
+	delete(meta, "aspect_ratio")
+	if ratio == "" {
+		switch {
+		case video88APIIsSD25(model):
+			return fmt.Errorf("88API model %q requires an explicit aspect ratio", model)
+		case video88APIIsSD20(model):
+			ratio = "1:1"
+		case video88APIIsSeedanceMulti(model), video88APIIsWan(model):
+			ratio = "adaptive"
+		default:
+			ratio = "16:9"
+		}
+	}
+	if pixelSize != "" && video88APIIsGrok(model) {
+		return fmt.Errorf("Grok size does not accept pixel dimensions")
+	}
+	payload["ratio"] = ratio
+	return nil
+}
+
+func normalize88APIFrameAliases(payload, meta map[string]any) error {
+	for _, aliases := range []struct {
+		canonical string
+		keys      []string
+	}{
+		{"firstFrame", []string{"firstFrame", "first_frame"}},
+		{"lastFrame", []string{"lastFrame", "last_frame"}},
+	} {
+		var value any
+		for _, key := range aliases.keys {
+			for _, source := range []map[string]any{payload, meta} {
+				candidate, exists := source[key]
+				if !exists || candidate == nil {
+					continue
+				}
+				if value != nil && !reflect.DeepEqual(candidate, value) {
+					return fmt.Errorf("conflicting 88API %s fields", aliases.canonical)
+				}
+				value = candidate
+			}
+		}
+		for _, key := range aliases.keys {
+			delete(payload, key)
+			delete(meta, key)
+		}
+		if value != nil {
+			meta[aliases.canonical] = value
+		}
+	}
+	return nil
+}
+
 func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicRequest) (map[string]any, error) {
 	model, ok := payload["model"].(string)
 	if !ok || strings.TrimSpace(model) == "" {
@@ -178,6 +428,14 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 		}
 	}
 	payload["metadata"] = meta
+	if err := normalize88APIFrameAliases(payload, meta); err != nil {
+		return nil, err
+	}
+	task, _ := payload["task"].(string)
+	task = strings.ToLower(strings.TrimSpace(task))
+	geminiExtend := video88APIModel(model) == "gemini-omni-flash-1.1" && task == "extend"
+	hadDuration := payload["duration"] != nil || payload["seconds"] != nil
+	hadAspect := payload["size"] != nil || payload["ratio"] != nil || payload["aspect_ratio"] != nil || meta["ratio"] != nil || meta["aspect_ratio"] != nil
 	if v, exists := payload["callback_url"]; exists && v != "" && v != nil {
 		return nil, fmt.Errorf("88API integration uses polling; callback_url is not supported")
 	}
@@ -191,6 +449,15 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 	}
 	var duration float64
 	switch v := seconds.(type) {
+	case nil:
+		if geminiExtend {
+			duration = 10
+		} else {
+			duration = float64(video88APIDefaultDuration(model))
+		}
+		if duration == 0 {
+			return nil, fmt.Errorf("88API requires duration in integer seconds")
+		}
 	case float64:
 		duration = v
 	case string:
@@ -202,6 +469,9 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 	default:
 		return nil, fmt.Errorf("88API requires duration in integer seconds")
 	}
+	if geminiExtend && hadDuration {
+		return nil, fmt.Errorf("Gemini Omni extension must not include duration")
+	}
 	caps := video88APICaps(model)
 	if math.IsNaN(duration) || math.IsInf(duration, 0) || duration != math.Trunc(duration) || duration < float64(caps.minSeconds) || duration > 86400 || (caps.maxSeconds > 0 && duration > float64(caps.maxSeconds)) {
 		return nil, fmt.Errorf("invalid duration for 88API model %q", model)
@@ -212,50 +482,50 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 		}
 		delete(payload, key)
 	}
-	payload["duration"] = int(duration)
+	if geminiExtend {
+		delete(payload, "duration")
+	} else {
+		payload["duration"] = int(duration)
+	}
 	delete(payload, "seconds")
 	tier, err := video88APIResolution(payload, model)
 	if err != nil {
 		return nil, err
 	}
-	delete(payload, "resolution")
-	if video88APIFixedTier(model) != "" {
-		delete(meta, "resolution")
-		// Fixed models encode the output tier in their name; size carries only aspect.
-		switch payload["size"] {
-		case "1280x720", "1920x1080":
-			payload["size"] = "16:9"
-		case "720x1280", "1080x1920":
-			payload["size"] = "9:16"
-		}
-	} else {
-		meta["resolution"] = tier
-	}
-	if payload["size"] == nil {
-		payload["size"] = "16:9"
-	}
-	m := strings.ToLower(model)
-	if err := video88APIValidateAspect(m, payload["size"]); err != nil {
+	if err := normalize88APIAspectFields(payload, model); err != nil {
 		return nil, err
 	}
-	veo := strings.HasPrefix(m, "veo-3.1")
+	if video88APIFixedTier(model) != "" {
+		delete(payload, "resolution")
+		delete(meta, "resolution")
+	} else {
+		payload["resolution"] = tier
+		delete(meta, "resolution")
+	}
+	if geminiExtend {
+		if tier == "4k" {
+			return nil, fmt.Errorf("Gemini Omni extension supports only 720p or 1080p")
+		}
+		if hadAspect {
+			return nil, fmt.Errorf("Gemini Omni extension must not include an aspect ratio")
+		}
+		delete(payload, "ratio")
+		delete(payload, "size")
+	}
+	aspect := payload["ratio"]
+	if payload["size"] != nil {
+		aspect = payload["size"]
+	}
+	m := strings.ToLower(model)
+	if !geminiExtend {
+		if err := video88APIValidateAspect(m, aspect); err != nil {
+			return nil, err
+		}
+	}
+	veo := video88APIIsVeo(m)
 	if veo {
 		if duration != 4 && duration != 6 && duration != 8 {
 			return nil, fmt.Errorf("Veo duration must be 4, 6 or 8 seconds")
-		}
-		if payload["size"] == "16:9" && (tier == "720p" || tier == "1080p") {
-			if tier == "720p" {
-				payload["size"] = "1280x720"
-			} else {
-				payload["size"] = "1920x1080"
-			}
-		}
-		if payload["size"] == "9:16" && (tier == "720p" || tier == "1080p") {
-			if tier == "720p" {
-				payload["size"] = "720x1280"
-			} else {
-				payload["size"] = "1080x1920"
-			}
 		}
 	}
 	for _, key := range []string{"image", "input_reference"} {
@@ -267,36 +537,54 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 			delete(payload, key)
 		}
 	}
-	for _, key := range []string{"referenceImages", "images"} {
-		if meta[key] != nil {
-			return nil, fmt.Errorf("use top-level images for 88API image references")
-		}
+	if meta["images"] != nil {
+		return nil, fmt.Errorf("metadata.images is not a supported 88API image field")
+	}
+	allowMetadataImages := video88APIIsWan(m)
+	if meta["referenceImages"] != nil && !allowMetadataImages {
+		return nil, fmt.Errorf("use top-level images for 88API image references")
 	}
 	if payload["videos"] != nil && payload["video"] != nil {
 		return nil, fmt.Errorf("use only one video field")
 	}
+	topVideos := payload["videos"]
 	if payload["video"] != nil {
-		payload["videos"] = []any{payload["video"]}
-		delete(payload, "video")
+		topVideos = []any{payload["video"]}
 	}
-	if payload["videos"] != nil && meta["referenceVideos"] != nil {
+	if topVideos != nil && meta["referenceVideos"] != nil {
 		return nil, fmt.Errorf("use only one reference video field")
 	}
-	if m == "gemini-omni-flash" {
+	googleVideo := video88APIIsGemini(m) || video88APIIsVeo(m)
+	if googleVideo {
 		if meta["referenceVideos"] != nil {
-			return nil, fmt.Errorf("Gemini Omni uses top-level video or videos")
+			return nil, fmt.Errorf("Google video models use top-level video or videos")
 		}
-	} else if payload["videos"] != nil {
-		meta["referenceVideos"] = payload["videos"]
+	} else if topVideos != nil {
+		meta["referenceVideos"] = topVideos
+		delete(payload, "video")
 		delete(payload, "videos")
 	}
-	imageCount, err := video88APIValidateMedia(payload["images"], caps.images, veo)
+	inlineImages := googleVideo || video88APIIsSeedanceMulti(m)
+	imageCount, err := video88APIValidateMedia(payload["images"], caps.images, inlineImages)
 	if err != nil {
 		return nil, fmt.Errorf("images: %w", err)
 	}
+	if veo {
+		if err := video88APIRejectInlineWebP(payload["images"]); err != nil {
+			return nil, err
+		}
+	}
+	metadataImageCount, err := video88APIValidateMedia(meta["referenceImages"], caps.images, false)
+	if err != nil {
+		return nil, fmt.Errorf("reference images: %w", err)
+	}
+	if imageCount > 0 && metadataImageCount > 0 {
+		return nil, fmt.Errorf("use only one reference image field")
+	}
+	imageCount += metadataImageCount
 	videos := meta["referenceVideos"]
-	if m == "gemini-omni-flash" {
-		videos = payload["videos"]
+	if googleVideo {
+		videos = topVideos
 	}
 	videoCount, err := video88APIValidateMedia(videos, caps.videos, false)
 	if err != nil {
@@ -306,36 +594,104 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 	if err != nil {
 		return nil, fmt.Errorf("reference audios: %w", err)
 	}
-	if strings.HasPrefix(m, "sd2.0 ") && imageCount+videoCount+audioCount > 12 {
+	wanImages, wanVideos, wanAudios, wanFirst, wanLast, err := video88APIValidateWanMedia(payload["media"])
+	if err != nil {
+		return nil, err
+	}
+	if payload["media"] != nil {
+		if !video88APIIsWan(m) {
+			return nil, fmt.Errorf("media is supported only by Wan video models")
+		}
+		if imageCount+videoCount+audioCount > 0 || meta["firstFrame"] != nil || meta["lastFrame"] != nil {
+			return nil, fmt.Errorf("Wan media cannot be combined with other reference fields")
+		}
+	}
+	imageCount += wanImages
+	videoCount += wanVideos
+	audioCount += wanAudios
+	if video88APIIsSD20(m) && imageCount+videoCount+audioCount > 12 {
 		return nil, fmt.Errorf("SD2.0 supports at most 12 total references")
 	}
+	if video88APIIsSeedanceMulti(m) && !video88APIIsSeedanceMulti25(m) && audioCount > 0 && imageCount+videoCount == 0 {
+		return nil, fmt.Errorf("Seedance 2.0 reference audio requires an image or video")
+	}
 	first, last := meta["firstFrame"], meta["lastFrame"]
+	if wanFirst {
+		first = "media:first_frame"
+	}
+	if wanLast {
+		last = "media:last_frame"
+	}
+	geminiEdit := m == "gemini-omni-flash-1.1" && videoCount == 1 && imageCount == 0 && first == nil && (task == "" || task == "edit" || task == "extend")
+	if geminiEdit {
+		if hadAspect {
+			return nil, fmt.Errorf("Gemini Omni video editing must not include an aspect ratio")
+		}
+		delete(payload, "ratio")
+		delete(payload, "size")
+	}
+	if m == "gemini-omni-flash" && videoCount > 0 && imageCount == 0 {
+		return nil, fmt.Errorf("Gemini Omni Flash reference video requires a reference image")
+	}
 	prompt, promptOK := payload["prompt"].(string)
 	if payload["prompt"] != nil && !promptOK {
 		return nil, fmt.Errorf("prompt must be a string")
 	}
-	if strings.TrimSpace(prompt) == "" && !(strings.HasPrefix(m, "wan3.0-video-") && (imageCount+videoCount+audioCount > 0 || first != nil)) {
+	promptOptional := (video88APIIsWan(m) || video88APIIsSD20(m) || video88APIIsSeedanceMulti(m) || video88APIIsGrok(m)) && (imageCount+videoCount+audioCount > 0 || first != nil)
+	if strings.TrimSpace(prompt) == "" && !promptOptional {
 		return nil, fmt.Errorf("88API requires a prompt for this request")
 	}
+	if video88APIIsKling(m) && len([]rune(prompt)) > 2000 {
+		return nil, fmt.Errorf("Kling prompt must not exceed 2000 characters")
+	}
 	if first != nil || last != nil {
-		if !caps.frames || first == nil {
+		if !caps.frames || (last != nil && first == nil) {
 			return nil, fmt.Errorf("unsupported first/last frame combination")
 		}
 		if caps.exclusive && imageCount+videoCount+audioCount > 0 {
 			return nil, fmt.Errorf("first/last frames cannot be combined with reference media")
 		}
-		for _, frame := range []any{first, last} {
+		for _, frame := range []any{meta["firstFrame"], meta["lastFrame"]} {
 			if frame != nil {
-				if _, err := video88APIValidateMedia([]any{frame}, 1, false); err != nil {
+				if _, err := video88APIValidateMedia([]any{frame}, 1, inlineImages); err != nil {
 					return nil, fmt.Errorf("frame: %w", err)
 				}
 			}
 		}
 	}
+	if video88APIIsKling(m) {
+		frameCount := 0
+		if first != nil {
+			frameCount++
+		}
+		if last != nil {
+			frameCount++
+		}
+		if imageCount+frameCount > caps.images {
+			return nil, fmt.Errorf("Kling supports at most %d total images and frames", caps.images)
+		}
+	}
+	if video88APIIsSeedanceMulti25(m) && (first != nil || last != nil) {
+		aspect, _ := payload["ratio"].(string)
+		if aspect != "adaptive" {
+			return nil, fmt.Errorf("Seedance 2.5 first/last frames require adaptive ratio")
+		}
+	}
+	if geminiExtend && videoCount != 1 {
+		return nil, fmt.Errorf("Gemini Omni extension requires one video")
+	}
 	if veo && imageCount > 0 {
 		mode, _ := meta["video_mode"].(string)
+		if mode == "" {
+			if imageCount <= 2 {
+				mode = "frames"
+			} else {
+				mode = "reference"
+			}
+			meta["video_mode"] = mode
+		}
 		if mode != "frames" && mode != "reference" {
-			return nil, fmt.Errorf("Veo images require metadata.video_mode frames or reference")
+			return nil, fmt.Errorf("Veo metadata.video_mode must be frames or reference")
 		}
 		if mode == "frames" && imageCount > 2 {
 			return nil, fmt.Errorf("Veo frames supports at most two images")
@@ -344,9 +700,26 @@ func normalize88APIVideoPayload(payload map[string]any, public *PPVideoPublicReq
 			return nil, fmt.Errorf("Veo reference mode requires 8 seconds")
 		}
 	}
-	if v, exists := payload["generate_audio"]; exists {
-		if _, ok := v.(bool); !ok || !caps.audio {
+	generateAudio := payload["generate_audio"]
+	if generateAudio == nil {
+		generateAudio = payload["generateAudio"]
+	}
+	if generateAudio == nil {
+		generateAudio = meta["generateAudio"]
+	}
+	if generateAudio != nil {
+		if _, ok := generateAudio.(bool); !ok || !caps.audio {
 			return nil, fmt.Errorf("generate_audio is not supported or is not boolean for this model")
+		}
+		payload["generate_audio"] = generateAudio
+		delete(payload, "generateAudio")
+		delete(meta, "generateAudio")
+	}
+	if video88APIIsGrok(m) {
+		for _, key := range []string{"negative_prompt", "seed"} {
+			if payload[key] != nil || meta[key] != nil {
+				return nil, fmt.Errorf("Grok does not support %s", key)
+			}
 		}
 	}
 	public.Model = strings.TrimSpace(public.Model)
@@ -363,24 +736,22 @@ func video88APIValidateAspect(model string, size any) error {
 	}
 	ratio := s
 	switch s {
-	case "1280x720", "1920x1080":
+	case "1280x720", "1920x1080", "3840x2160":
 		ratio = "16:9"
-	case "720x1280", "1080x1920":
+	case "720x1280", "1080x1920", "2160x3840":
 		ratio = "9:16"
 	}
 	allowed := ""
 	switch {
-	case strings.HasPrefix(model, "sd2.5 "):
-		allowed = "auto 1:1 21:9 16:9 9:16 3:4 4:3"
-	case strings.HasPrefix(model, "sd2.0 "), strings.HasPrefix(model, "seedance-2."):
+	case video88APIIsSD25(model), video88APIIsSD20(model), video88APIIsSeedanceOfficial25(model), video88APIIsSeedanceOfficial20(model):
 		allowed = "1:1 21:9 16:9 9:16 3:4 4:3"
-	case strings.HasPrefix(model, "wan3.0-video-"):
-		allowed = "1:1 16:9 9:16 3:4 4:3"
-	case strings.HasPrefix(model, "kling-3.0-turbo-"):
+	case video88APIIsSeedanceMulti(model), video88APIIsWan(model):
+		allowed = "adaptive 1:1 21:9 16:9 9:16 3:4 4:3"
+	case video88APIIsKling(model):
 		allowed = "1:1 16:9 9:16"
-	case strings.HasPrefix(model, "grok-imagine-video"):
+	case video88APIIsGrok(model):
 		allowed = "1:1 16:9 9:16 3:4 4:3 3:2 2:3"
-	case strings.HasPrefix(model, "veo-3.1"), model == "gemini-omni-flash":
+	case video88APIIsVeo(model), video88APIIsGemini(model):
 		allowed = "16:9 9:16"
 	}
 	if allowed != "" {
@@ -407,29 +778,103 @@ func video88APIValidateMedia(value any, limit int, base64Images bool) (int, erro
 	}
 	for _, item := range items {
 		s, ok := item.(string)
+		if !ok && base64Images {
+			if object, objectOK := item.(map[string]any); objectOK {
+				s, ok = object["url"].(string)
+			}
+		}
 		if !ok || s == "" {
 			return 0, fmt.Errorf("reference must be a nonempty string")
+		}
+		u, urlErr := url.Parse(s)
+		if urlErr == nil && u.Scheme == "https" && u.Hostname() != "" && miniMaxH3ImageProbeURLAllowed(&http.Request{URL: u}) {
+			continue
 		}
 		if base64Images {
 			if strings.HasPrefix(s, "data:") {
 				prefix, data, found := strings.Cut(s, ",")
-				if !found || (prefix != "data:image/jpeg;base64" && prefix != "data:image/png;base64") {
-					return 0, fmt.Errorf("Veo requires PNG/JPEG base64 images")
+				if !found || (prefix != "data:image/jpeg;base64" && prefix != "data:image/png;base64" && prefix != "data:image/webp;base64") {
+					return 0, fmt.Errorf("inline image must be PNG, JPEG or WebP base64")
 				}
 				s = data
 			}
 			decoded, err := base64.StdEncoding.DecodeString(s)
 			if err != nil || len(decoded) == 0 || len(decoded) > 20<<20 {
-				return 0, fmt.Errorf("Veo image must be base64 and at most 20 MiB")
+				return 0, fmt.Errorf("inline image must be valid base64 and at most 20 MiB")
 			}
 			continue
 		}
-		u, err := url.Parse(s)
-		if err != nil || u.Scheme != "https" || u.Hostname() == "" || !miniMaxH3ImageProbeURLAllowed(&http.Request{URL: u}) {
-			return 0, fmt.Errorf("reference must be a public HTTPS URL")
-		}
+		return 0, fmt.Errorf("reference must be a public HTTPS URL")
 	}
 	return len(items), nil
+}
+
+func video88APIRejectInlineWebP(value any) error {
+	items, _ := value.([]any)
+	for _, item := range items {
+		s, _ := item.(string)
+		if object, ok := item.(map[string]any); ok {
+			s, _ = object["url"].(string)
+		}
+		if strings.HasPrefix(strings.ToLower(s), "data:image/webp;") {
+			return fmt.Errorf("Veo inline images must be PNG or JPEG")
+		}
+	}
+	return nil
+}
+
+func video88APIValidateWanMedia(value any) (images, videos, audios int, first, last bool, err error) {
+	if value == nil {
+		return 0, 0, 0, false, false, nil
+	}
+	items, ok := value.([]any)
+	if !ok {
+		return 0, 0, 0, false, false, fmt.Errorf("media must be an array")
+	}
+	for _, raw := range items {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			return 0, 0, 0, false, false, fmt.Errorf("media entries must be objects")
+		}
+		typeName, typeOK := item["type"].(string)
+		mediaURL, urlOK := item["url"].(string)
+		if !typeOK || !urlOK {
+			return 0, 0, 0, false, false, fmt.Errorf("media entries require string type and url")
+		}
+		if _, validateErr := video88APIValidateMedia([]any{mediaURL}, 1, false); validateErr != nil {
+			return 0, 0, 0, false, false, validateErr
+		}
+		switch typeName {
+		case "first_frame":
+			if first {
+				return 0, 0, 0, false, false, fmt.Errorf("media accepts one first_frame")
+			}
+			first = true
+		case "last_frame":
+			if last {
+				return 0, 0, 0, false, false, fmt.Errorf("media accepts one last_frame")
+			}
+			last = true
+		case "reference_image":
+			images++
+		case "reference_video":
+			videos++
+		case "reference_audio":
+			audios++
+		default:
+			return 0, 0, 0, false, false, fmt.Errorf("unsupported media type %q", typeName)
+		}
+	}
+	if last && !first {
+		return 0, 0, 0, false, false, fmt.Errorf("last_frame requires first_frame")
+	}
+	if (first || last) && images+videos+audios > 0 {
+		return 0, 0, 0, false, false, fmt.Errorf("first/last frames cannot be combined with reference media")
+	}
+	if images > 10 || videos > 5 || audios > 5 {
+		return 0, 0, 0, false, false, fmt.Errorf("media exceeds Wan reference limits")
+	}
+	return images, videos, audios, first, last, nil
 }
 
 func video88APIBillingMetadata(body []byte) PPVideoBillingMetadata {
@@ -441,6 +886,9 @@ func video88APIBillingMetadata(body []byte) PPVideoBillingMetadata {
 	}
 	meta.VideoResolution, meta.ValidationError = video88APIResolution(payload, meta.Model)
 	meta.RequestedDurationMilliseconds = int64(gjson.GetBytes(body, "duration").Float() * 1000)
+	if meta.RequestedDurationMilliseconds == 0 && video88APIModel(meta.Model) == "gemini-omni-flash-1.1" && strings.EqualFold(gjson.GetBytes(body, "task").String(), "extend") {
+		meta.RequestedDurationMilliseconds = 10_000
+	}
 	meta.RequestedDurationSeconds = int(meta.RequestedDurationMilliseconds / 1000)
 	meta.HasAudio = gjson.GetBytes(body, "generate_audio").Bool() || gjson.GetBytes(body, "metadata.generateAudio").Bool() || strings.HasPrefix(strings.ToLower(meta.Model), "sd2.0 ")
 	return meta

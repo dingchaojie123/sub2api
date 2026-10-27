@@ -24,7 +24,7 @@ func Test88APIDownstreamEnvelopeMatchesFlatRequest(t *testing.T) {
 	}
 	flat := map[string]any{
 		"model": "grok-imagine-video", "prompt": "ocean", "images": []string{imageURL},
-		"duration": 5, "size": "9:16", "metadata": map[string]any{"resolution": "720p"},
+		"duration": 5, "ratio": "9:16", "resolution": "720p",
 	}
 	nestedBody, err := json.Marshal(nested)
 	require.NoError(t, err)
@@ -55,6 +55,40 @@ func Test88APIDownstreamEnvelopeMatchesFlatRequest(t *testing.T) {
 	forwarded, err := io.ReadAll(upstream.requests[0].Body)
 	require.NoError(t, err)
 	require.JSONEq(t, string(prepared), string(forwarded))
+}
+
+func Test88APITopLevelAspectRatioDoesNotConflictWithDefaultSize(t *testing.T) {
+	body := []byte(`{"model":"gemini-omni-flash","prompt":"海边日落","duration":5,"resolution":"720p","aspect_ratio":"9:16"}`)
+	prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, body)
+	require.NoError(t, err)
+	require.Equal(t, "720p", public.Resolution)
+	require.Equal(t, "9:16", gjson.GetBytes(prepared, "ratio").String())
+	require.False(t, gjson.GetBytes(prepared, "aspect_ratio").Exists())
+	require.False(t, gjson.GetBytes(prepared, "size").Exists())
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"id":"task_portrait","status":"queued"}`))}}}
+	account := &Account{ID: 1, Platform: Platform88APIVideo, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test-key", "model_mapping": map[string]any{"gemini-omni-flash": "gemini-omni-flash"}}}
+	_, err = (&OpenAIGatewayService{httpUpstream: upstream}).ForwardPPVideoBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", body)
+	require.NoError(t, err)
+	forwarded, err := io.ReadAll(upstream.requests[0].Body)
+	require.NoError(t, err)
+	require.JSONEq(t, string(prepared), string(forwarded))
+}
+
+func Test88APIAspectAliasesCollapseOrRejectConflicts(t *testing.T) {
+	for _, body := range []string{
+		`{"model":"gemini-omni-flash","prompt":"ocean","duration":5,"resolution":"720p","ratio":"9:16"}`,
+		`{"model":"gemini-omni-flash","prompt":"ocean","duration":5,"resolution":"720p","size":"720x1280","aspect_ratio":"9:16"}`,
+	} {
+		prepared, _, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, []byte(body))
+		require.NoError(t, err)
+		require.Equal(t, "9:16", gjson.GetBytes(prepared, "ratio").String())
+		require.False(t, gjson.GetBytes(prepared, "size").Exists())
+		require.False(t, gjson.GetBytes(prepared, "aspect_ratio").Exists())
+	}
+
+	_, _, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, []byte(`{"model":"gemini-omni-flash","prompt":"ocean","duration":5,"resolution":"720p","ratio":"16:9","aspect_ratio":"9:16"}`))
+	require.ErrorContains(t, err, "aspect ratio fields conflict")
 }
 
 func Test88APIDownstreamEnvelopeValidation(t *testing.T) {
@@ -94,9 +128,9 @@ func Test88APINormalizesFamiliesAndNewModels(t *testing.T) {
 		{"Seedance-2.5-720p官方版", "720p", 30}, {"seedance-2.0-mini-480p", "480p", 8},
 		{"Seedance-2.0-720p官方版", "720p", 5}, {"Seedance-2.0-fast-720p官方版", "720p", 5},
 		{"kling-3.0-turbo-2k", "2k", 8}, {"kling-3.0-turbo-4k", "4k", 8},
-		{"wan3.0-video-720p", "720p", 30}, {"minimax-h3-768p", "768p", 8},
+		{"wan3.0-video-720p", "720p", 30},
 		{"grok-imagine-video-1.5", "720p", 8}, {"veo-3.1", "1080p", 8},
-		{"gemini-omni-flash", "720p", 6}, {"future-new-model", "2k", 8},
+		{"gemini-omni-flash", "720p", 6}, {"gemini-omni-flash-1.1", "1080p", 6}, {"future-new-model", "2k", 8},
 	} {
 		t.Run(tt.model, func(t *testing.T) {
 			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"ocean","seconds":%q,"resolution":%q,"size":"16:9"}`, tt.model, fmt.Sprint(tt.duration), tt.resolution))
@@ -111,6 +145,90 @@ func Test88APINormalizesFamiliesAndNewModels(t *testing.T) {
 			require.Equal(t, tt.duration, meta.RequestedDurationSeconds)
 		})
 	}
+}
+
+func Test88APICurrentModelMatrix(t *testing.T) {
+	for _, tt := range []struct {
+		model, request, resolution, ratio string
+		duration                          int
+	}{
+		{"SD2.0", `{"resolution":"4k","duration":15}`, "4k", "1:1", 15},
+		{"SD2.5", `{"resolution":"1080p","ratio":"21:9","duration":30,"generate_audio":true}`, "1080p", "21:9", 30},
+		{"gemini-omni-flash", `{"resolution":"720p","ratio":"9:16","duration":10}`, "720p", "9:16", 10},
+		{"gemini-omni-flash-1.1", `{"resolution":"4k","ratio":"16:9","duration":10}`, "4k", "16:9", 10},
+		{"grok-imagine-video", `{"resolution":"480p","ratio":"3:2","duration":15}`, "480p", "3:2", 15},
+		{"grok-imagine-video-1.5", `{"resolution":"1080p","ratio":"2:3","duration":15}`, "1080p", "2:3", 15},
+		{"kling-3.0-turbo", `{"resolution":"4k","ratio":"1:1","duration":15,"generate_audio":true}`, "4k", "1:1", 15},
+		{"seedance-2.0-fast官方版", `{"resolution":"720p","ratio":"16:9","duration":15}`, "720p", "16:9", 15},
+		{"seedance-2.0-mini官方版", `{"resolution":"480p","ratio":"3:4","duration":15}`, "480p", "3:4", 15},
+		{"seedance-2.0官方版", `{"resolution":"720p","ratio":"4:3","duration":15}`, "720p", "4:3", 15},
+		{"seedance-2.5官方版", `{"resolution":"720p","ratio":"21:9","duration":30}`, "720p", "21:9", 30},
+		{"veo-3.1", `{"resolution":"4k","ratio":"16:9","duration":8,"generate_audio":true}`, "4k", "16:9", 8},
+		{"veo-3.1-fast", `{"resolution":"1080p","ratio":"9:16","duration":6}`, "1080p", "9:16", 6},
+		{"wan3.0-video", `{"resolution":"1080p","ratio":"adaptive","duration":2}`, "1080p", "adaptive", 2},
+		{"wan3.0-video-prime", `{"resolution":"480p","ratio":"21:9","duration":30}`, "480p", "21:9", 30},
+	} {
+		t.Run(tt.model, func(t *testing.T) {
+			body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"ocean",%s}`, tt.model, strings.TrimPrefix(strings.TrimSuffix(tt.request, "}"), "{")))
+			prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, body)
+			require.NoError(t, err)
+			require.Equal(t, tt.resolution, public.Resolution)
+			require.Equal(t, int64(tt.duration*1000), public.DurationMilliseconds)
+			require.Equal(t, tt.resolution, gjson.GetBytes(prepared, "resolution").String())
+			require.Equal(t, tt.ratio, gjson.GetBytes(prepared, "ratio").String())
+			require.False(t, gjson.GetBytes(prepared, "aspect_ratio").Exists())
+			require.False(t, gjson.GetBytes(prepared, "metadata.resolution").Exists())
+		})
+	}
+}
+
+func Test88APICurrentModelMatrixRejectsUnsupportedCombinations(t *testing.T) {
+	for _, body := range []string{
+		`{"model":"SD2.5","prompt":"x","resolution":"1080p","duration":8}`,
+		`{"model":"SD2.5","prompt":"x","resolution":"4k","ratio":"16:9","duration":8}`,
+		`{"model":"gemini-omni-flash","prompt":"x","resolution":"1080p","ratio":"16:9","duration":6}`,
+		`{"model":"grok-imagine-video","prompt":"x","resolution":"1080p","ratio":"16:9","duration":8}`,
+		`{"model":"grok-imagine-video-1.5","prompt":"x","resolution":"720p","ratio":"16:9","duration":8,"generate_audio":false}`,
+		`{"model":"grok-imagine-video-1.5","prompt":"x","resolution":"720p","size":"1280x720","duration":8}`,
+		`{"model":"kling-3.0-turbo","prompt":"x","resolution":"720p","ratio":"21:9","duration":8}`,
+		`{"model":"seedance-2.0官方版","prompt":"x","resolution":"1080p","ratio":"16:9","duration":8}`,
+		`{"model":"seedance-2.0-mini官方版","prompt":"x","resolution":"720p","ratio":"16:9","duration":8,"first_frame":"https://example.com/a.jpg"}`,
+		`{"model":"seedance-2.5官方版","prompt":"x","resolution":"720p","ratio":"16:9","duration":8,"generate_audio":true}`,
+		`{"model":"veo-3.1","prompt":"x","resolution":"720p","ratio":"16:9","duration":5}`,
+		`{"model":"veo-3.1","prompt":"x","resolution":"720p","ratio":"16:9","duration":8,"images":["data:image/webp;base64,YQ=="]}`,
+		`{"model":"wan3.0-video","prompt":"x","resolution":"720p","ratio":"adaptive","duration":1}`,
+	} {
+		_, _, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, []byte(body))
+		require.Error(t, err, body)
+	}
+}
+
+func Test88APIWanMediaAndVeoFrames(t *testing.T) {
+	wan := []byte(`{"model":"wan3.0-video","duration":5,"media":[{"type":"reference_image","url":"https://example.com/a.jpg"}]}`)
+	prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, wan)
+	require.NoError(t, err)
+	require.True(t, public.HasImage)
+	require.Equal(t, "1080p", gjson.GetBytes(prepared, "resolution").String())
+	require.Equal(t, "adaptive", gjson.GetBytes(prepared, "ratio").String())
+
+	veo := []byte(`{"model":"veo-3.1","prompt":"x","duration":8,"resolution":"720p","images":["https://example.com/a.jpg"]}`)
+	prepared, _, err = PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, veo)
+	require.NoError(t, err)
+	require.Equal(t, "https://example.com/a.jpg", gjson.GetBytes(prepared, "images.0").String())
+	require.Equal(t, "frames", gjson.GetBytes(prepared, "metadata.video_mode").String())
+}
+
+func Test88APIGemini11ExtensionOmitsUpstreamConflictsAndKeepsBillingDuration(t *testing.T) {
+	body := []byte(`{"model":"gemini-omni-flash-1.1","task":"extend","prompt":"continue","resolution":"1080p","video":"https://example.com/input.mp4"}`)
+	prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, body)
+	require.NoError(t, err)
+	require.Equal(t, int64(10_000), public.DurationMilliseconds)
+	require.False(t, gjson.GetBytes(prepared, "duration").Exists())
+	require.False(t, gjson.GetBytes(prepared, "ratio").Exists())
+	require.Equal(t, "https://example.com/input.mp4", gjson.GetBytes(prepared, "video").String())
+	meta := PPVideoBillingMetadataFromRequest(Platform88APIVideo, prepared)
+	require.NoError(t, meta.ValidationError)
+	require.Equal(t, int64(10_000), meta.RequestedDurationMilliseconds)
 }
 
 func Test88APIFixedResolutionOverridesDownstream(t *testing.T) {
@@ -135,6 +253,9 @@ func Test88APIFixedResolutionOverridesDownstream(t *testing.T) {
 				`"metadata":{"resolution":"720p"},"size":"9:16"`,
 				`"resolution":"1080p","metadata":{"resolution":"2k"},"parameters":{"resolution":"480p"},"size":"720x1280"`,
 			} {
+				if strings.HasPrefix(strings.ToLower(tt.model), "grok-imagine-video") && strings.Contains(fields, "720x1280") {
+					continue
+				}
 				body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"ocean","duration":8,%s}`, tt.model, fields))
 				prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, body)
 				require.NoError(t, err)
@@ -150,10 +271,7 @@ func Test88APIFixedResolutionOverridesDownstream(t *testing.T) {
 }
 
 func Test88APIUnlistedModelsUseDownstreamResolution(t *testing.T) {
-	for _, model := range []string{
-		"gemini-omni-flash", "grok-imagine-video", "grok-imagine-video-1.5", "veo-3.1", "veo-3.1-fast",
-		"minimax-h3-768p", "future-model-720p", "SD2.6 480P",
-	} {
+	for _, model := range []string{"future-model-720p", "SD2.6 480P"} {
 		t.Run(model, func(t *testing.T) {
 			require.Empty(t, video88APIFixedTier(model))
 			for _, tier := range []string{"480p", "720p", "768p", "1080p", "2k", "4k"} {
@@ -161,7 +279,7 @@ func Test88APIUnlistedModelsUseDownstreamResolution(t *testing.T) {
 				prepared, public, err := PreparePPVideoRequestBody(Platform88APIVideo, PPVideoOperationGeneric, body)
 				require.NoError(t, err)
 				require.Equal(t, tier, public.Resolution)
-				require.Equal(t, tier, gjson.GetBytes(prepared, "metadata.resolution").String())
+				require.Equal(t, tier, gjson.GetBytes(prepared, "resolution").String())
 				meta := PPVideoBillingMetadataFromRequest(Platform88APIVideo, prepared)
 				require.NoError(t, meta.ValidationError)
 				require.Equal(t, tier, meta.VideoResolution)
@@ -215,7 +333,6 @@ func Test88APIRejectsInvalidRequests(t *testing.T) {
 		`{"model":"kling-3.0-turbo-720p","prompt":"x","duration":8,"metadata":{"referenceAudios":["https://example.com/a.mp3"]}}`,
 		`{"model":"grok-imagine-video","prompt":"x","duration":8,"resolution":"720p","images":["https://example.com/a","https://example.com/b"]}`,
 		`{"model":"veo-3.1","prompt":"x","duration":5,"resolution":"720p"}`,
-		`{"model":"veo-3.1","prompt":"x","duration":8,"resolution":"720p","images":["https://example.com/a.jpg"],"metadata":{"video_mode":"frames"}}`,
 		`{"model":"gemini-omni-flash","prompt":"x","duration":6,"metadata":{"referenceVideos":["https://example.com/a.mp4"]}}`,
 		`{"model":"SD2.0 720P","prompt":"x","duration":8,"generate_audio":false}`,
 		`{"model":"kling-3.0-turbo-720p","prompt":"x","duration":8,"size":"21:9"}`,
@@ -252,7 +369,7 @@ func Test88APIForwardAndOnlineSync(t *testing.T) {
 	require.Contains(t, models, "future-new-model")
 	require.Equal(t, "https://88api.ai/v1/models", upstream.requests[0].URL.String())
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
-	created, err := svc.ForwardPPVideoBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", []byte(`{"model":"SD2.5 720P","prompt":"ocean","duration":8}`))
+	created, err := svc.ForwardPPVideoBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", []byte(`{"model":"SD2.5 720P","prompt":"ocean","duration":8,"ratio":"16:9"}`))
 	require.NoError(t, err)
 	require.Equal(t, "https://88api.ai/v1/videos", upstream.requests[1].URL.String())
 	require.Equal(t, "Bearer test-key", upstream.requests[1].Header.Get("Authorization"))

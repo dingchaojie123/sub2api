@@ -15,6 +15,10 @@ func TestNormalizeKnownOpenAICodexModel_BareGPT56RoutesToSol(t *testing.T) {
 		"gpt-5.6-max":        "gpt-5.6-sol",
 		"gpt-5.6-2026-07-09": "gpt-5.6-sol",
 		"openai/gpt-5.6-max": "gpt-5.6-sol",
+		"gpt-6-luna":         "gpt-6-luna",
+		"openai/gpt-6-luna":  "gpt-6-luna",
+		"gpt6-luna-high":     "gpt-6-luna",
+		"gpt-6-luna-none":    "gpt-6-luna",
 	}
 
 	for input, expected := range tests {

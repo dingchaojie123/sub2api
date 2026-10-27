@@ -713,6 +713,7 @@ func ProvideAuthService(
 
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
+	NewMediaQuoteService,
 	// Core services
 	ProvideAuthService,
 	NewUserService,

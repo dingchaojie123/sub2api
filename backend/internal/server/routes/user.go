@@ -122,6 +122,11 @@ func RegisterUserRoutes(
 			usage.POST("/dashboard/api-keys-usage", h.Usage.DashboardAPIKeysUsage)
 		}
 
+		billing := authenticated.Group("/billing")
+		{
+			billing.POST("/quotes", h.MediaQuote.Create)
+		}
+
 		// 公告（用户可见）
 		announcements := authenticated.Group("/announcements")
 		{
