@@ -2,14 +2,16 @@
 
 账户余额查询、兑换码兑换及认证说明见 [客户账户对外 API](customer-account-api.md)。
 
-新客户完成邮箱注册、第三方首次登录或 OAuth 注册确认后，系统自动创建以下密钥：
+新客户完成邮箱注册、第三方首次登录或 OAuth 注册确认后，系统会为以下七个固定分组分别创建 API 密钥：
 
-除四个默认用途外，系统还会为该客户当前可用的其他分组各创建一个独立 API 密钥；这些额外密钥不会绑定到 `text`、`image`、`video` 或 `audio` 默认用途。后续客户获得新分组权限时，调用默认密钥接口会按需补齐对应密钥。
+`OC--ChatGPT【文本模型，官key】`、`Claude Code 【官方】`、`视频【聚合】`、`OCY--MiniMax-H3【视频】`、`GPT图片【聚合】`、`Gemini图片【聚合】`、`OC--Qwen-TTS【音频】`。系统不会为名单外的其他可用分组自动创建密钥。
+
+其中四把密钥同时绑定到默认用途：
 
 | purpose | 首选分组名称 |
 | --- | --- |
 | `text` | `OC--ChatGPT【文本模型，官key】` |
-| `image` | `OC--ChatGPT【生图】` |
+| `image` | `GPT图片【聚合】` |
 | `video` | `视频【聚合】` |
 | `audio` | `OC--Qwen-TTS【音频】` |
 
@@ -17,11 +19,13 @@
 
 ## 部署要求
 
-部署新版后端并完成迁移 `192_user_default_api_keys.sql` 和 `193_user_default_api_keys_audio.sql`。系统优先使用上表分组；如果分组不存在或客户无权绑定，会按对应能力选择其他已启用且客户可绑定的分组。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
+部署新版后端并完成迁移 `192_user_default_api_keys.sql` 和 `193_user_default_api_keys_audio.sql`。系统仅按精确名称匹配上述分组，不会按平台能力回退到其他分组。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
 
-可用分组对应的缺失密钥在同一事务中写入。某个分组缺失、禁用或当前客户无权限时，会跳过该用途并记录原因，其余可用用途仍会创建；修复配置后，可由客户调用下方补建接口重试。只有没有任何可用默认分组时，本次补建才会失败。
+某个指定分组缺失、名称重复、禁用或当前客户无权限时，会跳过并记录原因，其余可用分组仍会创建；修复配置后，可由客户调用下方补建接口重试。只有没有任何可用默认用途分组时，本次补建才会失败。
 
-已有客户在调用 GET 或 POST `/api/v1/keys/defaults` 时自动检查四个用途并补齐，无需重新注册。此操作按当前客户触发，不会在部署时批量扫描全部客户。
+已有客户在调用 GET 或 POST `/api/v1/keys/defaults` 时，也会检查七个固定分组的密钥并补齐其中四个默认用途，无需重新注册。此操作按当前客户触发，不会在部署时批量扫描全部客户。
+
+迁移 `200_prune_legacy_customer_api_keys.sql` 会在首次部署时清理存量普通客户的其他 API 密钥。判断依据是密钥实际绑定的分组名称，不是可修改的密钥名称；未绑定分组、绑定到名单外分组或已删除分组的密钥都会被墓碑化并软删除。管理员密钥不受影响。被清理密钥占用的默认用途记录会先解除，后续由默认密钥接口补建到上述固定分组。该迁移只执行一次，不会阻止客户以后手工创建其他分组的密钥。
 
 已有关联的默认密钥保持不变。尚未初始化的用途，先查找当前客户在对应分组下未删除、且未被其他用途占用的密钥；优先选择与分组同名的密钥，其次选择 ID 最小的同组密钥。只有没有可复用密钥时才新建。判断以实际绑定分组为准，仅名称相同但分组不同的密钥不会被复用。已有三个用途的客户仅补齐音频用途。
 
@@ -44,7 +48,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
   "message": "success",
   "data": [
     {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型，官key】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
-    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "OC--ChatGPT【生图】", "group_id": 2, "status": "active"}},
+    {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "GPT图片【聚合】", "group_id": 2, "status": "active"}},
     {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "视频【聚合】", "group_id": 3, "status": "active"}},
     {"purpose": "audio", "api_key": {"id": 104, "key": "sk-...", "name": "OC--Qwen-TTS【音频】", "group_id": 4, "status": "active"}}
   ]
@@ -55,7 +59,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
 
 每个非空 `api_key` 都返回 `billing_source`。`type=personal` 使用个人额度；`type=organization` 使用 `organization_id` 对应团队的统一额度，并返回 `organization_name`。下游同时检查密钥自身和计费来源的 `status`，任一不是 `active` 都应停止使用并刷新默认密钥。失效团队绑定不会被伪装成个人计费来源。
 
-注册自动创建的四个默认密钥初始使用个人额度。加入团队后，可调用 `PUT /api/v1/keys/billing-source` 将任一现有密钥切换为团队额度；密钥内容和本页的默认用途关联保持不变。完整请求样例见 [客户账户对外 API](customer-account-api.md#api-密钥计费来源)。
+注册自动创建的七把分组密钥初始使用个人额度，其中四把关联默认用途。加入团队后，可调用 `PUT /api/v1/keys/billing-source` 将任一现有密钥切换为团队额度；密钥内容和本页的默认用途关联保持不变。完整请求样例见 [客户账户对外 API](customer-account-api.md#api-密钥计费来源)。
 
 GET 会先补齐尚未初始化的用途，再返回最新默认密钥；重复请求不会重复生成。已删除默认密钥仍保留用途记录，其 `api_key` 为 `null`，需要通过更新接口显式指定新密钥。停用或过期的密钥保持原状态。密钥改名不影响用途识别，后续手工修改分组时返回当前真实分组信息。
 
@@ -77,7 +81,7 @@ curl -X POST 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
 
 无需请求体，检查、复用及补建规则与 GET 相同。仅初始化从未创建过的用途记录；并发或重复调用不会重复生成。不会恢复已删除默认密钥，不会重新启用停用密钥，不会延长有效期。
 
-GET 和 POST 补齐时，分组不存在或未启用会返回 HTTP 503，`reason` 为 `DEFAULT_API_KEY_GROUP_UNAVAILABLE`；无分组权限时返回 HTTP 403，`reason` 为 `DEFAULT_API_KEY_GROUP_NOT_ALLOWED`。
+GET 和 POST 补齐时会跳过不存在、名称重复、未启用或无权绑定的指定分组；如果四个默认用途均无法初始化，则返回 HTTP 503，`reason` 为 `DEFAULT_API_KEY_GROUP_UNAVAILABLE`。
 
 ## 更新默认密钥
 

@@ -1,0 +1,10 @@
+--- original-config.json
++++ MODIFIED_FILE.json
+@@
+-{"channels":[],"groups":{"34":1.5,"62":0.7},"accounts":{"38":1.0,"67":1.0}}
++OpenAI channel #4: model input/output/cache-write/cache-read prices = official USD prices * 11.669
++Anthropic channel #5: model input/output/cache-write/cache-read prices = official USD prices * 11.669
++Group #34 rate_multiplier: 1.5 -> 1.0
++Group #62 rate_multiplier: 0.7 -> 0.7
++Account #38 rate_multiplier: 1.0 -> 1.0
++Account #67 rate_multiplier: 1.0 -> 1.0

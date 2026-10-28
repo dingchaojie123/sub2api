@@ -125,13 +125,11 @@ func TestEnsureDefaultAPIKeysCreatesFourAndPreservesExistingSlots(t *testing.T) 
 	require.Equal(t, "renamed", keys[2].APIKey.Name)
 }
 
-func TestEnsureDefaultAPIKeysValidatesEveryGroupBeforeWriting(t *testing.T) {
-	for _, mode := range []string{"duplicate", "repository_error", "inactive_user"} {
+func TestEnsureDefaultAPIKeysValidatesBeforeWriting(t *testing.T) {
+	for _, mode := range []string{"repository_error", "inactive_user"} {
 		t.Run(mode, func(t *testing.T) {
-			svc, repo, groups := newDefaultKeysTestService()
+			svc, repo, _ := newDefaultKeysTestService()
 			switch mode {
-			case "duplicate":
-				groups.groups = append(groups.groups, groups.groups[3])
 			case "repository_error":
 				repo.err = errors.New("unavailable")
 			case "inactive_user":
@@ -158,7 +156,7 @@ func TestEnsureDefaultAPIKeysCreatesAvailableGroupsWhenOneIsMissing(t *testing.T
 	}
 }
 
-func TestEnsureDefaultAPIKeysFallsBackToCapabilityGroup(t *testing.T) {
+func TestEnsureDefaultAPIKeysDoesNotFallBackToCapabilityGroup(t *testing.T) {
 	svc, repo, groups := newDefaultKeysTestService()
 	groups.groups[1].Name = "custom-image"
 	groups.groups[1].AllowImageGeneration = true
@@ -166,12 +164,12 @@ func TestEnsureDefaultAPIKeysFallsBackToCapabilityGroup(t *testing.T) {
 	keys, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
 
 	require.NoError(t, err)
-	require.Len(t, keys, 4)
-	require.Equal(t, "custom-image", keys[1].APIKey.Name)
+	require.Len(t, keys, 3)
+	require.NotContains(t, apiKeyNames(repo.groupKeys), "custom-image")
 	require.Equal(t, 1, repo.writes)
 }
 
-func TestEnsureDefaultAPIKeysFallsBackToOtherTextGroup(t *testing.T) {
+func TestEnsureDefaultAPIKeysDoesNotFallBackToOtherTextGroup(t *testing.T) {
 	svc, repo, groups := newDefaultKeysTestService()
 	groups.groups[0].Name = "custom-text"
 	groups.groups[0].Platform = PlatformOpenAI
@@ -179,9 +177,42 @@ func TestEnsureDefaultAPIKeysFallsBackToOtherTextGroup(t *testing.T) {
 	keys, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
 
 	require.NoError(t, err)
-	require.Len(t, keys, 4)
-	require.Equal(t, "custom-text", keys[0].APIKey.Name)
+	require.Len(t, keys, 3)
+	require.NotContains(t, apiKeyNames(repo.groupKeys), "custom-text")
 	require.Equal(t, 1, repo.writes)
+}
+
+func TestEnsureDefaultAPIKeysOnlyProvisionsConfiguredSignupGroups(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	nextID := int64(len(groups.groups) + 1)
+	for _, name := range signupAPIKeyGroupNames {
+		found := false
+		for _, group := range groups.groups {
+			if group.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			groups.groups = append(groups.groups, Group{ID: nextID, Name: name, Status: StatusActive})
+			nextID++
+		}
+	}
+	groups.groups = append(groups.groups, Group{ID: nextID, Name: "其他公开分组", Status: StatusActive})
+
+	_, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+
+	require.NoError(t, err)
+	require.ElementsMatch(t, signupAPIKeyGroupNames[:], apiKeyNames(repo.groupKeys))
+	require.NotContains(t, apiKeyNames(repo.groupKeys), "其他公开分组")
+}
+
+func apiKeyNames(keys []APIKey) []string {
+	names := make([]string, 0, len(keys))
+	for _, key := range keys {
+		names = append(names, key.Name)
+	}
+	return names
 }
 
 func TestEnsureDefaultAPIKeysHonorsGroupGrants(t *testing.T) {

@@ -13,9 +13,19 @@ var defaultAPIKeyGroups = [...]struct {
 	Name    string
 }{
 	{"text", "OC--ChatGPT【文本模型，官key】"},
-	{"image", "OC--ChatGPT【生图】"},
+	{"image", "GPT图片【聚合】"},
 	{"video", "视频【聚合】"},
 	{"audio", "OC--Qwen-TTS【音频】"},
+}
+
+var signupAPIKeyGroupNames = [...]string{
+	"OC--ChatGPT【文本模型，官key】",
+	"Claude Code 【官方】",
+	"视频【聚合】",
+	"OCY--MiniMax-H3【视频】",
+	"GPT图片【聚合】",
+	"Gemini图片【聚合】",
+	"OC--Qwen-TTS【音频】",
 }
 
 // A nil APIKey preserves the default slot after its credential has been deleted.
@@ -236,22 +246,27 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 	if err != nil {
 		return nil, err
 	}
-	availableGroups := make([]Group, 0, len(groups))
-	for i := range groups {
-		if s.canUserBindGroup(ctx, user, &groups[i]) {
-			availableGroups = append(availableGroups, groups[i])
-		}
-	}
 	byName := make(map[string][]Group, len(groups))
 	for _, group := range groups {
 		byName[group.Name] = append(byName[group.Name], group)
+	}
+	signupGroups := make([]Group, 0, len(signupAPIKeyGroupNames))
+	for _, name := range signupAPIKeyGroupNames {
+		matches := byName[name]
+		if len(matches) != 1 {
+			logger.LegacyPrintf("service.api_key", "[APIKey] Skipping missing or ambiguous signup group: user_id=%d group=%s matches=%d", userID, name, len(matches))
+			continue
+		}
+		if s.canUserBindGroup(ctx, user, &matches[0]) {
+			signupGroups = append(signupGroups, matches[0])
+		}
 	}
 	keys := make([]DefaultAPIKey, 0, len(defaultAPIKeyGroups))
 	for _, spec := range defaultAPIKeyGroups {
 		if seen[spec.Purpose] {
 			continue
 		}
-		group, ok := selectDefaultAPIKeyGroup(ctx, s, user, groups, byName, spec, usedGroups)
+		group, ok := selectDefaultAPIKeyGroup(ctx, s, user, byName, spec, usedGroups)
 		if !ok {
 			logger.LegacyPrintf("service.api_key", "[APIKey] Skipping unavailable default group: user_id=%d purpose=%s preferred_group=%s", userID, spec.Purpose, spec.Name)
 			continue
@@ -270,7 +285,7 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 			return nil, err
 		}
 	}
-	if err := s.ensureAvailableGroupAPIKeys(ctx, userID, availableGroups); err != nil {
+	if err := s.ensureSignupGroupAPIKeys(ctx, userID, signupGroups); err != nil {
 		return nil, err
 	}
 	if len(keys) == 0 && len(seen) < len(defaultAPIKeyGroups) {
@@ -279,7 +294,7 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 	return s.GetDefaultAPIKeys(ctx, userID)
 }
 
-func (s *APIKeyService) ensureAvailableGroupAPIKeys(ctx context.Context, userID int64, groups []Group) error {
+func (s *APIKeyService) ensureSignupGroupAPIKeys(ctx context.Context, userID int64, groups []Group) error {
 	provisioner, ok := s.apiKeyRepo.(AvailableGroupAPIKeyProvisioner)
 	if !ok {
 		return nil
@@ -292,11 +307,11 @@ func (s *APIKeyService) ensureAvailableGroupAPIKeys(ctx context.Context, userID 
 		}
 		groupID := group.ID
 		keys = append(keys, APIKey{
-			UserID: userID,
-			Key:    key,
-			Name:   group.Name,
+			UserID:  userID,
+			Key:     key,
+			Name:    group.Name,
 			GroupID: &groupID,
-			Status: StatusActive,
+			Status:  StatusActive,
 		})
 	}
 	return provisioner.EnsureAPIKeysForGroups(ctx, userID, keys)
@@ -306,7 +321,6 @@ func selectDefaultAPIKeyGroup(
 	ctx context.Context,
 	s *APIKeyService,
 	user *User,
-	groups []Group,
 	byName map[string][]Group,
 	spec struct {
 		Purpose string
@@ -314,25 +328,13 @@ func selectDefaultAPIKeyGroup(
 	},
 	usedGroups map[int64]bool,
 ) (Group, bool) {
-	// Keep the configured names as the primary mapping for stable deployments.
-	if matches := byName[spec.Name]; len(matches) > 1 {
-		// Duplicate reserved names are ambiguous; require an admin to fix them.
+	matches := byName[spec.Name]
+	if len(matches) != 1 {
 		return Group{}, false
-	} else if len(matches) == 1 {
-		group := matches[0]
-		if !usedGroups[group.ID] && s.canUserBindGroup(ctx, user, &group) {
-			return group, true
-		}
 	}
-	// Fall back to a group with the requested capability, while keeping one
-	// group per default slot. The configured group remains the first choice.
-	for _, group := range groups {
-		if usedGroups[group.ID] || !defaultAPIKeyGroupMatchesPurpose(&group, spec) {
-			continue
-		}
-		if s.canUserBindGroup(ctx, user, &group) {
-			return group, true
-		}
+	group := matches[0]
+	if !usedGroups[group.ID] && s.canUserBindGroup(ctx, user, &group) {
+		return group, true
 	}
 	return Group{}, false
 }

@@ -1,0 +1,40 @@
+{
+  "original_sha256": "758f83baf1a2ae4d5d227edbc5012995307ae1786eb7dc70e91832bc5ef3b869",
+  "conversion_multiplier": 11.669,
+  "channels": [
+    {
+      "id": 4,
+      "name": "OpenAI 官方积分计费",
+      "group_ids": [34],
+      "pricing_entries": 11
+    },
+    {
+      "id": 5,
+      "name": "Anthropic 官方积分计费",
+      "group_ids": [62],
+      "pricing_entries": 7
+    }
+  ],
+  "groups": {
+    "34": 1.0,
+    "62": 0.7
+  },
+  "accounts": {
+    "38": 1.0,
+    "67": 1.0
+  },
+  "samples": {
+    "gpt-5.6": {
+      "input_price": 0.000058345,
+      "output_price": 0.00035007,
+      "cache_write_price": 0.00007293125,
+      "cache_read_price": 0.0000058345
+    },
+    "claude-sonnet-5-5": {
+      "input_price": 0.000023338,
+      "output_price": 0.00011669,
+      "cache_write_price": 0.0000291725,
+      "cache_read_price": 0.0000023338
+    }
+  }
+}

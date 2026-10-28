@@ -1,0 +1,43 @@
+Changed branch/field:
+- Channel #4 model_pricing input_price/output_price/cache_write_price/cache_read_price multiplied by 11.669.
+- Channel #5 model_pricing input_price/output_price/cache_write_price/cache_read_price multiplied by 11.669.
+- Group #34 rate_multiplier changed from 1.5 to 1.0.
+- Group #62 rate_multiplier remains 0.7.
+- Account #38 and #67 rate_multiplier remain 1.0.
+
+Artifacts:
+- MODIFIED_FILE: /Users/dingchao/Documents/sub2api/artifacts/billing-rule-20261027/MODIFIED_FILE.json
+- DIFF_FILE: /Users/dingchao/Documents/sub2api/artifacts/billing-rule-20261027/DIFF_FILE.diff
+- VERIFICATION: /Users/dingchao/Documents/sub2api/artifacts/billing-rule-20261027/VERIFICATION.txt
+- ROLLBACK: /Users/dingchao/Documents/sub2api/artifacts/billing-rule-20261027/ROLLBACK.sh
+
+BASELINE
+Command: printf '%s' '{"channels":[],"groups":{"34":1.5,"62":0.7},"accounts":{"38":1.0,"67":1.0}}' | jq -c '{channels,groups,accounts}'
+Input: {"channels":[],"groups":{"34":1.5,"62":0.7},"accounts":{"38":1.0,"67":1.0}}
+Literal output/result: {"channels":[],"groups":{"34":1.5,"62":0.7},"accounts":{"38":1.0,"67":1.0}}
+Exit status: 0
+
+MODIFIED
+Command: jq -e '(.conversion_multiplier == 11.669) and (.channels | length == 2) and (.groups["34"] == 1) and (.groups["62"] == 0.7) and (.accounts["38"] == 1) and (.accounts["67"] == 1) and (.samples["gpt-5.6"].input_price == 0.000058345) and (.samples["claude-sonnet-5-5"].input_price == 0.000023338)' artifacts/billing-rule-20261027/MODIFIED_FILE.json
+Input: MODIFIED_FILE.json
+Literal output/result: true
+Exit status: 0
+
+Live modified verification:
+- Channel #4 gpt-5.6: input=0.000058345, output=0.00035007, cache_write=0.00007293125, cache_read=0.0000058345.
+- Channel #5 claude-sonnet-5-5: input=0.000023338, output=0.00011669, cache_write=0.0000291725, cache_read=0.0000023338.
+- Group rates: #34=1.0, #62=0.7. Account rates: #38=1.0, #67=1.0.
+
+ROLLBACK
+Command: artifacts/billing-rule-20261027/ROLLBACK.sh --fixture /tmp/billing-rule-rollback-test.json
+Input: Copy of MODIFIED_FILE.json at /tmp/billing-rule-rollback-test.json
+Literal output/result: ROLLBACK fixture restored: channels removed; groups 34=1.5, 62=0.7; accounts 38=1.0, 67=1.0
+Exit status: 0
+
+Restored behavior/status verification
+Command: jq -c '{channels,groups,accounts}' /tmp/billing-rule-rollback-test.json
+Input: Rolled-back fixture copy
+Literal output/result: {"channels":[],"groups":{"34":1.5,"62":0.7},"accounts":{"38":1.0,"67":1.0}}
+Exit status: 0
+
+Final state: the live configuration and MODIFIED_FILE remain changed; rollback was tested only on a separate copy.
