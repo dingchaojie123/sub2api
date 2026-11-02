@@ -415,8 +415,11 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskContent(ctx context.Context, ac
 	if s == nil || s.httpUpstream == nil || task == nil || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
 		return nil, fmt.Errorf("original video task account is required")
 	}
+	stored := ""
+	if task.Platform == PlatformOPONE {
+		stored = PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
+	}
 	if task.Platform == PlatformOPONE && task.Status == PPVideoTaskStatusSucceeded {
-		stored := PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
 		var fresh string
 		for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
 			lookupCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
@@ -439,23 +442,28 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskContent(ctx context.Context, ac
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return s.ForwardPPVideoContent(ctx, account, task.TaskID, rangeHeader, ifRangeHeader)
+	return s.ForwardPPVideoContent(ctx, account, task.TaskID, rangeHeader, ifRangeHeader, stored)
 }
 
 func (s *OpenAIGatewayService) tryOPONEDelivery(ctx context.Context, account *Account, rawURL, rangeHeader, ifRangeHeader string) *http.Response {
 	if !strings.HasPrefix(rawURL, "https://") {
 		return nil
 	}
-	resp, err := s.forwardPPVideoExternalContent(WithHTTPUpstreamRedirectsDisabled(ctx), account, ppVideoAccountProxyURL(account), rawURL, rangeHeader, ifRangeHeader)
-	if err != nil || resp == nil {
-		return nil
+	for _, proxy := range ppVideoDeliveryProxies(ppVideoAccountProxyURL(account)) {
+		if ctx.Err() != nil {
+			break
+		}
+		resp, err := s.forwardPPVideoExternalContent(WithHTTPUpstreamRedirectsDisabled(ctx), account, proxy, rawURL, rangeHeader, ifRangeHeader)
+		if resp == nil {
+			continue
+		}
+		mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+		if err == nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) &&
+			(mediaType == "" || strings.HasPrefix(mediaType, "video/") || mediaType == "application/octet-stream") {
+			return resp
+		}
+		resp.Body.Close()
 	}
-	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) &&
-		(mediaType == "" || strings.HasPrefix(mediaType, "video/") || mediaType == "application/octet-stream") {
-		return resp
-	}
-	resp.Body.Close()
 	return nil
 }
 
@@ -522,11 +530,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 	// OPONE documents the authenticated /content endpoint as the canonical
 	// download path. A stored provider URL is only a fallback for an unavailable
 	// or expired OPONE content endpoint, never the primary request.
-	providerProxies := []string{proxyURL}
-	if proxyURL != "" {
-		providerProxies = append(providerProxies, "")
-	}
-	for _, providerProxy := range providerProxies {
+	for _, providerProxy := range ppVideoDeliveryProxies(proxyURL) {
 		providerResp, providerErr := s.forwardPPVideoExternalContent(ctx, account, providerProxy, fallbackURLs[0], rangeHeader, ifRangeHeader)
 		if providerErr == nil && providerResp != nil && providerResp.StatusCode >= http.StatusOK && providerResp.StatusCode < http.StatusMultipleChoices {
 			if resp != nil && resp.Body != nil {
@@ -545,6 +549,13 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		return nil, fmt.Errorf("PP video content request returned no response")
 	}
 	return resp, nil
+}
+
+func ppVideoDeliveryProxies(configured string) []string {
+	if configured != "" {
+		return []string{configured, ""}
+	}
+	return []string{""}
 }
 
 func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context, account *Account, proxyURL, rawURL, rangeHeader, ifRangeHeader string) (*http.Response, error) {
