@@ -62,11 +62,7 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	if selection.ReleaseFunc != nil {
 		defer selection.ReleaseFunc()
 	}
-	fallbackURL := ""
-	if task.Platform == service.PlatformOPONE {
-		fallbackURL = service.PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
-	}
-	resp, err := h.gatewayService.ForwardPPVideoContent(c.Request.Context(), selection.Account, task.TaskID, c.GetHeader("Range"), c.GetHeader("If-Range"), fallbackURL)
+	resp, err := h.gatewayService.ForwardPPVideoTaskContent(c.Request.Context(), selection.Account, task, c.GetHeader("Range"), c.GetHeader("If-Range"))
 	if err != nil {
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video download failed")
 		return

@@ -138,10 +138,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if err != nil {
 		return nil, err
 	}
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := ppVideoAccountProxyURL(account)
 	upstreamCtx, release := detachUpstreamContext(ctx)
 	defer release()
 
@@ -340,21 +337,126 @@ func (s *OpenAIGatewayService) RefreshPPVideoResultURL(ctx context.Context, acco
 	}
 	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	result, err := s.ForwardPPVideoBuffered(refreshCtx, nil, account, task.Operation, task.TaskID, nil, PPVideoPublicRequest{
-		Model: task.Model, DurationMilliseconds: task.GeneratedVideoDurationMilliseconds,
-		VideoCount: task.VideoCount, Resolution: task.VideoResolution,
-	})
-	if err != nil || result == nil || result.ResponseID != task.TaskID || result.TaskStatus != PPVideoTaskStatusSucceeded ||
-		PPVideoProviderURLFromResponse(result.ResponseBody) == "" {
+	providerURL, _ := s.lookupOPONEDeliveryURL(refreshCtx, account, task)
+	if providerURL == "" {
 		return task
 	}
-	responseBody, err := sjson.Set(task.ResponseBody, "provider_url", PPVideoProviderURLFromResponse(result.ResponseBody))
+	responseBody, err := sjson.Set(task.ResponseBody, "provider_url", providerURL)
 	if err != nil {
 		return task
 	}
 	refreshed := *task
 	refreshed.ResponseBody = responseBody
 	return &refreshed
+}
+
+// lookupOPONEDeliveryURL reads delivery metadata without touching scheduling or billing.
+// The boolean permits one more lookup for a transient failure or a still-pending URL.
+func (s *OpenAIGatewayService) lookupOPONEDeliveryURL(ctx context.Context, account *Account, task *PPVideoTask) (string, bool) {
+	if s == nil || s.httpUpstream == nil || account == nil || task == nil || account.ID != task.AccountID ||
+		account.Platform != PlatformOPONE || task.Platform != PlatformOPONE || task.Status != PPVideoTaskStatusSucceeded || task.TaskID == "" {
+		return "", false
+	}
+	base := account.GetOpenAIBaseURL()
+	if base == "" {
+		base = OPONEDefaultBaseURL
+	}
+	base, err := normalizePPVideoBaseURL(base)
+	if err != nil {
+		return "", false
+	}
+	path, err := PPVideoStatusUpstreamPath(PlatformOPONE, task.Operation, task.TaskID)
+	if err != nil {
+		return "", false
+	}
+	req, err := http.NewRequestWithContext(WithHTTPUpstreamRedirectsDisabled(ctx), http.MethodGet, base+path, nil)
+	if err != nil {
+		return "", false
+	}
+	req.Header, err = PPVideoStatusRequestHeaders(PlatformOPONE, account.GetOpenAIApiKey())
+	if err != nil {
+		return "", false
+	}
+	account.ApplyHeaderOverrides(req.Header)
+	resp, err := s.httpUpstream.Do(req, ppVideoAccountProxyURL(account), account.ID, account.Concurrency)
+	if err != nil || resp == nil {
+		return "", true
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", resp.StatusCode == http.StatusRequestTimeout || resp.StatusCode >= 500
+	}
+	raw, err := ReadUpstreamResponseBody(resp.Body, s.cfg, nil, openAITooLargeError)
+	if err != nil {
+		return "", true
+	}
+	parsed, err := ParsePPVideoResponse(PlatformOPONE, raw)
+	if err != nil || parsed.TaskID != task.TaskID || parsed.Status == PPVideoTaskStatusFailed {
+		return "", false
+	}
+	if parsed.Status != PPVideoTaskStatusSucceeded {
+		return "", true
+	}
+	body := NormalizePPVideoPublicResponse(PlatformOPONE, raw, PPVideoPublicRequest{Model: task.Model}, parsed)
+	providerURL := PPVideoProviderURLFromResponse(body)
+	return providerURL, providerURL == ""
+}
+
+func ppVideoAccountProxyURL(account *Account) string {
+	if account.ProxyID != nil && account.Proxy != nil {
+		return account.Proxy.URL()
+	}
+	return ""
+}
+
+// ForwardPPVideoTaskContent serves the existing owner-checked /content endpoint.
+// Completed OPONE tasks can have a working media URL even when their API stream stalls.
+func (s *OpenAIGatewayService) ForwardPPVideoTaskContent(ctx context.Context, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
+	if s == nil || s.httpUpstream == nil || task == nil || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
+		return nil, fmt.Errorf("original video task account is required")
+	}
+	if task.Platform == PlatformOPONE && task.Status == PPVideoTaskStatusSucceeded {
+		stored := PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
+		var fresh string
+		for attempt := 0; attempt < 2 && ctx.Err() == nil; attempt++ {
+			lookupCtx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			var retry bool
+			fresh, retry = s.lookupOPONEDeliveryURL(lookupCtx, account, task)
+			cancel()
+			if !retry || stored != "" {
+				break
+			}
+		}
+		if resp := s.tryOPONEDelivery(ctx, account, fresh, rangeHeader, ifRangeHeader); resp != nil {
+			return resp, nil
+		}
+		if stored != fresh {
+			if resp := s.tryOPONEDelivery(ctx, account, stored, rangeHeader, ifRangeHeader); resp != nil {
+				return resp, nil
+			}
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.ForwardPPVideoContent(ctx, account, task.TaskID, rangeHeader, ifRangeHeader)
+}
+
+func (s *OpenAIGatewayService) tryOPONEDelivery(ctx context.Context, account *Account, rawURL, rangeHeader, ifRangeHeader string) *http.Response {
+	if !strings.HasPrefix(rawURL, "https://") {
+		return nil
+	}
+	resp, err := s.forwardPPVideoExternalContent(WithHTTPUpstreamRedirectsDisabled(ctx), account, ppVideoAccountProxyURL(account), rawURL, rangeHeader, ifRangeHeader)
+	if err != nil || resp == nil {
+		return nil
+	}
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) &&
+		(mediaType == "" || strings.HasPrefix(mediaType, "video/") || mediaType == "application/octet-stream") {
+		return resp
+	}
+	resp.Body.Close()
+	return nil
 }
 
 // ForwardPPVideoContent streams an authenticated upstream video through the
@@ -402,10 +504,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		}
 	}
 	account.ApplyHeaderOverrides(req.Header)
-	proxyURL := ""
-	if account.ProxyID != nil && account.Proxy != nil {
-		proxyURL = account.Proxy.URL()
-	}
+	proxyURL := ppVideoAccountProxyURL(account)
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
 	if account.Platform != PlatformOPONE || len(fallbackURLs) == 0 || strings.TrimSpace(fallbackURLs[0]) == "" {
 		if err != nil {

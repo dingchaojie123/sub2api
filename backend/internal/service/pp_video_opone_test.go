@@ -381,3 +381,55 @@ func TestRefreshOPONEResultURLKeepsStoredSuccessOnTransportTimeout(t *testing.T)
 	_, bounded := upstream.requests[0].Context().Deadline()
 	require.True(t, bounded)
 }
+
+func TestOPONEContentResolvesCurrentDeliveryForStoredTask(t *testing.T) {
+	t.Parallel()
+	const fresh = "https://203.0.113.23:8443/results/new.mp4?access=signed%2Bvalue"
+	for _, stored := range []string{`{"status":"succeeded"}`, `{"status":"succeeded","provider_url":"https://cdn.example/old.mp4"}`} {
+		task := &PPVideoTask{TaskID: "task-original", Platform: PlatformOPONE, AccountID: 76, Operation: PPVideoOperationGeneric, Status: PPVideoTaskStatusSucceeded, ResponseBody: stored}
+		account := &Account{ID: 76, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "account-key"}}
+		response := func(code int, typ, body string) *http.Response {
+			return &http.Response{StatusCode: code, Header: http.Header{"Content-Type": []string{typ}}, Body: io.NopCloser(bytes.NewBufferString(body))}
+		}
+		u := &oponeUpstreamRecorder{}
+		if !gjson.Get(stored, "provider_url").Exists() {
+			u.responses = append(u.responses, response(200, "application/json", `{"id":"task-original","status":"in_progress"}`))
+		}
+		u.responses = append(u.responses, response(200, "application/json", `{"id":"task-original","status":"completed","video_url":"`+fresh+`"}`), response(206, "video/mp4", "actual-file"))
+		s := &OpenAIGatewayService{httpUpstream: u, cfg: &config.Config{}}
+		result, err := s.ForwardPPVideoTaskContent(context.Background(), account, task, "bytes=0-", `"file"`)
+		require.NoError(t, err)
+		data, err := io.ReadAll(result.Body)
+		result.Body.Close()
+		require.NoError(t, err)
+		require.Equal(t, "actual-file", string(data))
+		for _, request := range u.requests[:len(u.requests)-1] {
+			require.Equal(t, "GET", request.Method)
+			require.Equal(t, "/v1/videos/task-original", request.URL.Path)
+			require.Equal(t, "Bearer account-key", request.Header.Get("Authorization"))
+		}
+		file := u.requests[len(u.requests)-1]
+		require.Equal(t, fresh, file.URL.String())
+		require.Empty(t, file.Header.Get("Authorization"))
+		require.Equal(t, "bytes=0-", file.Header.Get("Range"))
+		require.Equal(t, `"file"`, file.Header.Get("If-Range"))
+		require.Equal(t, stored, task.ResponseBody)
+	}
+}
+
+func TestOPONEContentRejectsMismatchedDeliveryAndUsesOriginalEndpoint(t *testing.T) {
+	t.Parallel()
+	account := &Account{ID: 76, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "account-key"}}
+	task := &PPVideoTask{TaskID: "task-original", Platform: PlatformOPONE, AccountID: 77, Status: PPVideoTaskStatusSucceeded, Operation: PPVideoOperationGeneric}
+	u := &oponeUpstreamRecorder{responses: []*http.Response{{StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString(`{"id":"other","status":"completed","video_url":"https://cdn.example/other.mp4"}`))}, {StatusCode: 200, Body: io.NopCloser(bytes.NewBufferString("canonical"))}}}
+	s := &OpenAIGatewayService{httpUpstream: u, cfg: &config.Config{}}
+	_, err := s.ForwardPPVideoTaskContent(context.Background(), account, task, "", "")
+	require.Error(t, err)
+	require.Empty(t, u.requests)
+	task.AccountID = account.ID
+	resp, err := s.ForwardPPVideoTaskContent(context.Background(), account, task, "", "")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Len(t, u.requests, 2)
+	require.Equal(t, "/v1/videos/task-original/content", u.requests[1].URL.Path)
+}
