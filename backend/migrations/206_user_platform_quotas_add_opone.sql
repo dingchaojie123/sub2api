@@ -3,4 +3,4 @@ ALTER TABLE user_platform_quotas
 
 ALTER TABLE user_platform_quotas
     ADD CONSTRAINT user_platform_quotas_platform_check
-    CHECK (platform IN ('88api-video', 'anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'jimeng', 'doubao', 'qwen', 'kimi', 'deepseek', 'midjourney', 'kling', 'happyhourse', 'seedance', 'ctmo-seedance', 'guangying', 'opone', 'bytedance', 'wan3', 'minimax-h3', 'minimax-h3-compshare', 'minimax-speech', 'qwen-tts', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'));
+    CHECK (platform IN ('88api-video', 'anthropic', 'openai', 'gemini', 'antigravity', 'grok', 'jimeng', 'doubao', 'qwen', 'kimi', 'deepseek', 'midjourney', 'kling', 'happyhourse', 'seedance', 'ctmo-seedance', 'guangying', 'huli-ai', 'opone', 'bytedance', 'wan3', 'minimax-h3', 'minimax-h3-compshare', 'minimax-speech', 'qwen-tts', 'pixverse-v6', 'grok-imagine-video', 'kuaishou'));
