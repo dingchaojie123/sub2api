@@ -2359,14 +2359,27 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		RawBody: append([]byte(nil), body...),
 	}
 	hasFinalVideo := ppVideoResponseHasFinalVideo(body)
-	mediaPending := platform == PlatformOPONE && ppVideoResponseIndicatesMediaPending(body)
-	if mediaPending && !hasFinalVideo {
-		result.Status = PPVideoTaskStatusProcessing
-	} else if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
-		result.Status = PPVideoTaskStatusSucceeded
-	}
-	if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformCTMOSeedance && platform != PlatformOPONE {
-		result.Status = PPVideoTaskStatusProcessing
+	if platform == PlatformCTMOSeedance {
+		// CTMO exposes its authenticated /content endpoint while generation is
+		// still in progress. Treating that placeholder as final media causes a
+		// progress=0 task to be persisted and billed as succeeded.
+		if result.Status != PPVideoTaskStatusFailed {
+			if progress, present := extractPPVideoProgress(body); present && progress < 100 {
+				result.Status = PPVideoTaskStatusProcessing
+			} else if result.Status == "" && result.TaskID != "" {
+				result.Status = PPVideoTaskStatusProcessing
+			}
+		}
+	} else {
+		mediaPending := platform == PlatformOPONE && ppVideoResponseIndicatesMediaPending(body)
+		if mediaPending && !hasFinalVideo {
+			result.Status = PPVideoTaskStatusProcessing
+		} else if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
+			result.Status = PPVideoTaskStatusSucceeded
+		}
+		if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformOPONE {
+			result.Status = PPVideoTaskStatusProcessing
+		}
 	}
 	if result.VideoCount <= 0 {
 		result.VideoCount = 1
@@ -2377,6 +2390,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoPublicRequest, parsed PPVideoResponse) []byte {
 	if !IsPPVideoPlatform(platform) || len(raw) == 0 || !gjson.ValidBytes(raw) {
 		return raw
+	}
+	if platform == PlatformCTMOSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
+		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
 	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
@@ -2503,6 +2519,9 @@ func ppVideoRemoveVideoURLFields(value any) {
 		for _, key := range []string{"video_url", "result_url", "url", "download_url", "video_url_download", "video_urls", "urls", "videos"} {
 			delete(typed, key)
 		}
+		if content, ok := typed["content"].(string); ok && ppVideoLooksLikeResultURL(content) {
+			delete(typed, "content")
+		}
 		for _, child := range typed {
 			ppVideoRemoveVideoURLFields(child)
 		}
@@ -2511,6 +2530,13 @@ func ppVideoRemoveVideoURLFields(value any) {
 			ppVideoRemoveVideoURLFields(child)
 		}
 	}
+}
+
+func ppVideoLooksLikeResultURL(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(value, "https://") ||
+		strings.HasPrefix(value, "http://") ||
+		strings.HasPrefix(value, "/v1/videos/")
 }
 
 func ppVideoMarkProcessingStatusFields(value any) {
@@ -4063,6 +4089,20 @@ func extractPPVideoFloat(body []byte, paths ...string) float64 {
 		}
 	}
 	return 0
+}
+
+func extractPPVideoProgress(body []byte) (float64, bool) {
+	for _, path := range []string{"progress", "output.progress", "data.progress", "data.data.progress"} {
+		value := gjson.GetBytes(body, path)
+		if !value.Exists() {
+			continue
+		}
+		progress, err := strconv.ParseFloat(strings.TrimSpace(value.String()), 64)
+		if err == nil && progress >= 0 {
+			return progress, true
+		}
+	}
+	return 0, false
 }
 
 func extractPPVideoBool(body []byte, paths ...string) bool {

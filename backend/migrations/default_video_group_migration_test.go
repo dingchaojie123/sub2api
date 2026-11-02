@@ -34,3 +34,16 @@ func TestMigration203FixesTikTokSeedanceOneModelMappings(t *testing.T) {
 	require.Contains(t, sql, `'"seedance2.5-one-1080p"'::jsonb`)
 	require.NotContains(t, sql, "DELETE FROM accounts")
 }
+
+func TestMigration207ReplacesTikTokDefaultVideoKeys(t *testing.T) {
+	sqlBytes, err := FS.ReadFile("207_replace_tiktok_default_video_api_keys.sql")
+	require.NoError(t, err)
+	sql := string(sqlBytes)
+
+	require.Contains(t, sql, "bound_group.name = 'TikTok--Seedance'")
+	require.Contains(t, sql, "customer.role = 'user'")
+	require.Contains(t, sql, "DELETE FROM user_default_api_keys")
+	require.Contains(t, sql, "defaults.purpose = 'video'")
+	require.NotContains(t, sql, "UPDATE api_keys")
+	require.NotContains(t, sql, "DELETE FROM api_keys")
+}

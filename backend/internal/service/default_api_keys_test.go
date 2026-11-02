@@ -97,13 +97,14 @@ func newDefaultKeysTestService() (*APIKeyService, *defaultKeysRepoStub, *default
 	}, repo, groups
 }
 
-func TestDefaultVideoAPIKeyUsesTikTokSeedanceGroup(t *testing.T) {
+func TestDefaultVideoAPIKeyUsesTTSeedanceGroup(t *testing.T) {
 	t.Parallel()
 
 	name, ok := defaultAPIKeyGroupName("video")
 	require.True(t, ok)
-	require.Equal(t, "TikTok--Seedance", name)
-	require.Contains(t, signupAPIKeyGroupNames, "TikTok--Seedance")
+	require.Equal(t, "TT--Seedance", name)
+	require.Contains(t, signupAPIKeyGroupNames, "TT--Seedance")
+	require.NotContains(t, signupAPIKeyGroupNames, "TikTok--Seedance")
 	require.NotContains(t, signupAPIKeyGroupNames, "视频【聚合】")
 }
 

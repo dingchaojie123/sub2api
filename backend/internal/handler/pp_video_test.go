@@ -62,6 +62,23 @@ func TestShouldReplayStoredPPVideoStatus(t *testing.T) {
 			task: &service.PPVideoTask{Status: service.PPVideoTaskStatusFailed, ResponseBody: `{"status":"failed"}`, SettledAt: &settledAt},
 			want: true,
 		},
+		{
+			name: "CTMO premature success is polled again",
+			task: &service.PPVideoTask{
+				Platform:     service.PlatformCTMOSeedance,
+				Status:       service.PPVideoTaskStatusSucceeded,
+				ResponseBody: `{"id":"ctmo-1","status":"succeeded","progress":0,"content":"https://video.ctmoai.com/v1/videos/ctmo-1/content"}`,
+			},
+		},
+		{
+			name: "CTMO completed task replays",
+			task: &service.PPVideoTask{
+				Platform:     service.PlatformCTMOSeedance,
+				Status:       service.PPVideoTaskStatusSucceeded,
+				ResponseBody: `{"id":"ctmo-2","status":"completed","progress":100}`,
+			},
+			want: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -162,4 +179,27 @@ func TestWriteStoredOPONECompletedResponseUsesContentProxy(t *testing.T) {
 	require.Equal(t, service.PPVideoTaskStatusSucceeded, gjson.GetBytes(body, "status").String())
 	require.Equal(t, "/v1/videos/opone-q-1/content", gjson.GetBytes(body, "video_url").String())
 	require.Equal(t, "/v1/videos/opone-q-1/content", gjson.GetBytes(body, "videos.0.url").String())
+}
+
+func TestWriteStoredCTMOPrematureSuccessReturnsProcessingWithoutURLs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	writeStoredPPVideoResponse(c, &service.PPVideoTask{
+		Platform:            service.PlatformCTMOSeedance,
+		Model:               "seedance2.5-one-720p",
+		TaskID:              "ctmo-pending-1",
+		Status:              service.PPVideoTaskStatusSucceeded,
+		ResponseStatus:      200,
+		ResponseContentType: "application/json",
+		ResponseBody:        `{"id":"ctmo-pending-1","status":"succeeded","progress":0,"content":"https://video.ctmoai.com/v1/videos/ctmo-pending-1/content","video_url":"https://video.ctmoai.com/v1/videos/ctmo-pending-1/content"}`,
+	})
+
+	body := recorder.Body.Bytes()
+	require.Equal(t, 200, recorder.Code)
+	require.Equal(t, service.PPVideoTaskStatusProcessing, gjson.GetBytes(body, "status").String())
+	require.False(t, gjson.GetBytes(body, "content").Exists())
+	require.False(t, gjson.GetBytes(body, "video_url").Exists())
+	require.False(t, gjson.GetBytes(body, "result_url").Exists())
 }

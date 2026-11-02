@@ -591,9 +591,16 @@ func resolvePPVideoIdempotencyKey(rawKey string) string {
 }
 
 func shouldReplayStoredPPVideoStatus(task *service.PPVideoTask) bool {
-	return task != nil &&
-		service.IsTerminalPPVideoTaskStatus(task.Status) &&
-		strings.TrimSpace(task.ResponseBody) != ""
+	if task == nil || !service.IsTerminalPPVideoTaskStatus(task.Status) || strings.TrimSpace(task.ResponseBody) == "" {
+		return false
+	}
+	if task.Platform == service.PlatformCTMOSeedance {
+		parsed, err := service.ParsePPVideoResponse(task.Platform, []byte(task.ResponseBody))
+		if err == nil && !service.IsTerminalPPVideoTaskStatus(parsed.Status) {
+			return false
+		}
+	}
+	return true
 }
 
 func canFallbackToStoredPPVideoStatus(task *service.PPVideoTask) bool {
@@ -640,6 +647,9 @@ func normalizeStoredPPVideoResponseBody(task *service.PPVideoTask) []byte {
 		VideoCount:           task.VideoCount,
 		Resolution:           task.VideoResolution,
 	}, parsed)
+	if task.Platform == service.PlatformCTMOSeedance && parsed.Status != service.PPVideoTaskStatusSucceeded {
+		return normalized
+	}
 	if strings.TrimSpace(gjson.GetBytes(normalized, "video_url").String()) == "" {
 		return raw
 	}

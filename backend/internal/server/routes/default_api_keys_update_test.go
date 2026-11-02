@@ -24,7 +24,7 @@ func TestDefaultAPIKeysExistingUserAutomaticallyFillsMissing(t *testing.T) {
 			require.NoError(t, err)
 			_, err = f.client.ExecContext(ctx, strings.ReplaceAll(string(ddl), "'text', 'image', 'video'", "'text', 'image', 'video', 'audio'"))
 			require.NoError(t, err)
-			names := []string{"OC--ChatGPT【文本模型，官key】", "GPT图片【聚合】", "TikTok--Seedance", "OC--Qwen-TTS【音频】"}
+			names := []string{"OC--ChatGPT【文本模型，官key】", "GPT图片【聚合】", "TT--Seedance", "OC--Qwen-TTS【音频】"}
 			existingIDs := make(map[int]int64)
 			for i, name := range names {
 				group, err := f.client.Group.Create().SetName(name).Save(ctx)
@@ -96,14 +96,14 @@ func TestDefaultAPIKeysUpdateAndFreshRead(t *testing.T) {
 	require.NoError(t, err)
 	customImageGroup, err := f.client.Group.Create().SetName("Custom Image").SetPlatform(service.PlatformOpenAI).SetAllowImageGeneration(true).Save(ctx)
 	require.NoError(t, err)
-	videoGroup, err := f.client.Group.Create().SetName("TikTok--Seedance").SetPlatform(service.PlatformSeedance).Save(ctx)
+	videoGroup, err := f.client.Group.Create().SetName("TT--Seedance").SetPlatform(service.PlatformSeedance).Save(ctx)
 	require.NoError(t, err)
 	customVideoGroup, err := f.client.Group.Create().SetName("Custom Kling Video").SetPlatform(service.PlatformKling).Save(ctx)
 	require.NoError(t, err)
 	customAudioGroup, err := f.client.Group.Create().SetName("Custom Qwen TTS").SetPlatform(service.PlatformQwenTTS).Save(ctx)
 	require.NoError(t, err)
-	for _, name := range []string{"TikTok--Seedance", "OC--Qwen-TTS【音频】"} {
-		if name == "TikTok--Seedance" {
+	for _, name := range []string{"TT--Seedance", "OC--Qwen-TTS【音频】"} {
+		if name == "TT--Seedance" {
 			continue
 		}
 		_, err := f.client.Group.Create().SetName(name).Save(ctx)
@@ -158,7 +158,7 @@ func TestDefaultAPIKeysUpdateAndFreshRead(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &videoBody))
 	require.Equal(t, "video", videoBody.Data.Purpose)
 	require.NotNil(t, videoBody.Data.APIKey)
-	require.Equal(t, "TikTok--Seedance", videoBody.Data.APIKey.Name)
+	require.Equal(t, "TT--Seedance", videoBody.Data.APIKey.Name)
 	w = f.request(http.MethodGet, "/api/v1/keys/defaults/unknown", f.token, "")
 	require.Equal(t, http.StatusBadRequest, w.Code, w.Body.String())
 	require.Contains(t, w.Body.String(), "INVALID_DEFAULT_API_KEY_PURPOSE")

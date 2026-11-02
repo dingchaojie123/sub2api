@@ -182,6 +182,101 @@ func TestCTMOSeedancePathsAndCompletedResponse(t *testing.T) {
 	require.Equal(t, PPVideoTaskStatusProcessing, NormalizePPVideoTaskStatus("unknown"))
 }
 
+func TestCTMOSeedancePendingResponseDoesNotExposePlaceholderContent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "explicit processing",
+			raw:  `{"id":"task-processing","status":"processing","progress":0,"content":"https://video.ctmoai.com/v1/videos/task-processing/content","video_url":"https://video.ctmoai.com/v1/videos/task-processing/content","data":{"result_url":"https://video.ctmoai.com/v1/videos/task-processing/content","videos":[{"url":"https://video.ctmoai.com/v1/videos/task-processing/content"}]}}`,
+		},
+		{
+			name: "premature completed",
+			raw:  `{"id":"task-completed","status":"completed","progress":"0","content":"https://video.ctmoai.com/v1/videos/task-completed/content","result_url":"https://video.ctmoai.com/v1/videos/task-completed/content"}`,
+		},
+		{
+			name: "missing status",
+			raw:  `{"id":"task-no-status","data":{"url":"https://video.ctmoai.com/v1/videos/task-no-status/content"}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := []byte(tt.raw)
+			parsed, err := ParsePPVideoResponse(PlatformCTMOSeedance, raw)
+			require.NoError(t, err)
+			require.Equal(t, PPVideoTaskStatusProcessing, parsed.Status)
+
+			normalized := NormalizePPVideoPublicResponse(
+				PlatformCTMOSeedance,
+				raw,
+				PPVideoPublicRequest{Model: "seedance2.5-one-720p"},
+				parsed,
+			)
+			require.Equal(t, PPVideoTaskStatusProcessing, gjson.GetBytes(normalized, "status").String())
+			for _, path := range []string{"content", "video_url", "url", "result_url", "videos", "data.video_url", "data.url", "data.result_url", "data.videos"} {
+				require.False(t, gjson.GetBytes(normalized, path).Exists(), "unexpected pending result field %s in %s", path, normalized)
+			}
+		})
+	}
+}
+
+func TestCTMOSeedanceCompletedResponseWithoutProgressRemainsSucceeded(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := ParsePPVideoResponse(
+		PlatformCTMOSeedance,
+		[]byte(`{"id":"task-complete","status":"completed"}`),
+	)
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusSucceeded, parsed.Status)
+}
+
+func TestForwardCTMOSeedancePendingStatusDoesNotReturnPrematureSuccess(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body: io.NopCloser(bytes.NewBufferString(
+			`{"id":"task-pending","status":"succeeded","progress":0,"content":"https://video.ctmoai.com/v1/videos/task-pending/content","video_url":"https://video.ctmoai.com/v1/videos/task-pending/content"}`,
+		)),
+	}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          42,
+		Platform:    PlatformCTMOSeedance,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{"api_key": "ctmo-key", "base_url": "https://video.ctmoai.com"},
+	}
+
+	result, err := svc.ForwardPPVideoBuffered(
+		context.Background(),
+		nil,
+		account,
+		PPVideoOperationGeneric,
+		"task-pending",
+		nil,
+		PPVideoPublicRequest{Model: "seedance2.5-one-720p"},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusProcessing, result.TaskStatus)
+	require.Equal(t, PPVideoTaskStatusProcessing, gjson.GetBytes(result.ResponseBody, "status").String())
+	require.False(t, gjson.GetBytes(result.ResponseBody, "content").Exists())
+	require.False(t, gjson.GetBytes(result.ResponseBody, "video_url").Exists())
+	require.False(t, gjson.GetBytes(result.ResponseBody, "result_url").Exists())
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://video.ctmoai.com/v1/videos/task-pending", upstream.requests[0].URL.String())
+}
+
 func TestCTMOSeedanceModelSyncRequestAndFiltering(t *testing.T) {
 	t.Parallel()
 	svc := &AccountTestService{cfg: upstreamModelSyncTestConfig()}

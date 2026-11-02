@@ -4,7 +4,7 @@
 
 新客户完成邮箱注册、第三方首次登录或 OAuth 注册确认后，系统会为以下七个固定分组分别创建 API 密钥：
 
-`OC--ChatGPT【文本模型，官key】`、`Claude Code 【官方】`、`TikTok--Seedance`、`OCY--MiniMax-H3【视频】`、`GPT图片【聚合】`、`Gemini图片【聚合】`、`OC--Qwen-TTS【音频】`。系统不会为名单外的其他可用分组自动创建密钥。
+`OC--ChatGPT【文本模型，官key】`、`Claude Code 【官方】`、`TT--Seedance`、`OCY--MiniMax-H3【视频】`、`GPT图片【聚合】`、`Gemini图片【聚合】`、`OC--Qwen-TTS【音频】`。系统不会为名单外的其他可用分组自动创建密钥。
 
 其中四把密钥同时绑定到默认用途：
 
@@ -12,20 +12,20 @@
 | --- | --- |
 | `text` | `OC--ChatGPT【文本模型，官key】` |
 | `image` | `GPT图片【聚合】` |
-| `video` | `TikTok--Seedance` |
+| `video` | `TT--Seedance` |
 | `audio` | `OC--Qwen-TTS【音频】` |
 
 密钥名称初始与分组名称一致，状态为 active，无额外密钥额度上限和有效期；实际调用仍受客户余额、订阅、分组以及平台额度限制。正常密钥列表 `/api/v1/keys` 也会显示它们。
 
 ## 部署要求
 
-部署新版后端并完成迁移 `192_user_default_api_keys.sql`、`193_user_default_api_keys_audio.sql` 和 `202_replace_default_video_api_keys.sql`。系统仅按精确名称匹配上述分组，不会按平台能力回退到其他分组。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
+部署新版后端并完成迁移 `192_user_default_api_keys.sql`、`193_user_default_api_keys_audio.sql`、`202_replace_default_video_api_keys.sql` 和 `207_replace_tiktok_default_video_api_keys.sql`。系统仅按精确名称匹配上述分组，不会按平台能力回退到其他分组。专属分组需要授权，订阅分组需要有效订阅；注册默认赠送的订阅会先于密钥创建执行。
 
 某个指定分组缺失、名称重复、禁用或当前客户无权限时，会跳过并记录原因，其余可用分组仍会创建；修复配置后，可由客户调用下方补建接口重试。只有没有任何可用默认用途分组时，本次补建才会失败。
 
 已有客户在调用 GET 或 POST `/api/v1/keys/defaults` 时，也会检查七个固定分组的密钥并补齐其中四个默认用途，无需重新注册。此操作按当前客户触发，不会在部署时批量扫描全部客户。
 
-迁移 `200_prune_legacy_customer_api_keys.sql` 会在首次部署时清理存量普通客户的其他 API 密钥。迁移 `202_replace_default_video_api_keys.sql` 会进一步解除指向 `视频【聚合】` 的默认视频关联，并软删除普通客户绑定该分组的全部有效密钥；管理员密钥不受影响。存量客户下次读取默认密钥时，系统会复用或新建 `TikTok--Seedance` 密钥并绑定 `video` 默认用途。
+迁移 `200_prune_legacy_customer_api_keys.sql` 会在首次部署时清理存量普通客户的其他 API 密钥。迁移 `202_replace_default_video_api_keys.sql` 会进一步解除指向 `视频【聚合】` 的默认视频关联，并软删除普通客户绑定该分组的全部有效密钥；管理员密钥不受影响。迁移 `207_replace_tiktok_default_video_api_keys.sql` 会解除普通客户指向 `TikTok--Seedance` 的旧视频默认关联，但保留旧密钥供客户继续使用。存量客户下次读取默认密钥时，系统会复用或新建 `TT--Seedance` 密钥并绑定 `video` 默认用途。
 
 已有关联的默认密钥保持不变。尚未初始化的用途，先查找当前客户在对应分组下未删除、且未被其他用途占用的密钥；优先选择与分组同名的密钥，其次选择 ID 最小的同组密钥。只有没有可复用密钥时才新建。判断以实际绑定分组为准，仅名称相同但分组不同的密钥不会被复用。已有三个用途的客户仅补齐音频用途。
 
@@ -49,7 +49,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults' \
   "data": [
     {"purpose": "text", "api_key": {"id": 101, "key": "sk-...", "name": "OC--ChatGPT【文本模型，官key】", "group_id": 1, "status": "active", "billing_source": {"type": "personal", "organization_id": null, "organization_name": null, "status": "active"}}},
     {"purpose": "image", "api_key": {"id": 102, "key": "sk-...", "name": "GPT图片【聚合】", "group_id": 2, "status": "active"}},
-    {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "TikTok--Seedance", "group_id": 3, "status": "active"}},
+    {"purpose": "video", "api_key": {"id": 103, "key": "sk-...", "name": "TT--Seedance", "group_id": 3, "status": "active"}},
     {"purpose": "audio", "api_key": {"id": 104, "key": "sk-...", "name": "OC--Qwen-TTS【音频】", "group_id": 4, "status": "active"}}
   ]
 }
@@ -70,7 +70,7 @@ curl 'https://YOUR_DOMAIN/api/v1/keys/defaults/video' \
   -H "Authorization: Bearer ${ACCESS_TOKEN}"
 ```
 
-该接口同样会先补齐默认密钥，再返回对应用途的单个对象。路径 `purpose` 取值为 `text`、`image`、`video`、`audio`；例如 `video` 返回 `TikTok--Seedance` 分组对应的默认密钥。
+该接口同样会先补齐默认密钥，再返回对应用途的单个对象。路径 `purpose` 取值为 `text`、`image`、`video`、`audio`；例如 `video` 返回 `TT--Seedance` 分组对应的默认密钥。
 
 ## 补建与重试
 
