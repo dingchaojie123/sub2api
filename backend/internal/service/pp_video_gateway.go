@@ -331,9 +331,35 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	return result, nil
 }
 
+// RefreshPPVideoResultURL recovers delivery metadata lost by older normalization.
+// It only reads the original task and never changes its status or billing state.
+func (s *OpenAIGatewayService) RefreshPPVideoResultURL(ctx context.Context, account *Account, task *PPVideoTask) *PPVideoTask {
+	if task == nil || account == nil || task.Platform != PlatformOPONE || account.Platform != task.Platform ||
+		account.ID != task.AccountID || task.Status != PPVideoTaskStatusSucceeded || PPVideoProviderURLFromResponse([]byte(task.ResponseBody)) != "" {
+		return task
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	result, err := s.ForwardPPVideoBuffered(refreshCtx, nil, account, task.Operation, task.TaskID, nil, PPVideoPublicRequest{
+		Model: task.Model, DurationMilliseconds: task.GeneratedVideoDurationMilliseconds,
+		VideoCount: task.VideoCount, Resolution: task.VideoResolution,
+	})
+	if err != nil || result == nil || result.ResponseID != task.TaskID || result.TaskStatus != PPVideoTaskStatusSucceeded ||
+		PPVideoProviderURLFromResponse(result.ResponseBody) == "" {
+		return task
+	}
+	responseBody, err := sjson.Set(task.ResponseBody, "provider_url", PPVideoProviderURLFromResponse(result.ResponseBody))
+	if err != nil {
+		return task
+	}
+	refreshed := *task
+	refreshed.ResponseBody = responseBody
+	return &refreshed
+}
+
 // ForwardPPVideoContent streams an authenticated upstream video through the
 // original account. Some providers intentionally do not expose public URLs.
-func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, account *Account, taskID, rangeHeader string, fallbackURLs ...string) (*http.Response, error) {
+func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, account *Account, taskID, rangeHeader, ifRangeHeader string, fallbackURLs ...string) (*http.Response, error) {
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
@@ -367,9 +393,13 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		return nil, err
 	}
 	req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9")
+	req.Header.Set("Accept-Encoding", "identity")
 	req.Header.Set("Authorization", "Bearer "+token)
 	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
+		if ifRangeHeader = strings.TrimSpace(ifRangeHeader); ifRangeHeader != "" {
+			req.Header.Set("If-Range", ifRangeHeader)
+		}
 	}
 	account.ApplyHeaderOverrides(req.Header)
 	proxyURL := ""
@@ -398,7 +428,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		providerProxies = append(providerProxies, "")
 	}
 	for _, providerProxy := range providerProxies {
-		providerResp, providerErr := s.forwardPPVideoExternalContent(ctx, account, providerProxy, fallbackURLs[0], rangeHeader)
+		providerResp, providerErr := s.forwardPPVideoExternalContent(ctx, account, providerProxy, fallbackURLs[0], rangeHeader, ifRangeHeader)
 		if providerErr == nil && providerResp != nil && providerResp.StatusCode >= http.StatusOK && providerResp.StatusCode < http.StatusMultipleChoices {
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
@@ -418,7 +448,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 	return resp, nil
 }
 
-func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context, account *Account, proxyURL, rawURL, rangeHeader string) (*http.Response, error) {
+func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context, account *Account, proxyURL, rawURL, rangeHeader, ifRangeHeader string) (*http.Response, error) {
 	contentURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil || contentURL == nil || contentURL.Hostname() == "" || contentURL.User != nil {
 		return nil, fmt.Errorf("invalid PP video provider URL")
@@ -440,8 +470,12 @@ func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context
 		return nil, err
 	}
 	req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9")
+	req.Header.Set("Accept-Encoding", "identity")
 	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
+		if ifRangeHeader = strings.TrimSpace(ifRangeHeader); ifRangeHeader != "" {
+			req.Header.Set("If-Range", ifRangeHeader)
+		}
 	}
 	// Do not apply account headers here. The signed URL authorizes the download,
 	// and provider credentials must never be forwarded to the storage host.
@@ -450,7 +484,7 @@ func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context
 
 // ForwardCTMOSeedanceContent is retained for existing callers.
 func (s *OpenAIGatewayService) ForwardCTMOSeedanceContent(ctx context.Context, account *Account, taskID, rangeHeader string) (*http.Response, error) {
-	return s.ForwardPPVideoContent(ctx, account, taskID, rangeHeader)
+	return s.ForwardPPVideoContent(ctx, account, taskID, rangeHeader, "")
 }
 
 func (s *OpenAIGatewayService) ppVideoPixverseV6MediaURLReady(ctx context.Context, mediaURL string, proxyURL string, account *Account) (bool, error) {

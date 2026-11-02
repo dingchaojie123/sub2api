@@ -2408,9 +2408,13 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 		videoURL = extractPPVideoText(raw, "url", "video_url", "result_url")
 	}
 	if platform == PlatformOPONE && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
-		// OPONE result URLs are signed cross-origin resources and are not
-		// consistently browser-readable. Always expose the authenticated local
-		// content proxy while retaining provider-specific fields in the raw body.
+		// Retain the signed delivery URL before replacing public URL fields.
+		if PPVideoProviderURLFromResponse(raw) == "" && !isGrokMediaVideoContentURL(videoURL, taskID) {
+			if target, err := url.Parse(videoURL); err == nil && target.Scheme == "https" && target.Hostname() != "" && target.User == nil &&
+				(target.Path != "/v1/tasks/"+taskID+"/artifacts/video/content" || target.Query().Get("access") != "") {
+				payload["provider_url"] = videoURL
+			}
+		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	} else if platform == PlatformCTMOSeedance && videoURL == "" && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
@@ -3893,8 +3897,7 @@ func ppVideoExtractVideoURL(body []byte) string {
 }
 
 // PPVideoProviderURLFromResponse returns the provider-owned delivery URL kept
-// in a normalized task response. OPONE content delivery prefers this signed URL
-// and falls back to the authenticated content endpoint when it has expired.
+// in a normalized task response as a fallback for authenticated content delivery.
 func PPVideoProviderURLFromResponse(body []byte) string {
 	return extractPPVideoText(body,
 		"provider_url",

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"testing"
@@ -16,10 +17,14 @@ import (
 type oponeUpstreamRecorder struct {
 	requests  []*http.Request
 	responses []*http.Response
+	err       error
 }
 
 func (u *oponeUpstreamRecorder) Do(req *http.Request, _ string, _ int64, _ int) (*http.Response, error) {
 	u.requests = append(u.requests, req)
+	if u.err != nil {
+		return nil, u.err
+	}
 	resp := u.responses[0]
 	u.responses = u.responses[1:]
 	return resp, nil
@@ -202,12 +207,14 @@ func TestOPONEModelSyncAndContentForwarding(t *testing.T) {
 		Body:       io.NopCloser(bytes.NewBufferString("video")),
 	}}}
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
-	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-4")
+	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-4", "\"video-v1\"")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, "https://api.opone.cc/v1/videos/task-1/content", upstream.requests[0].URL.String())
 	require.Equal(t, "Bearer opone-key", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "bytes=0-4", upstream.requests[0].Header.Get("Range"))
+	require.Equal(t, "\"video-v1\"", upstream.requests[0].Header.Get("If-Range"))
+	require.Equal(t, "identity", upstream.requests[0].Header.Get("Accept-Encoding"))
 }
 
 func TestOPONEContentPrefersAuthenticatedEndpoint(t *testing.T) {
@@ -227,7 +234,7 @@ func TestOPONEContentPrefersAuthenticatedEndpoint(t *testing.T) {
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
 	account := &Account{ID: 42, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "opone-key"}}
 
-	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-4", providerURL)
+	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-4", "\"video-v1\"", providerURL)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusPartialContent, resp.StatusCode)
@@ -235,6 +242,8 @@ func TestOPONEContentPrefersAuthenticatedEndpoint(t *testing.T) {
 	require.Equal(t, "https://api.opone.cc/v1/videos/task-1/content", upstream.requests[0].URL.String())
 	require.Equal(t, "Bearer opone-key", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "bytes=0-4", upstream.requests[0].Header.Get("Range"))
+	require.Equal(t, "\"video-v1\"", upstream.requests[0].Header.Get("If-Range"))
+	require.Equal(t, "identity", upstream.requests[0].Header.Get("Accept-Encoding"))
 }
 
 func TestOPONEContentFallsBackToStoredProviderURL(t *testing.T) {
@@ -255,7 +264,7 @@ func TestOPONEContentFallsBackToStoredProviderURL(t *testing.T) {
 	svc := &OpenAIGatewayService{httpUpstream: upstream}
 	account := &Account{ID: 42, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Concurrency: 1, Credentials: map[string]any{"api_key": "opone-key"}}
 
-	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-", providerURL)
+	resp, err := svc.ForwardPPVideoContent(context.Background(), account, "task-1", "bytes=0-", "\"video-v1\"", providerURL)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -265,4 +274,110 @@ func TestOPONEContentFallsBackToStoredProviderURL(t *testing.T) {
 	require.Equal(t, providerURL, upstream.requests[1].URL.String())
 	require.Empty(t, upstream.requests[1].Header.Get("Authorization"))
 	require.Equal(t, "bytes=0-", upstream.requests[1].Header.Get("Range"))
+	require.Equal(t, "\"video-v1\"", upstream.requests[1].Header.Get("If-Range"))
+}
+
+func TestOPONENormalizationPreservesSignedDeliveryURL(t *testing.T) {
+	t.Parallel()
+	signed := "https://io.opone.cc/m/media%2Fclip.mp4?sig=a%2Bb%2Fc%3D&e=123"
+	for _, body := range []map[string]any{
+		{"video_url": signed},
+		{"data": map[string]any{"video_url": signed}},
+		{"video_url": signed, "provider_url": "https://storage.example/original.mp4?sig=keep"},
+		{"video_url": "https://api.opone.cc/v1/tasks/task-original/artifacts/video/content?access=task-scoped-token"},
+	} {
+		body["id"] = "task-original"
+		body["status"] = "succeeded"
+		raw, err := json.Marshal(body)
+		require.NoError(t, err)
+		parsed, err := ParsePPVideoResponse(PlatformOPONE, raw)
+		require.NoError(t, err)
+		want := signed
+		if provided, ok := body["video_url"].(string); ok {
+			want = provided
+		}
+		if provided, ok := body["provider_url"].(string); ok {
+			want = provided
+		}
+		normalized := NormalizePPVideoPublicResponse(PlatformOPONE, raw, PPVideoPublicRequest{}, parsed)
+		require.Equal(t, want, PPVideoProviderURLFromResponse(normalized))
+		require.Equal(t, "/v1/videos/task-original/content", gjson.GetBytes(normalized, "video_url").String())
+		repeated := NormalizePPVideoPublicResponse(PlatformOPONE, normalized, PPVideoPublicRequest{}, parsed)
+		require.Equal(t, want, PPVideoProviderURLFromResponse(repeated))
+	}
+}
+
+func TestOPONENormalizationDoesNotPromoteProtectedOrInvalidURLs(t *testing.T) {
+	t.Parallel()
+	for _, source := range []string{"", "/v1/videos/task-original/content", "https://api.opone.cc/v1/videos/task-original/content", "https://api.opone.cc/v1/tasks/task-original/artifacts/video/content", "http://cdn.example/video.mp4", "https://user:secret@cdn.example/video.mp4", "https://"} {
+		raw, err := json.Marshal(map[string]any{"id": "task-original", "status": "succeeded", "video_url": source})
+		require.NoError(t, err)
+		parsed, err := ParsePPVideoResponse(PlatformOPONE, raw)
+		require.NoError(t, err)
+		normalized := NormalizePPVideoPublicResponse(PlatformOPONE, raw, PPVideoPublicRequest{}, parsed)
+		require.Empty(t, PPVideoProviderURLFromResponse(normalized), source)
+	}
+}
+
+func TestRefreshOPONEResultURLOnlyReadsCompletedOriginalTask(t *testing.T) {
+	t.Parallel()
+	source := "https://io.opone.cc/m/media%2Fclip.mp4?sig=a%2Bb%3D"
+	upstream := &oponeUpstreamRecorder{responses: []*http.Response{{StatusCode: 200, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewBufferString(`{"id":"task-original","status":"succeeded","video_url":"` + source + `"}`))}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream, cfg: &config.Config{}}
+	account := &Account{ID: 76, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "original-key"}}
+	task := &PPVideoTask{TaskID: "task-original", AccountID: 76, Platform: PlatformOPONE, Operation: PPVideoOperationGeneric, Model: "seedance-2.5-s7", Status: PPVideoTaskStatusSucceeded, BillingStatus: PPVideoBillingStatusCaptured, ResponseBody: `{"id":"task-original","status":"succeeded","created_at":1793592365,"video_url":"/v1/videos/task-original/content"}`}
+	before := *task
+	refreshed := svc.RefreshPPVideoResultURL(context.Background(), account, task)
+	require.Equal(t, before, *task)
+	require.Equal(t, source, PPVideoProviderURLFromResponse([]byte(refreshed.ResponseBody)))
+	require.Equal(t, task.BillingStatus, refreshed.BillingStatus)
+	require.Equal(t, task.Status, refreshed.Status)
+	var restored map[string]any
+	require.NoError(t, json.Unmarshal([]byte(refreshed.ResponseBody), &restored))
+	delete(restored, "provider_url")
+	preserved, err := json.Marshal(restored)
+	require.NoError(t, err)
+	require.JSONEq(t, task.ResponseBody, string(preserved))
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, http.MethodGet, upstream.requests[0].Method)
+	require.Equal(t, "https://api.opone.cc/v1/videos/task-original", upstream.requests[0].URL.String())
+	require.Equal(t, "Bearer original-key", upstream.requests[0].Header.Get("Authorization"))
+	require.Same(t, refreshed, svc.RefreshPPVideoResultURL(context.Background(), account, refreshed))
+	require.Len(t, upstream.requests, 1)
+}
+
+func TestRefreshOPONEResultURLKeepsStoredSuccessOnUpstreamFailure(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		status int
+		body   string
+	}{
+		{503, `{"error":"unavailable"}`},
+		{200, `{"id":"task-original","status":"failed"}`},
+		{200, `{"id":"task-original","status":"in_progress","progress":100}`},
+		{200, `{"id":"task-original","status":"succeeded"}`},
+		{200, `{"id":"task-other","status":"succeeded","video_url":"https://cdn.example/other.mp4"}`},
+	} {
+		upstream := &oponeUpstreamRecorder{responses: []*http.Response{{StatusCode: tt.status, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(bytes.NewBufferString(tt.body))}}}
+		svc := &OpenAIGatewayService{httpUpstream: upstream, cfg: &config.Config{}}
+		account := &Account{ID: 76, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "original-key"}}
+		task := &PPVideoTask{TaskID: "task-original", AccountID: 76, Platform: PlatformOPONE, Operation: PPVideoOperationGeneric, Status: PPVideoTaskStatusSucceeded, BillingStatus: PPVideoBillingStatusCaptured, ResponseBody: `{"status":"succeeded"}`}
+		require.Same(t, task, svc.RefreshPPVideoResultURL(context.Background(), account, task))
+		require.Len(t, upstream.requests, 1)
+		account.ID++
+		require.Same(t, task, svc.RefreshPPVideoResultURL(context.Background(), account, task))
+		require.Len(t, upstream.requests, 1)
+	}
+}
+
+func TestRefreshOPONEResultURLKeepsStoredSuccessOnTransportTimeout(t *testing.T) {
+	t.Parallel()
+	upstream := &oponeUpstreamRecorder{err: context.DeadlineExceeded}
+	svc := &OpenAIGatewayService{httpUpstream: upstream, cfg: &config.Config{}}
+	account := &Account{ID: 76, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "original-key"}}
+	task := &PPVideoTask{TaskID: "task-original", AccountID: 76, Platform: PlatformOPONE, Operation: PPVideoOperationGeneric, Status: PPVideoTaskStatusSucceeded, BillingStatus: PPVideoBillingStatusCaptured, ResponseBody: `{"status":"succeeded"}`}
+	require.Same(t, task, svc.RefreshPPVideoResultURL(context.Background(), account, task))
+	require.Len(t, upstream.requests, 1)
+	_, bounded := upstream.requests[0].Context().Deadline()
+	require.True(t, bounded)
 }
