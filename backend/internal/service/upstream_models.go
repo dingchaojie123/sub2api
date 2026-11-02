@@ -315,6 +315,15 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 	if baseURL == "" && account.Platform == Platform88APIVideo {
 		baseURL = Video88APIDefaultBaseURL
 	}
+	if baseURL == "" && account.Platform == PlatformCTMOSeedance {
+		baseURL = CTMOSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformGuangying {
+		baseURL = GuangyingDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformOPONE {
+		baseURL = OPONEDefaultBaseURL
+	}
 	if baseURL == "" {
 		return nil, newUpstreamModelSyncConfigError("PP video base URL is required for upstream model sync", nil)
 	}
@@ -668,7 +677,7 @@ func dedupeAndSortModelIDs(models []string) []string {
 }
 
 func filterUpstreamModelsForPlatform(platform string, models []string) []string {
-	if platform == Platform88APIVideo {
+	if platform == Platform88APIVideo || platform == PlatformOPONE {
 		// Model discovery must remain open to new upstream names. Administrators
 		// select video models from the live list before saving the account.
 		return models
@@ -702,6 +711,14 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 			if strings.HasPrefix(normalized, "doubao-seedance-") ||
 				strings.HasPrefix(normalized, "seedance") {
 				filtered = append(filtered, model)
+			}
+		case PlatformCTMOSeedance:
+			if ppVideoIsCTMOSeedanceModel(model) {
+				filtered = append(filtered, model)
+			}
+		case PlatformGuangying:
+			if publicModel, ok := ppVideoGuangyingPublicModel(model); ok {
+				filtered = append(filtered, publicModel)
 			}
 		case PlatformByteDance:
 			if ppVideoByteDanceModelAllowed(model) {

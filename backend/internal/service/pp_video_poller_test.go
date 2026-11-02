@@ -28,6 +28,22 @@ func TestPPVideoPollerProcessingKeepsTaskPending(t *testing.T) {
 	require.Equal(t, PPVideoTaskStatusProcessing, repo.task.Status)
 }
 
+func TestPPVideoPollerRequiresAttentionStopsAutomaticPolling(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_attention", "provider-attention", PPVideoTaskStatusRequiresAttention, now.Add(-time.Minute))
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{err: errors.New("must not poll upstream")}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeSkipped, result.Outcome)
+	require.Equal(t, PPVideoTaskStatusRequiresAttention, result.Status)
+	require.Empty(t, gateway.settlements)
+	require.Empty(t, gateway.releases)
+}
+
 func TestPPVideoPollerSuccessSettlesWithProviderDuration(t *testing.T) {
 	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
 	task := newPPVideoPollerTask("ppvidtask_success", "provider-success", PPVideoTaskStatusProcessing, now.Add(-time.Minute))

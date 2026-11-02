@@ -53,6 +53,9 @@ const (
 	PlatformKling              = domain.PlatformKling
 	PlatformHappyHourse        = domain.PlatformHappyHourse
 	PlatformSeedance           = domain.PlatformSeedance
+	PlatformCTMOSeedance       = domain.PlatformCTMOSeedance
+	PlatformGuangying          = domain.PlatformGuangying
+	PlatformOPONE              = domain.PlatformOPONE
 	PlatformByteDance          = domain.PlatformByteDance
 	PlatformWan3               = domain.PlatformWan3
 	PlatformMiniMaxH3          = domain.PlatformMiniMaxH3
@@ -83,6 +86,9 @@ var AllowedQuotaPlatforms = []string{
 	PlatformKling,
 	PlatformHappyHourse,
 	PlatformSeedance,
+	PlatformCTMOSeedance,
+	PlatformGuangying,
+	PlatformOPONE,
 	PlatformByteDance,
 	PlatformWan3,
 	PlatformMiniMaxH3,

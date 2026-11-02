@@ -10,6 +10,7 @@ import {
   MINIMAX_H3_FIXED_MODEL,
   PIXVERSE_V6_FIXED_MODEL,
   GROK_IMAGINE_VIDEO_FIXED_MODEL,
+  GUANGYING_MODEL_MAPPINGS,
   KUAISHOU_FIXED_MODEL,
   WAN3_FIXED_MODELS,
   buildModelMappingObject,
@@ -98,6 +99,18 @@ describe('useModelWhitelist', () => {
         to: KUAISHOU_FIXED_MODEL
       })
     ])
+    expect(getModelsByPlatform('guangying')).toEqual(
+      GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
+    )
+    expect(GUANGYING_MODEL_MAPPINGS.slice(0, 4)).toEqual([
+      { from: 'Seedance 2.5-全参720P', to: 'gy-model-31' },
+      { from: '特惠-Seedance 2.5-超分掺水版', to: 'gy-model-39' },
+      { from: '特价-Seedance 2.5-图文', to: 'gy-model-35' },
+      { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' }
+    ])
+    expect(getPresetMappingsByPlatform('guangying')).toEqual(
+      GUANGYING_MODEL_MAPPINGS.map(mapping => expect.objectContaining(mapping))
+    )
   })
 
 	it('MiniMax Speech uses upstream model synchronization instead of a local preset', () => {

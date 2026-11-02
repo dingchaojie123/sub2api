@@ -89,6 +89,144 @@ func TestMediaQuoteServiceVideo(t *testing.T) {
 	require.Equal(t, string(BillingModeVideo), quote.Pricing.BillingMode)
 }
 
+func TestMediaQuoteServiceVideoUsesChannelBillingMode(t *testing.T) {
+	tests := []struct {
+		name             string
+		model            string
+		billingMode      BillingMode
+		unitPrice        float64
+		wantSettlement   float64
+		wantCredits      float64
+		wantFormula      string
+		wantSnapshotMode string
+	}{
+		{
+			name:             "per request does not multiply duration",
+			model:            "seedance-2.0-930",
+			billingMode:      BillingModePerRequest,
+			unitPrice:        5.6,
+			wantSettlement:   22.4,
+			wantCredits:      224,
+			wantFormula:      "unit_price_per_request * quantity * rate_multiplier",
+			wantSnapshotMode: string(BillingModePerRequest),
+		},
+		{
+			name:             "per second multiplies duration",
+			model:            "seedance2.5-pro-720p",
+			billingMode:      BillingModeVideo,
+			unitPrice:        1.4,
+			wantSettlement:   28,
+			wantCredits:      280,
+			wantFormula:      "unit_price_per_second * duration_seconds * quantity * rate_multiplier",
+			wantSnapshotMode: string(BillingModeVideo),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := mediaQuoteTestKey()
+			key.Group.Platform = PlatformCTMOSeedance
+			repo := &mediaQuoteChannelRepo{
+				channels: []Channel{{
+					ID: 9, Name: "ctmo-video", Status: StatusActive, GroupIDs: []int64{*key.GroupID},
+					ModelPricing: []ChannelModelPricing{{
+						ID: 10, ChannelID: 9, Platform: PlatformCTMOSeedance, Models: []string{tt.model},
+						BillingMode: tt.billingMode, PerRequestPrice: &tt.unitPrice,
+					}},
+				}},
+				platforms: map[int64]string{*key.GroupID: PlatformCTMOSeedance},
+			}
+			billing := NewBillingService(&config.Config{}, nil)
+			resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), billing)
+			svc := NewMediaQuoteService(&mediaQuoteAPIKeyRepo{key: key}, nil, nil, billing, resolver, &config.Config{})
+
+			quote, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+				APIKeyID: 7, TaskType: "video", Model: tt.model, Quantity: 2,
+				Resolution: "720p", DurationSeconds: 5,
+			})
+
+			require.NoError(t, err)
+			require.InDelta(t, tt.unitPrice, quote.Pricing.UnitPrice, 0.0000001)
+			require.InDelta(t, tt.wantSettlement, quote.SettlementAmount.Value, 0.0000001)
+			require.InDelta(t, tt.wantCredits, quote.EstimatedCredits, 0.0000001)
+			require.Equal(t, tt.wantFormula, quote.Pricing.Formula)
+			require.Equal(t, tt.wantSnapshotMode, quote.Pricing.BillingMode)
+			require.Equal(t, PricingSourceChannel, quote.Pricing.PricingSource)
+		})
+	}
+}
+
+func TestMediaQuoteServiceVideoRejectsMissingRequiredChannelPricing(t *testing.T) {
+	key := mediaQuoteTestKey()
+	key.Group.Platform = PlatformCTMOSeedance
+	svc := newMediaQuoteServiceForTest(key)
+
+	_, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+		APIKeyID: 7, TaskType: "video", Model: "seedance-2.0-930", Quantity: 1,
+		Resolution: "720p", DurationSeconds: 5,
+	})
+
+	require.ErrorIs(t, err, ErrMediaQuotePricingUnavailable)
+}
+
+func TestNormalizeMediaQuoteVideoSpecUsesOPONEModelLimits(t *testing.T) {
+	tests := []struct {
+		name       string
+		model      string
+		resolution string
+		duration   int
+		want       string
+		valid      bool
+	}{
+		{name: "B1 fixed duration", model: "seedance-2.5-b1", resolution: "720P", duration: 30, want: "720p", valid: true},
+		{name: "B1 rejects shorter duration", model: "seedance-2.5-b1", resolution: "720p", duration: 29, valid: false},
+		{name: "S7 supports 30 seconds", model: "seedance-2.5-s7", resolution: "1080p", duration: 30, want: "1080p", valid: true},
+		{name: "S8 supports 4 seconds", model: "seedance-2.5-s8", resolution: "480p", duration: 4, want: "480p", valid: true},
+		{name: "Q supports 4K", model: "seedance-2.0-Q", resolution: "4K", duration: 15, want: "4k", valid: true},
+		{name: "2.5 Q supports 30 seconds", model: "seedance-2.5-Q", resolution: "1080p", duration: 30, want: "1080p", valid: true},
+		{name: "2.5 Qs supports 30 seconds", model: "seedance-2.5-Qs", resolution: "1080p", duration: 30, want: "1080p", valid: true},
+		{name: "unknown OPONE model", model: "seedance-retired", resolution: "720p", duration: 5, valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolution, valid := normalizeMediaQuoteVideoSpec(PlatformOPONE, tt.model, tt.resolution, tt.duration)
+			require.Equal(t, tt.valid, valid)
+			require.Equal(t, tt.want, resolution)
+		})
+	}
+}
+
+func TestMediaQuoteServiceSupportsOPONE4KChannelTier(t *testing.T) {
+	key := mediaQuoteTestKey()
+	key.Group.Platform = PlatformOPONE
+	price := 0.5
+	repo := &mediaQuoteChannelRepo{
+		channels: []Channel{{
+			ID: 11, Name: "opone-video", Status: StatusActive, GroupIDs: []int64{*key.GroupID},
+			ModelPricing: []ChannelModelPricing{{
+				ID: 12, ChannelID: 11, Platform: PlatformOPONE, Models: []string{"seedance-2.0-Q"},
+				BillingMode: BillingModeVideo,
+				Intervals:   []PricingInterval{{TierLabel: "4k", PerRequestPrice: &price}},
+			}},
+		}},
+		platforms: map[int64]string{*key.GroupID: PlatformOPONE},
+	}
+	billing := NewBillingService(&config.Config{}, nil)
+	resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), billing)
+	svc := NewMediaQuoteService(&mediaQuoteAPIKeyRepo{key: key}, nil, nil, billing, resolver, &config.Config{})
+
+	quote, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+		APIKeyID: 7, TaskType: "video", Model: "seedance-2.0-Q", Quantity: 2,
+		Resolution: "4K", DurationSeconds: 15,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, "4k", quote.Pricing.Resolution)
+	require.InDelta(t, 30, quote.SettlementAmount.Value, 0.0000001)
+	require.InDelta(t, 300, quote.EstimatedCredits, 0.0000001)
+}
+
 func TestMediaQuoteServiceImageUsesChannelPricingLikeActualBilling(t *testing.T) {
 	key := mediaQuoteTestKey()
 	key.Group.ImagePrice1K = nil

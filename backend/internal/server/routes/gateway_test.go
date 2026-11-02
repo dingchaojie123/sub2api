@@ -313,6 +313,30 @@ func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T
 	}
 }
 
+func TestGatewayRoutesAuthenticatedVideoContentPlatformsAreDispatched(t *testing.T) {
+	for _, platform := range []string{
+		service.PlatformCTMOSeedance,
+		service.PlatformOPONE,
+	} {
+		router := newGatewayRoutesTestRouter(platform)
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			for _, path := range []string{
+				"/v1/videos/request-123/content",
+				"/videos/request-123/content",
+				"/api/model-proxy/v1/videos/request-123/content",
+				"/api/model-proxy/videos/request-123/content",
+			} {
+				req := httptest.NewRequest(method, path, nil)
+				w := httptest.NewRecorder()
+
+				router.ServeHTTP(w, req)
+				require.NotEqual(t, http.StatusNotFound, w.Code, "platform=%s method=%s path=%s should reach the content handler", platform, method, path)
+				require.NotContains(t, w.Body.String(), "Videos API is not supported for this platform")
+			}
+		}
+	}
+}
+
 func TestGatewayRoutesNonGrokVideosAreRejectedAtPlatformGate(t *testing.T) {
 	router := newGatewayRoutesTestRouter(service.PlatformOpenAI)
 

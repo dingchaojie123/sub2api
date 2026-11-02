@@ -976,6 +976,8 @@ export default {
           '配置 Grok 视频生成的每秒单价（USD/秒），留空则使用默认每秒价（grok-imagine-video：480p 0.05/s、720p 0.07/s；video-1.5：480p 0.08/s、720p 0.14/s、1080p 0.25/s）',
         ppDescription:
           'K-Ling、Happy-Hourse、Seedance 均使用当前分组的视频每秒价格。K-Ling 2x 对应 720p，2x Pro 和 4K 对应 1080p；Seedance 4K 对应 1080p。',
+        ctmoDescription:
+          '浙创 OPC Seedance 的积分基础价在当前分组关联渠道中按完整模型 ID 配置：按次模型选择“按请求”，按秒模型选择“视频”。此处仅控制分组倍率，最终扣分 = 模型积分价 × 视频倍率。',
         independentMultiplier: '视频倍率独立',
         videoMultiplier: '视频独立倍率',
         modeHint:

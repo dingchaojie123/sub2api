@@ -537,16 +537,18 @@ export default {
   },
 
   modelList: {
+    eyebrow: '公开报价',
     title: '模型与价格',
-    description: '按你可用的分组查看模型价格。',
-    refresh: '重置分组',
-    groupCount: '{count} 个模型',
+    description: '查看当前支持的文本、图片与视频模型价格，所有价格均按所选规格和计费方式展示。',
+    search: '搜索模型',
+    searchPlaceholder: '搜索模型、分辨率或计费方式',
+    categories: '模型分类',
+    matchCount: '{count} 个报价',
+    emptyTitle: '未找到匹配模型',
+    emptyDescription: '请调整搜索关键词或切换模型分类。',
+    availabilityNote: '价格单位为人民币；“-”表示该档位暂不提供。渠道标识（官 / 官key / 官转）沿用报价表。',
     columns: {
-      model: '模型',
-      platformInput: '本平台输入',
-      platformOutput: '本平台输出',
-      officialInput: '官方输入',
-      officialOutput: '官方输出'
+      model: '模型'
     }
   },
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,6 +29,63 @@ func (h *OpenAIGatewayHandler) PPKlingImageToVideo(c *gin.Context) {
 
 func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 	h.handlePPVideo(c, "", strings.TrimSpace(c.Param("request_id")))
+}
+
+func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
+	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
+	if !ok || apiKey == nil || apiKey.Group == nil ||
+		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformOPONE) {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not supported for this platform")
+		return
+	}
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found")
+		return
+	}
+	requestID := strings.TrimSpace(c.Param("request_id"))
+	if requestID == "" {
+		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Video request id is required")
+		return
+	}
+	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
+	if err != nil || task == nil ||
+		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformOPONE) {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
+		return
+	}
+	selection, err := h.gatewayService.SelectPPVideoTaskAccountForStatus(c.Request.Context(), task.AccountID, task.Platform)
+	if err != nil || selection == nil || selection.Account == nil {
+		h.errorResponse(c, http.StatusServiceUnavailable, "no_available_account", "No eligible video account")
+		return
+	}
+	if selection.ReleaseFunc != nil {
+		defer selection.ReleaseFunc()
+	}
+	fallbackURL := ""
+	if task.Platform == service.PlatformOPONE {
+		fallbackURL = service.PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
+	}
+	resp, err := h.gatewayService.ForwardPPVideoContent(c.Request.Context(), selection.Account, task.TaskID, c.GetHeader("Range"), fallbackURL)
+	if err != nil {
+		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video download failed")
+		return
+	}
+	defer func() { _ = resp.Body.Close() }()
+	for _, header := range []string{"Content-Type", "Content-Length", "Content-Disposition", "Cache-Control", "Accept-Ranges", "Content-Range", "ETag", "Last-Modified"} {
+		if value := strings.TrimSpace(resp.Header.Get(header)); value != "" {
+			c.Header(header, value)
+		}
+	}
+	if strings.TrimSpace(c.Writer.Header().Get("Content-Type")) == "" {
+		c.Header("Content-Type", "application/octet-stream")
+	}
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Status(resp.StatusCode)
+	if c.Request.Method == http.MethodHead {
+		return
+	}
+	_, _ = io.Copy(c.Writer, resp.Body)
 }
 
 func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
@@ -226,30 +284,44 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			return
 		}
 		payloadHash = service.HashUsageRequestPayload(body)
-		rawIdempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
-		if len(rawIdempotencyKey) > service.PPVideoIdempotencyKeyMaxLength {
+		idempotencyKey = resolvePPVideoIdempotencyKey(c.GetHeader("Idempotency-Key"))
+		if len(idempotencyKey) > service.PPVideoIdempotencyKeyMaxLength {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Idempotency-Key must be at most 255 characters")
 			return
 		}
-		idempotencyKey = rawIdempotencyKey
-		if idempotencyKey == "" {
-			idempotencyKey = "pp_video:" + payloadHash
-		}
-		if existing, lookupErr := h.gatewayService.GetPPVideoTaskByIdempotencyKey(c.Request.Context(), subject.UserID, apiKey.ID, idempotencyKey); lookupErr == nil && existing != nil {
-			if existing.RequestHash != payloadHash && existing.RequestHash != rawPayloadHash {
-				h.errorResponse(c, http.StatusConflict, "idempotency_error", "Idempotency-Key was reused with a different video request")
+		if idempotencyKey != "" {
+			existing, lookupErr := h.gatewayService.GetPPVideoTaskByIdempotencyKey(c.Request.Context(), subject.UserID, apiKey.ID, idempotencyKey)
+			if lookupErr == nil && existing != nil {
+				if existing.RequestHash != payloadHash && existing.RequestHash != rawPayloadHash {
+					h.errorResponse(c, http.StatusConflict, "idempotency_error", "Idempotency-Key was reused with a different video request")
+					return
+				}
+				if existing.ResponseBody != "" {
+					c.Header("X-Idempotency-Replayed", "true")
+					writeStoredPPVideoResponse(c, existing)
+					return
+				}
+				if existing.Status == service.PPVideoTaskStatusFailed {
+					released, releaseErr := h.gatewayService.ReleaseFailedPPVideoTaskIdempotencyKey(
+						c.Request.Context(), existing.LocalTaskID, idempotencyKey,
+					)
+					if releaseErr != nil {
+						h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Video task storage is unavailable")
+						return
+					}
+					if !released {
+						h.errorResponse(c, http.StatusConflict, "idempotency_error", "Previous video generation submission failed; retry with a new Idempotency-Key")
+						return
+					}
+				} else {
+					h.errorResponse(c, http.StatusConflict, "idempotency_error", "Video generation request is still being submitted")
+					return
+				}
+			}
+			if lookupErr != nil && !errors.Is(lookupErr, service.ErrPPVideoTaskNotFound) {
+				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Video task storage is unavailable")
 				return
 			}
-			if existing.ResponseBody != "" {
-				c.Header("X-Idempotency-Replayed", "true")
-				writeStoredPPVideoResponse(c, existing)
-				return
-			}
-			h.errorResponse(c, http.StatusConflict, "idempotency_error", "Video generation request is still being submitted")
-			return
-		} else if lookupErr != nil && !errors.Is(lookupErr, service.ErrPPVideoTaskNotFound) {
-			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Video task storage is unavailable")
-			return
 		}
 	}
 
@@ -386,6 +458,9 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			}
 		}
 	}
+	if task != nil && task.TaskID == "" && account.Platform == service.PlatformGuangying {
+		publicRequest.UpstreamIdempotencyKey = task.LocalTaskID
+	}
 
 	result, err := h.gatewayService.ForwardPPVideoBuffered(c.Request.Context(), c, account, operation, requestID, body, publicRequest)
 	if err != nil {
@@ -498,6 +573,13 @@ func ppVideoOperationFromRequest(body []byte) service.PPVideoOperation {
 	return service.PPVideoOperationKlingTextToVideo
 }
 
+// resolvePPVideoIdempotencyKey enables request deduplication only when the
+// caller explicitly opts in. Content-derived keys prevent legitimate repeated
+// generations and permanently collide with failed submissions.
+func resolvePPVideoIdempotencyKey(rawKey string) string {
+	return strings.TrimSpace(rawKey)
+}
+
 func shouldReplayStoredPPVideoStatus(task *service.PPVideoTask) bool {
 	return task != nil &&
 		service.IsTerminalPPVideoTaskStatus(task.Status) &&
@@ -534,6 +616,9 @@ func normalizeStoredPPVideoResponseBody(task *service.PPVideoTask) []byte {
 	parsed, err := service.ParsePPVideoResponse(task.Platform, raw)
 	if err != nil {
 		return raw
+	}
+	if strings.TrimSpace(parsed.TaskID) == "" {
+		parsed.TaskID = strings.TrimSpace(task.TaskID)
 	}
 	durationMilliseconds := task.GeneratedVideoDurationMilliseconds
 	if durationMilliseconds <= 0 {

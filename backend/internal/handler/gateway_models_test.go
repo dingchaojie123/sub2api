@@ -134,6 +134,53 @@ func TestGatewayModels_SeedanceGroupDoesNotExposeJimengModelOrClaudeFallback(t *
 	require.NotContains(t, modelIDsForTest(got.Data), "claude-sonnet-4-6")
 }
 
+func TestGatewayModels_OPONEGroupReturnsAllMappedUpstreamModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(2003)
+	h := newGatewayModelsHandlerForTest(
+		&gatewayModelsAccountRepoStub{
+			byGroup: map[int64][]service.Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: service.PlatformOPONE,
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								"seedance-2.0-Q":  "seedance-2.0-Q",
+								"seedance-2.5-Q":  "seedance-2.5-Q",
+								"seedance-2.5-Qs": "seedance-2.5-Qs",
+								"seedance-2.5-s7": "seedance-2.5-s7",
+								"seedance-2.5-s8": "seedance-2.5-s8",
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/model-proxy/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOPONE},
+	})
+
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, []string{
+		"seedance-2.0-Q",
+		"seedance-2.5-Q",
+		"seedance-2.5-Qs",
+		"seedance-2.5-s7",
+		"seedance-2.5-s8",
+	}, modelIDsForTest(got.Data))
+}
+
 func TestGatewayModels_KlingGroupDoesNotExposeSeedanceAliasEvenWhenMapped(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

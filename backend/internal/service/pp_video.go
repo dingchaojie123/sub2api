@@ -14,10 +14,12 @@ import (
 )
 
 const (
-	PPVideoTaskStatusProcessing = "processing"
-	PPVideoTaskStatusSucceeded  = "succeeded"
-	PPVideoTaskStatusFailed     = "failed"
+	PPVideoTaskStatusProcessing        = "processing"
+	PPVideoTaskStatusSucceeded         = "succeeded"
+	PPVideoTaskStatusFailed            = "failed"
+	PPVideoTaskStatusRequiresAttention = "requires_attention"
 
+	PPVideoBillingFormulaPerRequest      = "per_request"
 	PPVideoBillingFormulaPerSecond       = "per_second"
 	PPVideoDefaultFrameRate              = 24.0
 	SiteVideoDefaultModel                = "by-seedance2.0-933"
@@ -26,6 +28,9 @@ const (
 	SiteVideoDefaultResolution           = VideoBillingResolution720P
 	ModelVerseVideoDefaultBaseURL        = "https://api.modelverse.cn/v1"
 	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
+	CTMOSeedanceDefaultBaseURL           = "https://video.ctmoai.com"
+	GuangyingDefaultBaseURL              = "https://api.guangying.store"
+	OPONEDefaultBaseURL                  = "https://api.opone.cc"
 	ByteDanceVideoDefaultModel           = "doubao-seedance-2-0-260128"
 	ByteDanceSeedance25Model             = "doubao-seedance-2-5-260628"
 	ByteDanceSeedance25GlobalModel       = "doubao-seedance-2-5-260628-global"
@@ -39,6 +44,7 @@ const (
 
 	ppVideoLegacySiteModel             = "video-v1"
 	ppVideoSeedanceDefaultModel        = ByteDanceVideoDefaultModel
+	legacyTikTokSeedanceOneModel       = "SD2.5-30-10-10"
 	ppVideoHappyHorseTextDefaultModel  = "happyhorse-1.0-t2v"
 	ppVideoHappyHorseImageDefaultModel = "happyhorse-1.0-i2v"
 	ppVideoKlingDefaultModel           = "kling-v3"
@@ -46,6 +52,53 @@ const (
 	ppVideoKlingPromptMaxRunes         = 2500
 	ppVideoSeedancePromptMaxRunes      = 2000
 )
+
+var ctmoSeedanceSupportedModels = []string{
+	"seedance-2.0-930",
+	"seedance-2.0-903",
+	"seedance2.0-pro-720p",
+	"seedance2.5-pro-720p",
+	"seedance2.5-one-720p",
+	"seedance2.5-one-1080p",
+	"seedance-2.0-max",
+	"doubao-seedance-2.5",
+	"seedance-2.5-720-max",
+}
+
+var oponeSeedanceSupportedModels = []string{
+	"seedance-2.5-b1",
+	"seedance-2.5-b2",
+	"seedance-2.5-s1",
+	"seedance-2.5-s5",
+	"seedance-2.5-s6",
+	"seedance-2.5-s7",
+	"seedance-2.5-s8",
+	"seedance-2.5-SS",
+	"seedance-2.0-Q",
+	"seedance-2.0fast-Q",
+	"seedance-2.0mini-Q",
+	"seedance-2.5-Q",
+	"seedance-2.5-Qs",
+}
+
+type guangyingSeedanceModelMapping struct {
+	Public   string
+	Upstream string
+	Aliases  []string
+}
+
+var guangyingSeedanceModelMappings = []guangyingSeedanceModelMapping{
+	{Public: "Seedance 2.5-全参720P", Upstream: "gy-model-31", Aliases: []string{"Seedance 2.5-全参720P 按秒计费"}},
+	{Public: "特惠-Seedance 2.5-超分掺水版", Upstream: "gy-model-39", Aliases: []string{"特惠-Seedance 2.5-超分掺水版 按次计费"}},
+	{Public: "特价-Seedance 2.5-图文", Upstream: "gy-model-35", Aliases: []string{"特价-Seedance 2.5-图文 按次计费"}},
+	{Public: "Seedance 2.5-全参1080超分", Upstream: "gy-model-40", Aliases: []string{"Seedance 2.5-全参1080超分 按秒计费"}},
+	{Public: "竖屏-Seedance 2.0按次计费", Upstream: "gy-model-13"},
+	{Public: "竖屏-Seedance 2.0 Mini 按次计费", Upstream: "gy-model-19"},
+	{Public: "竖屏-Seedance 2.0 Fast 按次计费", Upstream: "gy-model-20"},
+	{Public: "Seedance 2.0-无参考视频 按秒计费", Upstream: "gy-model-21"},
+	{Public: "Seedance 2.5-无参考视频 按秒计费", Upstream: "gy-model-22"},
+	{Public: "Seedance 2.0按次计费", Upstream: "gy-model-30"},
+}
 
 type PPVideoOperation string
 
@@ -87,21 +140,22 @@ type PPVideoBillingMetadata struct {
 }
 
 type PPVideoPublicRequest struct {
-	Model                string
-	UpstreamModel        string
-	Prompt               string
-	DurationMilliseconds int64
-	VideoCount           int
-	Resolution           string
-	HasImage             bool
-	HasExplicitModel     bool
+	Model                  string
+	UpstreamModel          string
+	Prompt                 string
+	DurationMilliseconds   int64
+	VideoCount             int
+	Resolution             string
+	HasImage               bool
+	HasExplicitModel       bool
+	UpstreamIdempotencyKey string
 }
 
 func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
 	case Platform88APIVideo:
 		return true
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -141,6 +195,27 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		HasImage:             ppVideoRequestHasImage(body),
 		HasExplicitModel:     strings.TrimSpace(requestedModel) != "",
 	}
+	if platform == PlatformCTMOSeedance && public.HasExplicitModel && !ppVideoIsCTMOSeedanceModel(public.Model) {
+		return nil, PPVideoPublicRequest{}, fmt.Errorf(
+			"model %q is not supported by platform %q",
+			public.Model,
+			platform,
+		)
+	}
+	if platform == PlatformGuangying && public.HasExplicitModel && !ppVideoIsGuangyingModel(public.Model) {
+		return nil, PPVideoPublicRequest{}, fmt.Errorf(
+			"model %q is not supported by platform %q",
+			public.Model,
+			platform,
+		)
+	}
+	if platform == PlatformOPONE && public.HasExplicitModel && !ppVideoIsOPONESeedanceModel(public.Model) {
+		return nil, PPVideoPublicRequest{}, fmt.Errorf(
+			"model %q is not supported by platform %q",
+			public.Model,
+			platform,
+		)
+	}
 	if public.HasExplicitModel && ppVideoModelKnownForeignToPlatform(platform, public.Model) {
 		return nil, PPVideoPublicRequest{}, fmt.Errorf(
 			"model %q is not supported by platform %q",
@@ -176,6 +251,30 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		payload["resolution"] = public.Resolution
 		if public.VideoCount > 1 || !gjson.GetBytes(body, "n").Exists() {
 			payload["n"] = public.VideoCount
+		}
+	case PlatformCTMOSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeCTMOSeedancePayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformGuangying:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeGuangyingPayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformOPONE:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeOPONESeedancePayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
 		}
 	case PlatformHappyHourse:
 		payload["model"] = public.UpstreamModel
@@ -2008,14 +2107,22 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
-	case Platform88APIVideo:
+	case Platform88APIVideo, PlatformCTMOSeedance, PlatformOPONE:
 		if operation != PPVideoOperationGeneric {
-			return "", fmt.Errorf("88API does not support operation %q", operation)
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
 		if taskID != "" {
 			return "/v1/videos/" + url.PathEscape(taskID), nil
 		}
 		return "/v1/videos", nil
+	case PlatformGuangying:
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if taskID != "" {
+			return "/v1/tasks/" + url.PathEscape(taskID), nil
+		}
+		return "/v1/video/generations", nil
 	case PlatformMiniMaxH3CompShare:
 		if operation == PPVideoOperationCancel && taskID != "" {
 			return "/minimax/v2/video_generation/" + url.PathEscape(taskID), nil
@@ -2252,10 +2359,13 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		RawBody: append([]byte(nil), body...),
 	}
 	hasFinalVideo := ppVideoResponseHasFinalVideo(body)
-	if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
+	mediaPending := platform == PlatformOPONE && ppVideoResponseIndicatesMediaPending(body)
+	if mediaPending && !hasFinalVideo {
+		result.Status = PPVideoTaskStatusProcessing
+	} else if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
 		result.Status = PPVideoTaskStatusSucceeded
 	}
-	if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo {
+	if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformCTMOSeedance && platform != PlatformOPONE {
 		result.Status = PPVideoTaskStatusProcessing
 	}
 	if result.VideoCount <= 0 {
@@ -2296,6 +2406,14 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	videoURL := ppVideoExtractVideoURL(raw)
 	if platform == Platform88APIVideo {
 		videoURL = extractPPVideoText(raw, "url", "video_url", "result_url")
+	}
+	if platform == PlatformOPONE && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+		// OPONE result URLs are signed cross-origin resources and are not
+		// consistently browser-readable. Always expose the authenticated local
+		// content proxy while retaining provider-specific fields in the raw body.
+		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
+	} else if platform == PlatformCTMOSeedance && videoURL == "" && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	}
 	if videoURL != "" {
 		ppVideoSetPublicVideoURL(payload, videoURL)
@@ -2411,12 +2529,14 @@ func ppVideoMarkProcessingStatusFields(value any) {
 
 func NormalizePPVideoTaskStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "pending", "processing", "running", "queued", "created", "submitted", "in_progress", "waiting":
+	case "accepted", "pending", "processing", "reconciling", "running", "queued", "created", "submitted", "in_progress", "waiting", "unknown":
 		return PPVideoTaskStatusProcessing
 	case "success", "succeed", "succeeded", "completed", "complete", "done", "finished", "successful":
 		return PPVideoTaskStatusSucceeded
 	case "fail", "failed", "failure", "error", "cancelled", "canceled", "rejected", "refunded", "timeout", "timed_out", "expired":
 		return PPVideoTaskStatusFailed
+	case "requires_attention", "needs_attention":
+		return PPVideoTaskStatusRequiresAttention
 	default:
 		return strings.ToLower(strings.TrimSpace(status))
 	}
@@ -2524,6 +2644,9 @@ func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBill
 		"metadata.input_video_duration",
 		"metadata.input_video_duration_seconds",
 	)
+	if platform == PlatformOPONE && strings.EqualFold(metadata.Model, "seedance-2.5-s5") {
+		metadata.InputVideoDurationMilliseconds = oponeReferenceVideoDurationMilliseconds(body)
+	}
 	metadata.OutputWidth = extractPPVideoPositiveInt(body,
 		"output_width",
 		"width",
@@ -2730,6 +2853,336 @@ func normalizePPVideoSeedanceMediaFields(payload map[string]any, body []byte) er
 	return nil
 }
 
+func normalizeGuangyingPayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("Guangying request body is required")
+	}
+	if strings.TrimSpace(public.UpstreamModel) == "" {
+		return nil, fmt.Errorf("Guangying model is required")
+	}
+	if strings.TrimSpace(public.Prompt) == "" {
+		return nil, fmt.Errorf("Guangying prompt is required")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("Guangying duration must be a positive integer number of seconds")
+	}
+	if public.VideoCount != 1 {
+		return nil, fmt.Errorf("Guangying supports one video per request")
+	}
+
+	ratio := extractPPVideoText(body,
+		"ratio", "aspect_ratio", "parameters.ratio", "parameters.aspect_ratio",
+		"data.ratio", "data.aspect_ratio", "metadata.ratio", "metadata.aspect_ratio",
+	)
+	if ratio == "" {
+		ratio = "16:9"
+	}
+
+	assets, err := guangyingAssetsFromRequest(body)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]any{
+		"model":      public.UpstreamModel,
+		"prompt":     strings.TrimSpace(public.Prompt),
+		"duration":   int(public.DurationMilliseconds / 1000),
+		"ratio":      ratio,
+		"resolution": public.Resolution,
+		"nativeFace": extractPPVideoBool(body, "nativeFace", "native_face"),
+	}
+	if len(assets) > 0 {
+		result["assets"] = assets
+	}
+	if metadata := gjson.GetBytes(body, "metadata"); metadata.Exists() && metadata.IsObject() {
+		var value map[string]any
+		if json.Unmarshal([]byte(metadata.Raw), &value) == nil && value != nil {
+			result["metadata"] = value
+		}
+	}
+	public.VideoCount = 1
+	return result, nil
+}
+
+func guangyingAssetsFromRequest(body []byte) ([]any, error) {
+	assets := make([]any, 0)
+	seenNames := make(map[string]struct{})
+	for index, item := range gjson.GetBytes(body, "assets").Array() {
+		assetType := strings.ToLower(strings.TrimSpace(item.Get("type").String()))
+		fileID := strings.TrimSpace(item.Get("fileId").String())
+		if fileID == "" {
+			fileID = strings.TrimSpace(item.Get("file_id").String())
+		}
+		rawURL := strings.TrimSpace(item.Get("url").String())
+		name := strings.TrimSpace(item.Get("name").String())
+		if assetType != "image" && assetType != "video" && assetType != "audio" {
+			return nil, fmt.Errorf("Guangying assets[%d].type must be image, video, or audio", index)
+		}
+		if fileID != "" {
+			return nil, fmt.Errorf("Guangying assets[%d].fileId is not accepted; submit a public url so the gateway can upload it for the selected account", index)
+		}
+		if rawURL == "" {
+			return nil, fmt.Errorf("Guangying assets[%d] requires url", index)
+		}
+		if name == "" {
+			name = fmt.Sprintf("%s%d", assetType, index+1)
+		}
+		if _, exists := seenNames[name]; exists {
+			return nil, fmt.Errorf("Guangying asset name %q is duplicated", name)
+		}
+		seenNames[name] = struct{}{}
+		asset := map[string]any{"type": assetType, "name": name}
+		asset["url"] = rawURL
+		assets = append(assets, asset)
+	}
+
+	mediaFields := []struct {
+		kind  string
+		paths []string
+	}{
+		{kind: "image", paths: []string{"images", "image", "image_url", "start_frame_url", "end_frame_url"}},
+		{kind: "video", paths: []string{"videos"}},
+		{kind: "audio", paths: []string{"audios"}},
+	}
+	mediaIndexes := map[string]int{"image": 1, "video": 1, "audio": 1}
+	for _, field := range mediaFields {
+		for _, path := range field.paths {
+			value := gjson.GetBytes(body, path)
+			if !value.Exists() {
+				continue
+			}
+			values := value.Array()
+			if !value.IsArray() {
+				values = []gjson.Result{value}
+			}
+			for _, entry := range values {
+				rawURL := strings.TrimSpace(entry.String())
+				if rawURL == "" {
+					continue
+				}
+				name := fmt.Sprintf("%s%d", field.kind, mediaIndexes[field.kind])
+				for {
+					if _, exists := seenNames[name]; !exists {
+						break
+					}
+					mediaIndexes[field.kind]++
+					name = fmt.Sprintf("%s%d", field.kind, mediaIndexes[field.kind])
+				}
+				mediaIndexes[field.kind]++
+				seenNames[name] = struct{}{}
+				assets = append(assets, map[string]any{"type": field.kind, "name": name, "url": rawURL})
+			}
+		}
+	}
+	if len(assets) > 50 {
+		return nil, fmt.Errorf("Guangying accepts at most 50 reference assets")
+	}
+	return assets, nil
+}
+
+func normalizeCTMOSeedancePayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("CTMO Seedance request body is required")
+	}
+	if public.DurationMilliseconds <= 0 || public.DurationMilliseconds%1000 != 0 {
+		return nil, fmt.Errorf("CTMO Seedance seconds must be a positive integer")
+	}
+	if err := normalizePPVideoSeedanceMediaFields(payload, body); err != nil {
+		return nil, err
+	}
+
+	ratio := extractPPVideoText(body,
+		"aspect_ratio", "ratio", "parameters.aspect_ratio", "parameters.ratio",
+		"data.aspect_ratio", "data.ratio", "metadata.aspect_ratio", "metadata.ratio",
+	)
+	if ratio == "" {
+		ratio = "16:9"
+	}
+
+	startFrame := extractPPVideoText(body, "input_reference", "start_frame_url", "first_frame_url")
+	endFrame := extractPPVideoText(body, "image_end", "end_frame_url", "last_frame_url")
+	if (startFrame == "") != (endFrame == "") {
+		return nil, fmt.Errorf("CTMO Seedance first/last-frame mode requires both input_reference and image_end")
+	}
+	if startFrame != "" {
+		if images, ok := payload["images"].([]any); ok && len(images) > 0 {
+			return nil, fmt.Errorf("CTMO Seedance cannot combine images with first/last-frame mode")
+		}
+		if images, ok := payload["images"].([]string); ok && len(images) > 0 {
+			return nil, fmt.Errorf("CTMO Seedance cannot combine images with first/last-frame mode")
+		}
+	}
+	if startFrame != "" {
+		payload["input_reference"] = startFrame
+		payload["image_end"] = endFrame
+	}
+	hasReferenceMedia := startFrame != "" || ppVideoPayloadArrayHasItems(payload, "images") || ppVideoPayloadArrayHasItems(payload, "videos") || ppVideoPayloadArrayHasItems(payload, "audios")
+	if public.Prompt == "" && !hasReferenceMedia {
+		return nil, fmt.Errorf("CTMO Seedance prompt is required when no reference media is provided")
+	}
+
+	if public.UpstreamModel != "" {
+		payload["model"] = public.UpstreamModel
+	} else {
+		delete(payload, "model")
+	}
+	payload["seconds"] = int(public.DurationMilliseconds / 1000)
+	payload["aspect_ratio"] = ratio
+	if public.Prompt != "" {
+		payload["prompt"] = public.Prompt
+	}
+
+	allowed := map[string]struct{}{
+		"model": {}, "prompt": {}, "seconds": {}, "aspect_ratio": {},
+		"images": {}, "videos": {}, "audios": {}, "resolution": {},
+		"input_reference": {}, "image_end": {},
+	}
+	for key := range payload {
+		if _, ok := allowed[key]; !ok {
+			delete(payload, key)
+		}
+	}
+	public.VideoCount = 1
+	return payload, nil
+}
+
+func normalizeOPONESeedancePayload(payload map[string]any, body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	if payload == nil || public == nil {
+		return nil, fmt.Errorf("OPONE request body is required")
+	}
+	model, ok := oponeCanonicalSeedanceModel(public.UpstreamModel)
+	if !ok {
+		return nil, fmt.Errorf("OPONE model %q is not supported", public.Model)
+	}
+	if public.VideoCount != 1 {
+		return nil, fmt.Errorf("OPONE supports one video per request")
+	}
+	if strings.TrimSpace(public.Prompt) == "" {
+		return nil, fmt.Errorf("OPONE prompt is required")
+	}
+
+	duration, durationFound := extractPPVideoDurationMillisecondsWithPresence(body, "duration", "duration_seconds", "seconds")
+	minSeconds, maxSeconds, defaultSeconds, durationRequired := oponeDurationSpec(model)
+	if !durationFound {
+		if durationRequired {
+			return nil, fmt.Errorf("OPONE duration is required for model %q", model)
+		}
+		duration = int64(defaultSeconds) * 1000
+	}
+	if duration <= 0 || duration%1000 != 0 || duration < int64(minSeconds)*1000 || duration > int64(maxSeconds)*1000 {
+		if minSeconds == maxSeconds {
+			return nil, fmt.Errorf("OPONE duration for model %q must be %d seconds", model, minSeconds)
+		}
+		return nil, fmt.Errorf("OPONE duration for model %q must be an integer from %d to %d seconds", model, minSeconds, maxSeconds)
+	}
+
+	resolution := normalizePPVideoResolution(public.Resolution)
+	if resolution == "" {
+		resolution = VideoBillingResolution720P
+	}
+	if !oponeResolutionAllowed(model, resolution) {
+		return nil, fmt.Errorf("OPONE resolution %q is not supported by model %q", resolution, model)
+	}
+	if aspectRatio := strings.TrimSpace(extractPPVideoText(body, "aspect_ratio", "ratio", "metadata.ratio")); aspectRatio != "" && !oponeAspectRatioAllowed(model, aspectRatio) {
+		return nil, fmt.Errorf("OPONE aspect ratio %q is not supported by model %q", aspectRatio, model)
+	}
+
+	payload["model"] = model
+	if strings.EqualFold(model, "seedance-2.5-SS") {
+		metadata, _ := payload["metadata"].(map[string]any)
+		if metadata == nil {
+			metadata = make(map[string]any)
+		}
+		metadata["resolution"] = resolution
+		if ratio := strings.TrimSpace(extractPPVideoText(body, "aspect_ratio", "ratio", "metadata.ratio")); ratio != "" {
+			metadata["ratio"] = ratio
+		}
+		payload["metadata"] = metadata
+		payload["seconds"] = int(duration / 1000)
+		delete(payload, "duration")
+		delete(payload, "duration_seconds")
+		delete(payload, "resolution")
+		delete(payload, "aspect_ratio")
+		delete(payload, "ratio")
+	} else {
+		payload["duration"] = int(duration / 1000)
+		payload["resolution"] = resolution
+		delete(payload, "seconds")
+		delete(payload, "duration_seconds")
+	}
+	public.Model = model
+	public.UpstreamModel = model
+	public.DurationMilliseconds = duration
+	public.Resolution = resolution
+	public.VideoCount = 1
+	return payload, nil
+}
+
+func oponeDurationSpec(model string) (minSeconds, maxSeconds, defaultSeconds int, required bool) {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "seedance-2.5-b1", "seedance-2.5-b2":
+		return 30, 30, 30, false
+	case "seedance-2.5-s1":
+		return 5, 30, 5, false
+	case "seedance-2.0-q", "seedance-2.0fast-q", "seedance-2.0mini-q":
+		return 4, 15, 5, false
+	case "seedance-2.5-s6", "seedance-2.5-ss":
+		return 4, 30, 0, true
+	case "seedance-2.5-s7", "seedance-2.5-s8":
+		// OPONE exposes these models through /v1/models but does not publish
+		// model-specific duration requirements. Keep them compatible with the
+		// other S/Q variants by supplying the provider's standard 5s default.
+		return 4, 30, 5, false
+	default:
+		return 4, 30, 5, false
+	}
+}
+
+func oponeResolutionAllowed(model, resolution string) bool {
+	resolution = strings.ToLower(strings.TrimSpace(resolution))
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "seedance-2.5-b1", "seedance-2.5-b2":
+		return resolution == VideoBillingResolution720P
+	case "seedance-2.5-s1", "seedance-2.5-s5", "seedance-2.0fast-q", "seedance-2.0mini-q":
+		return resolution == VideoBillingResolution480P || resolution == VideoBillingResolution720P
+	case "seedance-2.0-q":
+		return resolution == VideoBillingResolution480P || resolution == VideoBillingResolution720P || resolution == VideoBillingResolution1080P || resolution == "4k"
+	default:
+		return resolution == VideoBillingResolution480P || resolution == VideoBillingResolution720P || resolution == VideoBillingResolution1080P
+	}
+}
+
+func oponeAspectRatioAllowed(model, ratio string) bool {
+	ratio = strings.ToLower(strings.TrimSpace(ratio))
+	for _, allowed := range []string{"21:9", "16:9", "4:3", "1:1", "3:4", "9:16"} {
+		if ratio == allowed {
+			return true
+		}
+	}
+	return strings.EqualFold(strings.TrimSpace(model), "seedance-2.5-SS") && ratio == "auto"
+}
+
+func huliAISeedanceDefaultDurationSeconds(model string) int {
+	switch strings.ToLower(strings.TrimSpace(model)) {
+	case "sd-2.0-满血", "sd-2.5-满血", "sd-2.0-低价", "sd-2.5-低价":
+		return 5
+	case "seedance-2.0-max", "seedance-2.5-max", "videopipe-doubao-2.0", "seedance2.0-vip", "seedance-vip-max", "seedance2.0特惠":
+		return 15
+	case "sd2.5-z", "sd2.5-z-1":
+		return 30
+	default:
+		return 0
+	}
+}
+
+func ppVideoPayloadArrayHasItems(payload map[string]any, key string) bool {
+	items, ok := payload[key].([]any)
+	if ok {
+		return len(items) > 0
+	}
+	stringItems, ok := payload[key].([]string)
+	return ok && len(stringItems) > 0
+}
+
 func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 	model := strings.TrimSpace(public.Model)
 	switch platform {
@@ -2772,6 +3225,13 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 	case PlatformSeedance:
 		if ppVideoIsPublicDefaultAlias(model) {
 			return ppVideoSeedanceDefaultModel
+		}
+		return model
+	case PlatformCTMOSeedance:
+		return model
+	case PlatformGuangying:
+		if upstreamModel, ok := ppVideoGuangyingUpstreamModel(model); ok {
+			return upstreamModel
 		}
 		return model
 	default:
@@ -2827,9 +3287,26 @@ func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest
 	if platform == PlatformKuaishou {
 		return KuaishouVideoDefaultModel
 	}
+	if platform == PlatformGuangying {
+		model := strings.TrimSpace(public.Model)
+		if account != nil {
+			if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
+				model = strings.TrimSpace(mappedModel)
+			} else if model == "" {
+				model = ppVideoFirstMappedModelForAccount(platform, account)
+			}
+		}
+		if upstreamModel, ok := ppVideoGuangyingUpstreamModel(model); ok {
+			return upstreamModel
+		}
+		return model
+	}
 	if account != nil {
 		if mappedModel, matched := account.ResolveMappedModel(public.Model); matched {
 			if mappedModel = strings.TrimSpace(mappedModel); mappedModel != "" {
+				if ppVideoShouldRestoreLegacyTikTokSeedanceModel(platform, public.Model, mappedModel) {
+					return strings.TrimSpace(public.Model)
+				}
 				return mappedModel
 			}
 		}
@@ -2840,6 +3317,28 @@ func ppVideoUpstreamModelForAccount(platform string, public PPVideoPublicRequest
 		}
 	}
 	return ppVideoUpstreamModel(platform, public)
+}
+
+func ppVideoShouldRestoreLegacyTikTokSeedanceModel(platform string, requestedModel string, mappedModel string) bool {
+	if platform != PlatformSeedance && platform != PlatformCTMOSeedance {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(mappedModel), legacyTikTokSeedanceOneModel) {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(requestedModel)) {
+	case "seedance2.5-one-720p", "seedance2.5-one-1080p":
+		return true
+	default:
+		return false
+	}
+}
+
+func restoreLegacyTikTokSeedanceOneModelInBody(platform string, public PPVideoPublicRequest, body []byte) []byte {
+	if !ppVideoShouldRestoreLegacyTikTokSeedanceModel(platform, public.Model, PPVideoModelFromBody(body)) {
+		return body
+	}
+	return ReplaceModelInBody(body, strings.TrimSpace(public.Model))
 }
 
 func ppVideoFirstMappedModelForAccount(platform string, account *Account) string {
@@ -2895,6 +3394,12 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsHappyHorseModel(model)
 	case PlatformSeedance:
 		return ppVideoIsSeedanceModel(model)
+	case PlatformCTMOSeedance:
+		return ppVideoIsCTMOSeedanceModel(model)
+	case PlatformGuangying:
+		return ppVideoIsGuangyingModel(model)
+	case PlatformOPONE:
+		return ppVideoIsOPONESeedanceModel(model)
 	case PlatformByteDance:
 		return ppVideoIsByteDanceModel(model)
 	case PlatformWan3:
@@ -2920,13 +3425,13 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if model == "" || ppVideoIsPublicDefaultAlias(model) {
 		return false
 	}
-	if ppVideoIsJimengModel(model) {
-		return true
-	}
 	if ppVideoModelBelongsToPlatform(platform, model) {
 		return false
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
+	if ppVideoIsJimengModel(model) {
+		return true
+	}
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		if candidate == platform {
 			continue
 		}
@@ -2940,6 +3445,28 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 func filterPPVideoPublicModelsForPlatform(platform string, models []string) []string {
 	if !IsPPVideoPlatform(platform) {
 		return models
+	}
+	if platform == PlatformOPONE {
+		// OPONE publishes new Seedance variants before their request and billing
+		// specifications are added locally. Keep account mappings discoverable;
+		// request validation still controls which models can be invoked safely.
+		return models
+	}
+	if platform == PlatformGuangying {
+		filtered := make([]string, 0, len(models))
+		seen := make(map[string]struct{}, len(models))
+		for _, model := range models {
+			publicModel, ok := ppVideoGuangyingPublicModel(model)
+			if !ok {
+				continue
+			}
+			if _, exists := seen[publicModel]; exists {
+				continue
+			}
+			seen[publicModel] = struct{}{}
+			filtered = append(filtered, publicModel)
+		}
+		return filtered
 	}
 
 	filtered := make([]string, 0, len(models))
@@ -2958,7 +3485,7 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 	return filtered
 }
 
-// FilterPPVideoPublicModelsForPlatform keeps only model IDs that belong to the
+// FilterPPVideoPublicModelsForPlatform keeps only public model names that belong to the
 // selected PP video platform. It is shared by public model listing and admin
 // account model inspection so both surfaces enforce the same isolation rules.
 func FilterPPVideoPublicModelsForPlatform(platform string, models []string) []string {
@@ -2969,6 +3496,92 @@ func ppVideoIsSeedanceModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
 	return strings.HasPrefix(model, "seedance") ||
 		strings.HasPrefix(model, "doubao-seedance-")
+}
+
+func ppVideoIsCTMOSeedanceModel(model string) bool {
+	model = strings.TrimSpace(model)
+	for _, supported := range ctmoSeedanceSupportedModels {
+		if strings.EqualFold(model, supported) {
+			return true
+		}
+	}
+	return false
+}
+
+func ppVideoIsGuangyingModel(model string) bool {
+	_, ok := ppVideoGuangyingUpstreamModel(model)
+	return ok
+}
+
+func ppVideoIsOPONESeedanceModel(model string) bool {
+	_, ok := oponeCanonicalSeedanceModel(model)
+	return ok
+}
+
+func oponeCanonicalSeedanceModel(model string) (string, bool) {
+	model = strings.TrimSpace(model)
+	for _, supported := range oponeSeedanceSupportedModels {
+		if strings.EqualFold(model, supported) {
+			return supported, true
+		}
+	}
+	return "", false
+}
+
+func oponeReferenceVideoDurationMilliseconds(body []byte) int64 {
+	var total int64
+	for _, path := range []string{"videos", "references"} {
+		for _, item := range gjson.GetBytes(body, path).Array() {
+			if path == "references" && !strings.EqualFold(strings.TrimSpace(item.Get("role").String()), "reference_video") {
+				continue
+			}
+			duration := extractPPVideoDurationMilliseconds([]byte(item.Raw), "durationSeconds", "duration_seconds", "duration")
+			if duration > 0 {
+				total += duration
+			}
+		}
+	}
+	return total
+}
+
+func ppVideoGuangyingUpstreamModel(model string) (string, bool) {
+	mapping, ok := ppVideoGuangyingModelMapping(model)
+	if !ok {
+		return "", false
+	}
+	return mapping.Upstream, true
+}
+
+func ppVideoGuangyingPublicModel(model string) (string, bool) {
+	mapping, ok := ppVideoGuangyingModelMapping(model)
+	if !ok {
+		return "", false
+	}
+	return mapping.Public, true
+}
+
+func ppVideoGuangyingModelAliases(model string) []string {
+	mapping, ok := ppVideoGuangyingModelMapping(model)
+	if !ok {
+		return nil
+	}
+	aliases := []string{mapping.Public, mapping.Upstream}
+	return append(aliases, mapping.Aliases...)
+}
+
+func ppVideoGuangyingModelMapping(model string) (guangyingSeedanceModelMapping, bool) {
+	model = strings.TrimSpace(model)
+	for _, mapping := range guangyingSeedanceModelMappings {
+		if strings.EqualFold(model, mapping.Public) || strings.EqualFold(model, mapping.Upstream) {
+			return mapping, true
+		}
+		for _, alias := range mapping.Aliases {
+			if strings.EqualFold(model, alias) {
+				return mapping, true
+			}
+		}
+	}
+	return guangyingSeedanceModelMapping{}, false
 }
 
 func ppVideoIsByteDanceModel(model string) bool {
@@ -3279,13 +3892,40 @@ func ppVideoExtractVideoURL(body []byte) string {
 	return extractPPVideoText(body, ppVideoVideoURLPaths()...)
 }
 
+// PPVideoProviderURLFromResponse returns the provider-owned delivery URL kept
+// in a normalized task response. OPONE content delivery prefers this signed URL
+// and falls back to the authenticated content endpoint when it has expired.
+func PPVideoProviderURLFromResponse(body []byte) string {
+	return extractPPVideoText(body,
+		"provider_url",
+		"data.provider_url",
+		"data.data.provider_url",
+		"content.provider_url",
+		"result.provider_url",
+	)
+}
+
+func ppVideoResponseIndicatesMediaPending(body []byte) bool {
+	code := strings.ToLower(strings.TrimSpace(extractPPVideoText(body,
+		"error.code",
+		"data.error.code",
+		"data.data.error.code",
+		"code",
+		"data.code",
+		"data.data.code",
+	)))
+	return code == "media_store_pending" || code == "offload_pending"
+}
+
 func ppVideoVideoURLPaths() []string {
 	suffixes := []string{
 		"task.content.url",
 		"video_url",
+		"videoUrl",
 		"result_url",
 		"url",
 		"download_url",
+		"downloadUrl",
 		"video_url_download",
 		"video_urls.0",
 		"urls.0",
@@ -3295,6 +3935,8 @@ func ppVideoVideoURLPaths() []string {
 		"result.url",
 		"result.video_urls.0",
 		"result.urls.0",
+		"results.0.url",
+		"results.0.downloadUrl",
 		"task_result.video_url",
 		"task_result.url",
 		"task_result.video_urls.0",

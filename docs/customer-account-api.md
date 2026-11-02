@@ -237,11 +237,11 @@ curl -X POST 'https://YOUR_DOMAIN/api/v1/billing/quotes' \
 - `estimated_credits`：按本次 `conversion_snapshot` 折算的预计展示积分；
 - `pricing_snapshot`：单价、倍率、规范化分辨率、数量、时长和公式；
 - `pricing_snapshot.pricing_source`：价格来源，`group` 表示分组媒体单价，`channel` 表示渠道模型价格，`default` 表示模型表或系统默认价格；
-- `pricing_snapshot.billing_mode`：本次报价采用的实际计费模式；
+- `pricing_snapshot.billing_mode`：本次报价采用的实际计费模式；视频模型可能为按次的 `per_request` 或按秒的 `video`；
 - `billing_source`：`personal` 或 `organization`，团队模式同时返回 `organization_id`；
 - `quote_id`、`expires_at`：报价标识和五分钟有效期。
 
-图片公式为 `单张价格 × 数量 × 倍率`；视频公式为 `每秒价格 × 秒数 × 数量 × 倍率`。真正提交和最终结算仍以生成任务为准。API Key 不属于当前 JWT 客户时返回 404；禁用或失效的计费来源返回 409；订阅等不适用积分折算的计费模式返回 `MEDIA_QUOTE_BILLING_NOT_APPLICABLE`。
+图片公式为 `单张价格 × 数量 × 倍率`；按次视频公式为 `单次价格 × 数量 × 倍率`，按秒视频公式为 `每秒价格 × 秒数 × 数量 × 倍率`。真正提交和最终结算仍以生成任务为准。API Key 不属于当前 JWT 客户时返回 404；禁用或失效的计费来源返回 409；模型价格缺失返回 `MEDIA_QUOTE_PRICING_UNAVAILABLE`；订阅等不适用积分折算的计费模式返回 `MEDIA_QUOTE_BILLING_NOT_APPLICABLE`。
 
 ## 部署
 

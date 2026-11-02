@@ -14,14 +14,14 @@ var defaultAPIKeyGroups = [...]struct {
 }{
 	{"text", "OC--ChatGPT【文本模型，官key】"},
 	{"image", "GPT图片【聚合】"},
-	{"video", "视频【聚合】"},
+	{"video", "TikTok--Seedance"},
 	{"audio", "OC--Qwen-TTS【音频】"},
 }
 
 var signupAPIKeyGroupNames = [...]string{
 	"OC--ChatGPT【文本模型，官key】",
 	"Claude Code 【官方】",
-	"视频【聚合】",
+	"TikTok--Seedance",
 	"OCY--MiniMax-H3【视频】",
 	"GPT图片【聚合】",
 	"Gemini图片【聚合】",

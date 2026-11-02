@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -27,6 +28,127 @@ type PPVideoBillingQuote struct {
 }
 
 const byteDanceSeedance25BillingMultiplier = 3.0
+
+func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
+	ctx context.Context,
+	meta PPVideoBillingMetadata,
+	key *APIKey,
+) (PPVideoBillingQuote, error) {
+	platformLabel := "CTMO Seedance"
+	if meta.Platform == PlatformGuangying {
+		platformLabel = "Guangying"
+	} else if meta.Platform == PlatformOPONE {
+		platformLabel = "OPONE"
+	}
+	missing := func(reason string) error {
+		groupID := int64(0)
+		if key != nil && key.GroupID != nil {
+			groupID = *key.GroupID
+		}
+		return fmt.Errorf("configure %s pricing for model %q in the group's channel (group_id=%d): %s", platformLabel, meta.Model, groupID, reason)
+	}
+	if s == nil || s.resolver == nil {
+		return PPVideoBillingQuote{}, missing("pricing service is unavailable")
+	}
+	if key == nil || key.GroupID == nil {
+		return PPVideoBillingQuote{}, missing("API key has no pricing group")
+	}
+	if meta.VideoCount <= 0 {
+		return PPVideoBillingQuote{}, missing("video count must be positive")
+	}
+
+	pricingModel := strings.TrimSpace(meta.Model)
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: pricingModel, GroupID: key.GroupID})
+	p := resolved.channelPricing
+	pricingMatchesExactly := func(candidate *ChannelModelPricing, model string) bool {
+		if candidate == nil || candidate.Platform != meta.Platform {
+			return false
+		}
+		for _, configuredModel := range candidate.Models {
+			if strings.EqualFold(strings.TrimSpace(configuredModel), strings.TrimSpace(model)) {
+				return true
+			}
+		}
+		return false
+	}
+	if meta.Platform == PlatformGuangying && !pricingMatchesExactly(p, pricingModel) {
+		for _, alias := range ppVideoGuangyingModelAliases(pricingModel) {
+			if strings.EqualFold(alias, pricingModel) {
+				continue
+			}
+			candidate := s.resolver.Resolve(ctx, PricingInput{Model: alias, GroupID: key.GroupID}).channelPricing
+			if pricingMatchesExactly(candidate, alias) {
+				p = candidate
+				pricingModel = alias
+				break
+			}
+		}
+	}
+	if p == nil {
+		return PPVideoBillingQuote{}, missing("no channel model price matched; check the active channel, group association, platform and model name")
+	}
+	if p.Platform != meta.Platform {
+		return PPVideoBillingQuote{}, missing("matched price belongs to another platform")
+	}
+	exact := false
+	for _, model := range p.Models {
+		if strings.EqualFold(strings.TrimSpace(model), pricingModel) {
+			exact = true
+			break
+		}
+	}
+	if !exact {
+		return PPVideoBillingQuote{}, missing("an exact model price is required; wildcard prices are not supported")
+	}
+	priceValue := ppVideoChannelPriceForMetadata(p, meta)
+	if priceValue == nil || *priceValue < 0 || math.IsNaN(*priceValue) || math.IsInf(*priceValue, 0) {
+		return PPVideoBillingQuote{}, missing("the model has no valid default price")
+	}
+
+	price := *priceValue
+	count := float64(meta.VideoCount)
+	switch p.BillingMode {
+	case BillingModePerRequest:
+		return PPVideoBillingQuote{
+			Formula:   PPVideoBillingFormulaPerRequest,
+			Units:     count,
+			UnitPrice: price,
+			Cost:      count * price,
+		}, nil
+	case BillingModeVideo:
+		durationMs := meta.RequestedDurationMilliseconds
+		if durationMs <= 0 {
+			durationMs = int64(meta.RequestedDurationSeconds) * 1000
+		}
+		if durationMs <= 0 {
+			return PPVideoBillingQuote{}, missing("requested duration must be positive for per-second billing")
+		}
+		if meta.Platform == PlatformOPONE && strings.EqualFold(meta.Model, "seedance-2.5-s5") {
+			durationMs += meta.InputVideoDurationMilliseconds
+		}
+		units := float64(durationMs) / 1000 * count
+		return PPVideoBillingQuote{
+			Formula:   PPVideoBillingFormulaPerSecond,
+			Units:     units,
+			UnitPrice: price,
+			Cost:      units * price,
+		}, nil
+	default:
+		return PPVideoBillingQuote{}, missing("billing mode must be per_request or video")
+	}
+}
+
+func ppVideoChannelPriceForMetadata(pricing *ChannelModelPricing, meta PPVideoBillingMetadata) *float64 {
+	if pricing == nil {
+		return nil
+	}
+	if meta.Platform == PlatformOPONE {
+		if tier := pricing.GetTierByLabel(meta.VideoResolution); tier != nil {
+			return tier.PerRequestPrice
+		}
+	}
+	return pricing.PerRequestPrice
+}
 
 func (s *OpenAIGatewayService) calculatePPVideoGroupVideoCost(
 	meta PPVideoBillingMetadata,
@@ -182,6 +304,8 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	var err error
 	if meta.Platform == Platform88APIVideo {
 		quote, err = s.calculate88APIVideoCost(ctx, meta, billingAPIKey)
+	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
+		quote, err = s.calculateCTMOSeedanceCost(ctx, meta, billingAPIKey)
 	} else {
 		quote, err = s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)
 	}
@@ -472,12 +596,20 @@ func ppVideoBalanceCaptureAmount(task *PPVideoTask, actualCost float64) float64 
 }
 
 func ppVideoTaskBillingUnits(task *PPVideoTask, outputDurationMilliseconds int64) float64 {
-	if task == nil || outputDurationMilliseconds <= 0 || task.VideoCount <= 0 {
+	if task == nil || task.VideoCount <= 0 {
 		return 0
 	}
 	count := float64(task.VideoCount)
 	switch task.BillingFormula {
+	case PPVideoBillingFormulaPerRequest:
+		return count
 	case PPVideoBillingFormulaPerSecond:
+		if outputDurationMilliseconds <= 0 {
+			return 0
+		}
+		if task.Platform == PlatformOPONE && strings.EqualFold(task.Model, "seedance-2.5-s5") {
+			outputDurationMilliseconds += task.InputVideoDurationMilliseconds
+		}
 		return float64(outputDurationMilliseconds) / 1000 * count
 	default:
 		return 0

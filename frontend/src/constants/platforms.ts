@@ -7,6 +7,9 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'kling',
   'happyhourse',
   'seedance',
+  'ctmo-seedance',
+  'guangying',
+  'opone',
   'bytedance',
   'wan3',
   'minimax-h3',
@@ -38,6 +41,9 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'kling',
   'happyhourse',
   'seedance',
+  'ctmo-seedance',
+  'guangying',
+  'opone',
   'bytedance',
   'wan3',
   'minimax-h3',
@@ -163,6 +169,33 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     label: 'Seedance',
     defaultBaseUrl: 'https://app.ppapi.ai/v1',
     baseUrlPlaceholder: 'https://app.ppapi.ai/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'ctmo-seedance': {
+    id: 'ctmo-seedance',
+    label: '浙创 OPC Seedance',
+    defaultBaseUrl: 'https://video.ctmoai.com',
+    baseUrlPlaceholder: 'https://video.ctmoai.com',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  guangying: {
+    id: 'guangying',
+    label: '光影 AI Seedance',
+    defaultBaseUrl: 'https://api.guangying.store',
+    baseUrlPlaceholder: 'https://api.guangying.store',
+    apiKeyPlaceholder: 'sk-live-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  opone: {
+    id: 'opone',
+    label: 'OPONE Seedance',
+    defaultBaseUrl: 'https://api.opone.cc',
+    baseUrlPlaceholder: 'https://api.opone.cc',
     apiKeyPlaceholder: 'sk-...',
     accountType: 'apikey',
     authScheme: 'bearer'

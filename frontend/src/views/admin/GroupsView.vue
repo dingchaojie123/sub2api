@@ -1009,9 +1009,11 @@
             {{
               t(
                 videoPricingI18nKey(
-                  isPPVideoPricingPlatform(createForm.platform)
-                    ? "ppDescription"
-                    : "description",
+                  createForm.platform === "ctmo-seedance" || createForm.platform === "guangying" || createForm.platform === "opone"
+                    ? "ctmoDescription"
+                    : isPPVideoPricingPlatform(createForm.platform)
+                      ? "ppDescription"
+                      : "description",
                 ),
               )
             }}
@@ -2543,9 +2545,11 @@
             {{
               t(
                 videoPricingI18nKey(
-                  isPPVideoPricingPlatform(editForm.platform)
-                    ? "ppDescription"
-                    : "description",
+                  editForm.platform === "ctmo-seedance" || editForm.platform === "guangying" || editForm.platform === "opone"
+                    ? "ctmoDescription"
+                    : isPPVideoPricingPlatform(editForm.platform)
+                      ? "ppDescription"
+                      : "description",
                 ),
               )
             }}
@@ -3871,6 +3875,9 @@ const platformOptions = computed(() => [
   { value: "kling", label: "K-Ling" },
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
+  { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
+  { value: "guangying", label: "光影 AI Seedance" },
+  { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
@@ -3899,6 +3906,9 @@ const platformFilterOptions = computed(() => [
   { value: "kling", label: "K-Ling" },
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
+  { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
+  { value: "guangying", label: "光影 AI Seedance" },
+  { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },

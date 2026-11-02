@@ -532,16 +532,18 @@ export default {
   },
 
   modelList: {
+    eyebrow: 'Public pricing',
     title: 'Models & Pricing',
-    description: 'View model pricing by available group.',
-    refresh: 'Reset group',
-    groupCount: '{count} models',
+    description: 'View current text, image, and video model pricing by specification and billing method.',
+    search: 'Search models',
+    searchPlaceholder: 'Search model, resolution, or billing method',
+    categories: 'Model categories',
+    matchCount: '{count} prices',
+    emptyTitle: 'No matching models',
+    emptyDescription: 'Try another search term or model category.',
+    availabilityNote: 'Prices are in CNY. “-” means the tier is currently unavailable. Channel labels follow the supplied price list.',
     columns: {
-      model: 'Model',
-      platformInput: 'Platform Input',
-      platformOutput: 'Platform Output',
-      officialInput: 'Official Input',
-      officialOutput: 'Official Output'
+      model: 'Model'
     }
   },
 

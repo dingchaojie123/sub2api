@@ -38,6 +38,8 @@ export function billingModesForPlatform(
 
   if (normalizedPlatform === '88api-video') {
     modes = ['video']
+  } else if (normalizedPlatform === 'ctmo-seedance' || normalizedPlatform === 'guangying' || normalizedPlatform === 'opone') {
+    modes = ['per_request', 'video']
   } else if (normalizedPlatform === 'minimax-speech' || normalizedPlatform === 'qwen-tts') {
     // Audio providers return consumed text characters; expose only token
     // billing so each platform uses one consistent channel price unit.

@@ -20,6 +20,9 @@ export type Platform =
   | 'kling'
   | 'happyhourse'
   | 'seedance'
+  | 'ctmo-seedance'
+  | 'guangying'
+  | 'opone'
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
@@ -47,6 +50,9 @@ const BADGE: Record<Platform, string> = {
   kling: 'bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
+  'ctmo-seedance': 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
+  guangying: 'bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300',
+  opone: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300',
   bytedance: 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300',
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
@@ -76,6 +82,9 @@ const BADGE_LIGHT: Record<Platform, string> = {
   kling: 'bg-sky-500/10 text-sky-700 dark:bg-sky-500/10 dark:text-sky-300',
   happyhourse: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
+  'ctmo-seedance': 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
+  guangying: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
+  opone: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
   bytedance: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
@@ -104,6 +113,9 @@ const BORDER: Record<Platform, string> = {
   kling: 'border-sky-500/20 dark:border-sky-500/20',
   happyhourse: 'border-emerald-500/20 dark:border-emerald-500/20',
   seedance: 'border-teal-500/20 dark:border-teal-500/20',
+  'ctmo-seedance': 'border-teal-500/20 dark:border-teal-500/20',
+  guangying: 'border-rose-500/20 dark:border-rose-500/20',
+  opone: 'border-indigo-500/20 dark:border-indigo-500/20',
   bytedance: 'border-violet-500/20 dark:border-violet-500/20',
   wan3: 'border-fuchsia-500/20 dark:border-fuchsia-500/20',
   'minimax-h3': 'border-pink-500/20 dark:border-pink-500/20',
@@ -133,6 +145,9 @@ const ACCENT_BAR: Record<Platform, string> = {
   kling: 'bg-gradient-to-r from-sky-400 to-sky-600',
   happyhourse: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
   seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
+  'ctmo-seedance': 'bg-gradient-to-r from-teal-400 to-teal-600',
+  guangying: 'bg-gradient-to-r from-rose-400 to-rose-600',
+  opone: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
   bytedance: 'bg-gradient-to-r from-violet-400 to-violet-600',
   wan3: 'bg-gradient-to-r from-fuchsia-400 to-fuchsia-600',
   'minimax-h3': 'bg-gradient-to-r from-pink-400 to-pink-600',
@@ -162,6 +177,9 @@ const TEXT: Record<Platform, string> = {
   kling: 'text-sky-700 dark:text-sky-300',
   happyhourse: 'text-emerald-700 dark:text-emerald-300',
   seedance: 'text-teal-700 dark:text-teal-300',
+  'ctmo-seedance': 'text-teal-700 dark:text-teal-300',
+  guangying: 'text-rose-700 dark:text-rose-300',
+  opone: 'text-indigo-700 dark:text-indigo-300',
   bytedance: 'text-violet-700 dark:text-violet-300',
   wan3: 'text-fuchsia-700 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-700 dark:text-pink-300',
@@ -191,6 +209,9 @@ const ICON: Record<Platform, string> = {
   kling: 'text-sky-500 dark:text-sky-300',
   happyhourse: 'text-emerald-500 dark:text-emerald-300',
   seedance: 'text-teal-500 dark:text-teal-300',
+  'ctmo-seedance': 'text-teal-500 dark:text-teal-300',
+  guangying: 'text-rose-500 dark:text-rose-300',
+  opone: 'text-indigo-500 dark:text-indigo-300',
   bytedance: 'text-violet-500 dark:text-violet-300',
   wan3: 'text-fuchsia-500 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-500 dark:text-pink-300',
@@ -220,6 +241,9 @@ const BUTTON: Record<Platform, string> = {
   kling: 'bg-sky-600 text-white hover:bg-sky-700 active:bg-sky-800 dark:bg-sky-600/80 dark:hover:bg-sky-600',
   happyhourse: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
   seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
+  'ctmo-seedance': 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
+  guangying: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 dark:bg-rose-600/80 dark:hover:bg-rose-600',
+  opone: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600/80 dark:hover:bg-indigo-600',
   bytedance: 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 dark:bg-violet-600/80 dark:hover:bg-violet-600',
   wan3: 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 active:bg-fuchsia-800 dark:bg-fuchsia-600/80 dark:hover:bg-fuchsia-600',
   'minimax-h3': 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
@@ -249,6 +273,9 @@ const DISCOUNT: Record<Platform, string> = {
   kling: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   happyhourse: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  'ctmo-seedance': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+  guangying: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  opone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
   bytedance: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   wan3: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
@@ -278,6 +305,9 @@ const GRADIENT: Record<Platform, string> = {
   kling: 'from-sky-500 to-sky-600',
   happyhourse: 'from-emerald-500 to-emerald-600',
   seedance: 'from-teal-500 to-teal-600',
+  'ctmo-seedance': 'from-teal-500 to-teal-600',
+  guangying: 'from-rose-500 to-rose-600',
+  opone: 'from-indigo-500 to-indigo-600',
   bytedance: 'from-violet-500 to-violet-600',
   wan3: 'from-fuchsia-500 to-fuchsia-600',
   'minimax-h3': 'from-pink-500 to-pink-600',
@@ -307,6 +337,9 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   kling: 'text-sky-100',
   happyhourse: 'text-emerald-100',
   seedance: 'text-teal-100',
+  'ctmo-seedance': 'text-teal-100',
+  guangying: 'text-rose-100',
+  opone: 'text-indigo-100',
   bytedance: 'text-violet-100',
   wan3: 'text-fuchsia-100',
   'minimax-h3': 'text-pink-100',
@@ -335,6 +368,9 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   kling: 'text-sky-200',
   happyhourse: 'text-emerald-200',
   seedance: 'text-teal-200',
+  'ctmo-seedance': 'text-teal-200',
+  guangying: 'text-rose-200',
+  opone: 'text-indigo-200',
   bytedance: 'text-violet-200',
   wan3: 'text-fuchsia-200',
   'minimax-h3': 'text-pink-200',
@@ -351,7 +387,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
+  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'ctmo-seedance' || p === 'guangying' || p === 'opone' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -414,6 +450,9 @@ export function platformLabel(p: string): string {
     case 'kling': return 'K-Ling'
     case 'happyhourse': return 'Happy-Hourse'
     case 'seedance': return 'Seedance'
+    case 'ctmo-seedance': return '浙创 OPC Seedance'
+    case 'guangying': return '光影 AI Seedance'
+    case 'opone': return 'OPONE Seedance'
     case 'bytedance': return 'ByteDance'
     case 'wan3': return 'Wan3.0'
     case 'minimax-h3': return 'MiniMax-H3'

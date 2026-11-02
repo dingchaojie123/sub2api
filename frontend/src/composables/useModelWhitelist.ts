@@ -39,6 +39,19 @@ export const claudeModels = [
   'claude-fable-5'
 ]
 
+export const GUANGYING_MODEL_MAPPINGS = [
+  { from: 'Seedance 2.5-全参720P', to: 'gy-model-31' },
+  { from: '特惠-Seedance 2.5-超分掺水版', to: 'gy-model-39' },
+  { from: '特价-Seedance 2.5-图文', to: 'gy-model-35' },
+  { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' },
+  { from: '竖屏-Seedance 2.0按次计费', to: 'gy-model-13' },
+  { from: '竖屏-Seedance 2.0 Mini 按次计费', to: 'gy-model-19' },
+  { from: '竖屏-Seedance 2.0 Fast 按次计费', to: 'gy-model-20' },
+  { from: 'Seedance 2.0-无参考视频 按秒计费', to: 'gy-model-21' },
+  { from: 'Seedance 2.5-无参考视频 按秒计费', to: 'gy-model-22' },
+  { from: 'Seedance 2.0按次计费', to: 'gy-model-30' }
+] as const
+
 // Google Gemini
 const geminiModels = [
   // Keep in sync with backend curated Gemini lists.
@@ -467,6 +480,12 @@ export function getModelsByPlatform(platform: string): string[] {
       return happyHourseModels
     case 'seedance':
       return seedanceModels
+    case 'ctmo-seedance':
+      return []
+    case 'guangying':
+      return GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
+    case 'opone':
+      return []
     case 'bytedance':
       return bytedanceModels
     case 'wan3':
@@ -592,13 +611,23 @@ export function getPresetMappingsByPlatform(platform: string) {
       }
     ]
   }
+  if (platform === 'guangying') {
+    return GUANGYING_MODEL_MAPPINGS.map(mapping => ({
+      label: mapping.from,
+      from: mapping.from,
+      to: mapping.to,
+      color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400'
+    }))
+  }
   if (platform === 'gemini') return geminiPresetMappings
   if (platform === 'grok' || platform === 'xai') return grokPresetMappings
   if (platform === 'kimi') return []
   if (
     platform === 'kling' ||
     platform === 'happyhourse' ||
-    platform === 'seedance'
+    platform === 'seedance' ||
+    platform === 'ctmo-seedance' ||
+    platform === 'opone'
   ) return []
   if (platform === 'antigravity') return antigravityPresetMappings
   if (platform === 'bedrock') return bedrockPresetMappings

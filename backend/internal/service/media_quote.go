@@ -18,11 +18,12 @@ const (
 )
 
 var (
-	ErrMediaQuoteInvalidRequest = infraerrors.BadRequest("INVALID_MEDIA_QUOTE_REQUEST", "invalid media quote request")
-	ErrMediaQuoteUnsupported    = infraerrors.BadRequest("UNSUPPORTED_MEDIA_QUOTE_TASK", "only image and video quotes are supported")
-	ErrMediaQuoteAPIKeyNotFound = infraerrors.NotFound("MEDIA_QUOTE_API_KEY_NOT_FOUND", "API key not found")
-	ErrMediaQuoteBillingSource  = infraerrors.Conflict("MEDIA_QUOTE_BILLING_SOURCE_UNAVAILABLE", "billing source is unavailable")
-	ErrMediaQuoteNotApplicable  = infraerrors.Conflict("MEDIA_QUOTE_BILLING_NOT_APPLICABLE", "media credit quote is not applicable to this billing mode")
+	ErrMediaQuoteInvalidRequest     = infraerrors.BadRequest("INVALID_MEDIA_QUOTE_REQUEST", "invalid media quote request")
+	ErrMediaQuoteUnsupported        = infraerrors.BadRequest("UNSUPPORTED_MEDIA_QUOTE_TASK", "only image and video quotes are supported")
+	ErrMediaQuoteAPIKeyNotFound     = infraerrors.NotFound("MEDIA_QUOTE_API_KEY_NOT_FOUND", "API key not found")
+	ErrMediaQuoteBillingSource      = infraerrors.Conflict("MEDIA_QUOTE_BILLING_SOURCE_UNAVAILABLE", "billing source is unavailable")
+	ErrMediaQuoteNotApplicable      = infraerrors.Conflict("MEDIA_QUOTE_BILLING_NOT_APPLICABLE", "media credit quote is not applicable to this billing mode")
+	ErrMediaQuotePricingUnavailable = infraerrors.Conflict("MEDIA_QUOTE_PRICING_UNAVAILABLE", "media pricing is unavailable")
 )
 
 type MediaQuoteRequest struct {
@@ -130,6 +131,7 @@ func (s *MediaQuoteService) Quote(ctx context.Context, userID int64, in MediaQuo
 	multiplier := baseMultiplier
 	var cost *CostBreakdown
 	pricingSource := "default"
+	unitPrice := 0.0
 	if in.TaskType == MediaQuoteTaskImage {
 		if _, ok := ClassifyImageBillingTier(in.Resolution); !ok {
 			return nil, ErrMediaQuoteInvalidRequest
@@ -158,31 +160,50 @@ func (s *MediaQuoteService) Quote(ctx context.Context, userID int64, in MediaQuo
 				pricingSource = resolved.Source
 			}
 		}
+		unitPrice = cost.TotalCost / float64(in.Quantity)
 	} else {
-		if !isSupportedVideoQuoteResolution(in.Resolution) || in.DurationSeconds < VideoBillingMinDurationSeconds || in.DurationSeconds > VideoBillingMaxDurationSeconds {
+		var valid bool
+		resolution, valid = normalizeMediaQuoteVideoSpec(
+			apiKey.Group.Platform,
+			in.Model,
+			in.Resolution,
+			in.DurationSeconds,
+		)
+		if !valid {
 			return nil, ErrMediaQuoteInvalidRequest
 		}
-		resolution = NormalizeVideoBillingResolutionOrDefault(in.Resolution)
 		duration := in.DurationSeconds
 		durationSeconds = &duration
 		multiplier = resolveVideoRateMultiplier(apiKey, baseMultiplier)
-		cost = s.billing.CalculateVideoCost(in.Model, resolution, in.Quantity, duration, videoPriceConfigFromAPIKey(apiKey), multiplier)
-		if apiKeyHasConfiguredVideoPrice(apiKey, resolution) {
-			pricingSource = "group"
+		channelQuote, channelPriced, quoteErr := s.resolveChannelVideoQuote(ctx, apiKey, in, resolution)
+		if quoteErr != nil {
+			return nil, ErrMediaQuotePricingUnavailable.WithCause(quoteErr)
+		}
+		if channelPriced {
+			billingMode := BillingModeVideo
+			if channelQuote.Formula == PPVideoBillingFormulaPerRequest {
+				billingMode = BillingModePerRequest
+			}
+			cost = &CostBreakdown{
+				TotalCost:   channelQuote.Cost,
+				OutputCost:  channelQuote.Cost,
+				ActualCost:  channelQuote.Cost * multiplier,
+				BillingMode: string(billingMode),
+			}
+			unitPrice = channelQuote.UnitPrice
+			pricingSource = PricingSourceChannel
+		} else {
+			cost = s.billing.CalculateVideoCost(in.Model, resolution, in.Quantity, duration, videoPriceConfigFromAPIKey(apiKey), multiplier)
+			unitPrice = cost.TotalCost / (float64(in.Quantity) * float64(duration))
+			if apiKeyHasConfiguredVideoPrice(apiKey, resolution) {
+				pricingSource = "group"
+			}
 		}
 	}
 
 	billingSource, conversion, err := s.resolveConversion(ctx, apiKey)
 	if err != nil {
 		return nil, err
-	}
-	unitPrice := 0.0
-	units := float64(in.Quantity)
-	if in.TaskType == MediaQuoteTaskVideo {
-		units *= float64(in.DurationSeconds)
-	}
-	if units > 0 {
-		unitPrice = cost.TotalCost / units
 	}
 	now := s.now().UTC()
 	quote := &MediaQuote{
@@ -197,13 +218,48 @@ func (s *MediaQuoteService) Quote(ctx context.Context, userID int64, in MediaQuo
 		Pricing: MediaQuotePricingSnapshot{
 			UnitPrice: unitPrice, RateMultiplier: multiplier, Quantity: in.Quantity,
 			Resolution: resolution, DurationSeconds: durationSeconds,
-			Formula: mediaQuoteFormula(in.TaskType), PricingSource: pricingSource,
+			Formula: mediaQuoteFormula(in.TaskType, BillingMode(cost.BillingMode)), PricingSource: pricingSource,
 			BillingMode: cost.BillingMode,
 		},
 		ExpiresAt: now.Add(5 * time.Minute),
 	}
 	quote.QuoteID = buildMediaQuoteID(userID, in.APIKeyID, quote, now)
 	return quote, nil
+}
+
+// resolveChannelVideoQuote mirrors the provider-specific pricing path used when
+// the video task is submitted. These platforms require model-level channel
+// pricing; falling back to the legacy group rate card would produce a quote
+// that cannot match the eventual balance hold.
+func (s *MediaQuoteService) resolveChannelVideoQuote(
+	ctx context.Context,
+	apiKey *APIKey,
+	in MediaQuoteRequest,
+	resolution string,
+) (PPVideoBillingQuote, bool, error) {
+	if apiKey == nil || apiKey.Group == nil {
+		return PPVideoBillingQuote{}, false, nil
+	}
+	platform := strings.TrimSpace(apiKey.Group.Platform)
+	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformGuangying && platform != PlatformOPONE {
+		return PPVideoBillingQuote{}, false, nil
+	}
+
+	gateway := &OpenAIGatewayService{resolver: s.pricingResolver, billingService: s.billing}
+	meta := PPVideoBillingMetadata{
+		Platform:                      platform,
+		Model:                         in.Model,
+		RequestedDurationMilliseconds: int64(in.DurationSeconds) * 1000,
+		RequestedDurationSeconds:      in.DurationSeconds,
+		VideoCount:                    in.Quantity,
+		VideoResolution:               resolution,
+	}
+	if platform == Platform88APIVideo {
+		quote, err := gateway.calculate88APIVideoCost(ctx, meta, apiKey)
+		return quote, true, err
+	}
+	quote, err := gateway.calculateCTMOSeedanceCost(ctx, meta, apiKey)
+	return quote, true, err
 }
 
 func (s *MediaQuoteService) resolveChannelImagePricing(ctx context.Context, apiKey *APIKey, model string) *ResolvedPricing {
@@ -262,8 +318,33 @@ func isSupportedVideoQuoteResolution(value string) bool {
 	}
 }
 
-func mediaQuoteFormula(taskType string) string {
+func normalizeMediaQuoteVideoSpec(platform, model, resolution string, durationSeconds int) (string, bool) {
+	if strings.TrimSpace(platform) == PlatformOPONE {
+		canonicalModel, ok := oponeCanonicalSeedanceModel(model)
+		if !ok {
+			return "", false
+		}
+		normalizedResolution := normalizePPVideoResolution(resolution)
+		minSeconds, maxSeconds, _, _ := oponeDurationSpec(canonicalModel)
+		if durationSeconds < minSeconds || durationSeconds > maxSeconds ||
+			!oponeResolutionAllowed(canonicalModel, normalizedResolution) {
+			return "", false
+		}
+		return normalizedResolution, true
+	}
+	if !isSupportedVideoQuoteResolution(resolution) ||
+		durationSeconds < VideoBillingMinDurationSeconds ||
+		durationSeconds > VideoBillingMaxDurationSeconds {
+		return "", false
+	}
+	return NormalizeVideoBillingResolutionOrDefault(resolution), true
+}
+
+func mediaQuoteFormula(taskType string, billingMode BillingMode) string {
 	if taskType == MediaQuoteTaskVideo {
+		if billingMode == BillingModePerRequest {
+			return "unit_price_per_request * quantity * rate_multiplier"
+		}
 		return "unit_price_per_second * duration_seconds * quantity * rate_multiplier"
 	}
 	return "unit_price_per_image * quantity * rate_multiplier"

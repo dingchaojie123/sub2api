@@ -141,3 +141,25 @@ func TestWriteStoredPPVideoResponseNormalizesProviderVideoURL(t *testing.T) {
 	require.Equal(t, "https://cdn.example.com/stored-kling.mp4", gjson.GetBytes(body, "data.videos.0.video_url").String())
 	require.Equal(t, service.PPVideoTaskStatusSucceeded, gjson.GetBytes(body, "status").String())
 }
+
+func TestWriteStoredOPONECompletedResponseUsesContentProxy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	writeStoredPPVideoResponse(c, &service.PPVideoTask{
+		Platform:            service.PlatformOPONE,
+		Model:               "seedance-2.5-Q",
+		TaskID:              "opone-q-1",
+		Status:              service.PPVideoTaskStatusSucceeded,
+		ResponseStatus:      200,
+		ResponseContentType: "application/json",
+		ResponseBody:        `{"status":"completed","progress":100}`,
+	})
+
+	body := recorder.Body.Bytes()
+	require.Equal(t, 200, recorder.Code)
+	require.Equal(t, service.PPVideoTaskStatusSucceeded, gjson.GetBytes(body, "status").String())
+	require.Equal(t, "/v1/videos/opone-q-1/content", gjson.GetBytes(body, "video_url").String())
+	require.Equal(t, "/v1/videos/opone-q-1/content", gjson.GetBytes(body, "videos.0.url").String())
+}

@@ -186,6 +186,7 @@ type ReleasePPVideoTaskPollLeaseParams struct {
 type PPVideoTaskRepository interface {
 	CreatePPVideoTask(context.Context, CreatePPVideoTaskParams) (*PPVideoTask, error)
 	GetPPVideoTaskByIdempotencyKey(context.Context, int64, int64, string) (*PPVideoTask, error)
+	ReleaseFailedPPVideoTaskIdempotencyKey(context.Context, string, string) (bool, error)
 	GetPPVideoTaskForOwner(context.Context, int64, int64, string) (*PPVideoTask, error)
 	MarkPPVideoTaskSubmitted(context.Context, MarkPPVideoTaskSubmittedParams) (*PPVideoTask, error)
 	MarkPPVideoTaskStatus(context.Context, MarkPPVideoTaskStatusParams) (*PPVideoTask, error)
@@ -262,6 +263,14 @@ func (s *OpenAIGatewayService) GetPPVideoTaskByIdempotencyKey(ctx context.Contex
 		return nil, err
 	}
 	return repo.GetPPVideoTaskByIdempotencyKey(ctx, userID, apiKeyID, key)
+}
+
+func (s *OpenAIGatewayService) ReleaseFailedPPVideoTaskIdempotencyKey(ctx context.Context, localTaskID string, key string) (bool, error) {
+	repo, err := s.ppVideoTaskRepo()
+	if err != nil {
+		return false, err
+	}
+	return repo.ReleaseFailedPPVideoTaskIdempotencyKey(ctx, localTaskID, key)
 }
 
 func (s *OpenAIGatewayService) GetPPVideoTaskForOwner(ctx context.Context, userID int64, apiKeyID int64, taskID string) (*PPVideoTask, error) {

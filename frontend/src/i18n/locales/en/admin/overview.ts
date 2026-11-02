@@ -979,6 +979,8 @@ export default {
           'Configure Grok video generation prices in USD per second of output video. Leave empty to use the default per-second rates (grok-imagine-video: 0.05/s 480p, 0.07/s 720p; video-1.5: 0.08/s 480p, 0.14/s 720p, 0.25/s 1080p).',
         ppDescription:
           'K-Ling, Happy-Hourse, and Seedance use this group’s existing per-second video prices. K-Ling 2x maps to 720p, while 2x Pro and 4K map to 1080p; Seedance 4K maps to 1080p.',
+        ctmoDescription:
+          'Configure each CTMO Seedance credit price by its exact model ID in the channel linked to this group. Use Per Request for flat-rate models and Video for per-second models. Final credits charged equal the model credit price multiplied by the video rate.',
         independentMultiplier: 'Use independent video multiplier',
         videoMultiplier: 'Video multiplier',
         modeHint:

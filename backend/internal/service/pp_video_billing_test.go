@@ -111,6 +111,181 @@ func TestCalculatePPVideoCostUsesGroupVideoPriceForSeedance(t *testing.T) {
 	}
 }
 
+func TestCalculatePPVideoCostUsesCTMOModelPricing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		model       string
+		billingMode BillingMode
+		unitPrice   float64
+		wantFormula string
+		wantUnits   float64
+	}{
+		{model: "seedance-2.0-930", billingMode: BillingModePerRequest, unitPrice: 5.6, wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{model: "seedance-2.0-903", billingMode: BillingModePerRequest, unitPrice: 5.6, wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{model: "seedance2.0-pro-720p", billingMode: BillingModePerRequest, unitPrice: 7.8, wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{model: "seedance2.5-pro-720p", billingMode: BillingModeVideo, unitPrice: 1.4, wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{model: "seedance2.5-one-720p", billingMode: BillingModePerRequest, unitPrice: 22.4, wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{model: "seedance2.5-one-1080p", billingMode: BillingModePerRequest, unitPrice: 26.88, wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{model: "seedance-2.0-max", billingMode: BillingModeVideo, unitPrice: 1.4, wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{model: "doubao-seedance-2.5", billingMode: BillingModeVideo, unitPrice: 1.9, wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{model: "seedance-2.5-720-max", billingMode: BillingModeVideo, unitPrice: 2.2, wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.model, func(t *testing.T) {
+			groupID := int64(104)
+			price := tt.unitPrice
+			apiKey := &APIKey{
+				GroupID: &groupID,
+				Group: &Group{
+					Platform:             PlatformCTMOSeedance,
+					RateMultiplier:       1,
+					VideoRateIndependent: true,
+					VideoRateMultiplier:  1,
+				},
+			}
+			svc := &OpenAIGatewayService{
+				billingService: newTestBillingService(),
+				resolver: newPPVideoResolverWithChannel(t, groupID, PlatformCTMOSeedance, []ChannelModelPricing{{
+					Platform:        PlatformCTMOSeedance,
+					Models:          []string{tt.model},
+					BillingMode:     tt.billingMode,
+					PerRequestPrice: &price,
+				}}),
+			}
+
+			cost, err := svc.CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{}, PPVideoBillingMetadata{
+				Platform:                      PlatformCTMOSeedance,
+				Model:                         tt.model,
+				RequestedDurationMilliseconds: 5000,
+				VideoCount:                    1,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantFormula, cost.BillingFormula)
+			require.InDelta(t, tt.wantUnits, cost.BillingUnits, 1e-12)
+			require.InDelta(t, tt.unitPrice, cost.BillingUnitPrice, 1e-12)
+			require.InDelta(t, tt.wantUnits*tt.unitPrice, cost.TotalCost, 1e-12)
+			require.InDelta(t, tt.wantUnits*tt.unitPrice, cost.ActualCost, 1e-12)
+		})
+	}
+}
+
+func TestCalculatePPVideoCostRejectsInvalidCTMOModelPricing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		pricing []ChannelModelPricing
+		wantErr string
+	}{
+		{
+			name:    "missing model price",
+			wantErr: "no channel model price matched",
+		},
+		{
+			name: "wildcard model price",
+			pricing: []ChannelModelPricing{{
+				Platform:        PlatformCTMOSeedance,
+				Models:          []string{"seedance-*"},
+				BillingMode:     BillingModePerRequest,
+				PerRequestPrice: func() *float64 { v := 5.6; return &v }(),
+			}},
+			wantErr: "exact model price is required",
+		},
+		{
+			name: "unsupported billing mode",
+			pricing: []ChannelModelPricing{{
+				Platform:        PlatformCTMOSeedance,
+				Models:          []string{"seedance-2.0-930"},
+				BillingMode:     BillingModeToken,
+				PerRequestPrice: func() *float64 { v := 5.6; return &v }(),
+			}},
+			wantErr: "billing mode must be per_request or video",
+		},
+		{
+			name: "missing default price",
+			pricing: []ChannelModelPricing{{
+				Platform:    PlatformCTMOSeedance,
+				Models:      []string{"seedance-2.0-930"},
+				BillingMode: BillingModePerRequest,
+			}},
+			wantErr: "no valid default price",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			groupID := int64(105)
+			svc := &OpenAIGatewayService{
+				billingService: newTestBillingService(),
+				resolver:       newPPVideoResolverWithChannel(t, groupID, PlatformCTMOSeedance, tt.pricing),
+			}
+			_, err := svc.CalculatePPVideoCost(
+				context.Background(),
+				&APIKey{GroupID: &groupID, Group: &Group{Platform: PlatformCTMOSeedance, RateMultiplier: 1}},
+				nil,
+				&Account{},
+				PPVideoBillingMetadata{
+					Platform:                      PlatformCTMOSeedance,
+					Model:                         "seedance-2.0-930",
+					RequestedDurationMilliseconds: 5000,
+					VideoCount:                    1,
+				},
+			)
+
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestCalculatePPVideoCostUsesGuangyingModelPricing(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name         string
+		billingMode  BillingMode
+		unitPrice    float64
+		pricedModel  string
+		requestModel string
+		wantFormula  string
+		wantUnits    float64
+	}{
+		{name: "public name per request", billingMode: BillingModePerRequest, unitPrice: 0.9, pricedModel: "Seedance 2.0按次计费", requestModel: "Seedance 2.0按次计费", wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{name: "upstream id price supports public name", billingMode: BillingModeVideo, unitPrice: 0.07, pricedModel: "gy-model-31", requestModel: "Seedance 2.5-全参720P", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{name: "public name price supports upstream id request", billingMode: BillingModeVideo, unitPrice: 0.08, pricedModel: "Seedance 2.5-全参720P", requestModel: "gy-model-31", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{name: "legacy public price supports new public request", billingMode: BillingModeVideo, unitPrice: 0.08, pricedModel: "Seedance 2.5-全参720P 按秒计费", requestModel: "Seedance 2.5-全参720P", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+		{name: "new public price supports legacy public request", billingMode: BillingModeVideo, unitPrice: 0.08, pricedModel: "Seedance 2.5-全参720P", requestModel: "Seedance 2.5-全参720P 按秒计费", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
+	} {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			groupID := int64(106)
+			price := tt.unitPrice
+			svc := &OpenAIGatewayService{
+				billingService: newTestBillingService(),
+				resolver: newPPVideoResolverWithChannel(t, groupID, PlatformGuangying, []ChannelModelPricing{{
+					Platform: PlatformGuangying, Models: []string{tt.pricedModel},
+					BillingMode: tt.billingMode, PerRequestPrice: &price,
+				}}),
+			}
+			cost, err := svc.CalculatePPVideoCost(context.Background(), &APIKey{
+				GroupID: &groupID,
+				Group:   &Group{Platform: PlatformGuangying, RateMultiplier: 1},
+			}, nil, &Account{}, PPVideoBillingMetadata{
+				Platform: PlatformGuangying, Model: tt.requestModel,
+				RequestedDurationMilliseconds: 5000, VideoCount: 1,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, tt.wantFormula, cost.BillingFormula)
+			require.InDelta(t, tt.wantUnits, cost.BillingUnits, 1e-12)
+			require.InDelta(t, tt.wantUnits*tt.unitPrice, cost.TotalCost, 1e-12)
+		})
+	}
+}
+
 func TestCalculatePPVideoCostValidatesByteDanceDurationsByModel(t *testing.T) {
 	t.Parallel()
 
@@ -623,6 +798,23 @@ func TestPPVideoActualSettlementCostUsesSeedancePerSecondFormula(t *testing.T) {
 	}
 
 	require.InDelta(t, 6*unitPrice, ppVideoActualSettlementCost(task), 1e-12)
+}
+
+func TestPPVideoActualSettlementCostKeepsCTMOPerRequestPrice(t *testing.T) {
+	t.Parallel()
+
+	task := &PPVideoTask{
+		Platform:                           PlatformCTMOSeedance,
+		BillingFormula:                     PPVideoBillingFormulaPerRequest,
+		BillingUnitPrice:                   22.4,
+		EstimatedTotalCost:                 22.4,
+		HoldAmount:                         22.4,
+		RequestedVideoDurationMilliseconds: 5000,
+		GeneratedVideoDurationMilliseconds: 12000,
+		VideoCount:                         1,
+	}
+
+	require.InDelta(t, 22.4, ppVideoActualSettlementCost(task), 1e-12)
 }
 
 func newPPVideoResolverWithChannel(t *testing.T, groupID int64, platform string, pricing []ChannelModelPricing) *ModelPricingResolver {

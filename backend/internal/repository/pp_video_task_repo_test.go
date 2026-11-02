@@ -20,7 +20,7 @@ func TestClaimPPVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks AS task.*poll_lease_owner = \$1.*poll_lease_token = \$2.*poll_lease_until = \$4.*FOR UPDATE SKIP LOCKED.*RETURNING`).
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks AS task.*poll_lease_owner = \$1.*poll_lease_token = \$2.*poll_lease_until = \$4.*NOT \(candidate\.platform = 'guangying' AND candidate\.status = 'requires_attention'\).*FOR UPDATE SKIP LOCKED.*RETURNING`).
 		WithArgs("worker-a", "lease-token", 10, leaseUntil, submitCutoff).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "vidtask_poll", "task_poll", int64(10), int64(20), nil, int64(30),
@@ -198,6 +198,24 @@ func TestGetPPVideoTaskForOwnerDoesNotCrossAPIKeys(t *testing.T) {
 	_, err = repo.GetPPVideoTaskForOwner(ctx, 10, 20, "task_1")
 
 	require.ErrorIs(t, err, service.ErrPPVideoTaskNotFound)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestReleaseFailedPPVideoTaskIdempotencyKeyOnlyReclaimsSettledFailure(t *testing.T) {
+	ctx := context.Background()
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectExec(`(?s)UPDATE pp_video_tasks.*SET idempotency_key = NULL.*local_task_id = \$1.*idempotency_key = \$2.*status = 'failed'.*billing_status = 'released'.*settled_at IS NOT NULL`).
+		WithArgs("ppvidtask_failed", "client-key-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	repo := &usageBillingRepository{db: db}
+	released, err := repo.ReleaseFailedPPVideoTaskIdempotencyKey(ctx, "ppvidtask_failed", "client-key-1")
+
+	require.NoError(t, err)
+	require.True(t, released)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

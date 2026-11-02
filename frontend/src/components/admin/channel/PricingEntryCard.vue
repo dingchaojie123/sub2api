@@ -162,13 +162,20 @@
         <div v-else-if="entry.billing_mode === 'per_request'">
           <!-- Default per-request price -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
-            {{ t('admin.channels.form.defaultPerRequestPrice') }}
+            {{
+              props.platform === 'ctmo-seedance'
+                ? t('admin.channels.form.ctmoPerRequestCreditPrice')
+                : t('admin.channels.form.defaultPerRequestPrice')
+            }}
 
           </label>
           <div class="mt-1 w-48">
             <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
+          <p v-if="props.platform === 'ctmo-seedance'" class="mt-1 text-xs text-gray-400">
+            {{ t('admin.channels.form.ctmoCreditPriceHint') }}
+          </p>
 
           <!-- Tiers -->
           <div class="mt-3 flex items-center justify-between">
@@ -231,13 +238,20 @@
         <div v-else-if="entry.billing_mode === 'video'">
           <!-- Default video price per generated second -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
-            {{ t('admin.channels.form.defaultVideoPrice') }}
-            <span class="ml-1 font-normal text-gray-400">/{{ t('admin.channels.form.second') }}</span>
+            {{
+              props.platform === 'ctmo-seedance'
+                ? t('admin.channels.form.ctmoVideoCreditPrice')
+                : t('admin.channels.form.defaultVideoPrice')
+            }}
+            <span v-if="props.platform !== 'ctmo-seedance'" class="ml-1 font-normal text-gray-400">/{{ t('admin.channels.form.second') }}</span>
           </label>
           <div class="mt-1 w-48">
             <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
               type="number" step="any" min="0" class="input text-sm" :placeholder="t('admin.channels.form.pricePlaceholder')" />
           </div>
+          <p v-if="props.platform === 'ctmo-seedance'" class="mt-1 text-xs text-gray-400">
+            {{ t('admin.channels.form.ctmoCreditPriceHint') }}
+          </p>
 
           <!-- Video tiers, e.g. resolution or audio mode -->
           <div class="mt-3 flex items-center justify-between">

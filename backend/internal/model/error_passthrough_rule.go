@@ -47,6 +47,9 @@ const (
 	PlatformKling              = "kling"
 	PlatformHappyHourse        = "happyhourse"
 	PlatformSeedance           = "seedance"
+	PlatformCTMOSeedance       = "ctmo-seedance"
+	PlatformGuangying          = "guangying"
+	PlatformOPONE              = "opone"
 	PlatformByteDance          = "bytedance"
 	PlatformWan3               = "wan3"
 	PlatformMiniMaxH3          = "minimax-h3"
@@ -76,6 +79,9 @@ func AllPlatforms() []string {
 		PlatformKling,
 		PlatformHappyHourse,
 		PlatformSeedance,
+		PlatformCTMOSeedance,
+		PlatformGuangying,
+		PlatformOPONE,
 		PlatformByteDance,
 		PlatformWan3,
 		PlatformMiniMaxH3,

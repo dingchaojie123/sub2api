@@ -245,6 +245,9 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 	if IsTerminalPPVideoTaskStatus(status) {
 		return s.settleFromTask(ctx, task, status, nil)
 	}
+	if status == PPVideoTaskStatusRequiresAttention {
+		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeSkipped, Status: status}, nil
+	}
 	if strings.TrimSpace(task.TaskID) == "" {
 		if ppVideoTaskAge(task, now) >= opts.SubmitTimeout {
 			return s.releaseAndFail(ctx, task, "submit_timeout", "video task submission timed out")

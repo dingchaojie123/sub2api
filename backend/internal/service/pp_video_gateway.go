@@ -9,8 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
+	"net"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	pathpkg "path"
 	"sort"
 	"strings"
 	"sync"
@@ -20,6 +25,28 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
+
+const (
+	guangyingImageUploadLimit = int64(15 << 20)
+	guangyingMediaUploadLimit = int64(500 << 20)
+)
+
+var guangyingMediaDownloadClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext:           safeDialContext,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		MaxIdleConns:          16,
+		MaxIdleConnsPerHost:   4,
+		IdleConnTimeout:       30 * time.Second,
+	},
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 3 || !guangyingMediaURLAllowed(req.URL) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	},
+}
 
 // PPVideoUpstreamError preserves an HTTP error returned before a video task is
 // created, such as ByteDance's reference-image asset registration endpoints.
@@ -91,6 +118,15 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == Platform88APIVideo {
 		baseURLRaw = Video88APIDefaultBaseURL
 	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformCTMOSeedance {
+		baseURLRaw = CTMOSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformGuangying {
+		baseURLRaw = GuangyingDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformOPONE {
+		baseURLRaw = OPONEDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMiniMaxH3CompShare {
 		baseURLRaw = CompShareVideoDefaultBaseURL
 	}
@@ -128,8 +164,15 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 			}
 			upstreamBody = prepared
 		}
+		upstreamBody = restoreLegacyTikTokSeedanceOneModelInBody(account.Platform, publicRequest, upstreamBody)
 		if account.Platform == PlatformByteDance {
 			upstreamBody, err = s.prepareByteDancePrivateImageAssets(upstreamCtx, baseURL, token, proxyURL, account, upstreamBody)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if account.Platform == PlatformGuangying {
+			upstreamBody, err = s.prepareGuangyingAssets(upstreamCtx, baseURL, token, proxyURL, account, upstreamBody)
 			if err != nil {
 				return nil, err
 			}
@@ -151,6 +194,16 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		}
 	}
 	req.Header = headers
+	if isSubmission && account.Platform == PlatformGuangying {
+		idempotencyKey := strings.TrimSpace(publicRequest.UpstreamIdempotencyKey)
+		if idempotencyKey == "" {
+			idempotencyKey, err = NewPPVideoLocalTaskID()
+			if err != nil {
+				return nil, fmt.Errorf("create PP video idempotency key: %w", err)
+			}
+		}
+		req.Header.Set("Idempotency-Key", idempotencyKey)
+	}
 	account.ApplyHeaderOverrides(req.Header)
 	start := time.Now()
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
@@ -166,18 +219,29 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		return nil, err
 	}
 	if resp.StatusCode >= http.StatusBadRequest {
+		upstreamMessage := strings.TrimSpace(ExtractUpstreamErrorMessage(respBody))
+		if c != nil {
+			SetOpsUpstreamError(c, resp.StatusCode, upstreamMessage, string(respBody))
+		}
+		upstreamErr := fmt.Errorf("PP video upstream returned HTTP %d", resp.StatusCode)
+		if upstreamMessage != "" {
+			upstreamErr = fmt.Errorf("PP video upstream returned HTTP %d: %s", resp.StatusCode, upstreamMessage)
+		}
 		if isStatus && resp.StatusCode >= http.StatusInternalServerError {
-			return nil, fmt.Errorf("PP video upstream returned HTTP %d", resp.StatusCode)
+			return nil, upstreamErr
 		}
 		writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
 		if c != nil {
 			MarkResponseCommitted(c)
 		}
-		return nil, fmt.Errorf("PP video upstream returned HTTP %d", resp.StatusCode)
+		return nil, upstreamErr
 	}
 	parsed, err := ParsePPVideoResponse(account.Platform, respBody)
 	if err != nil {
 		return nil, err
+	}
+	if isStatus && strings.TrimSpace(parsed.TaskID) == "" {
+		parsed.TaskID = strings.TrimSpace(taskID)
 	}
 	if account.Platform == Platform88APIVideo && parsed.Status != PPVideoTaskStatusSucceeded {
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
@@ -267,6 +331,128 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	return result, nil
 }
 
+// ForwardPPVideoContent streams an authenticated upstream video through the
+// original account. Some providers intentionally do not expose public URLs.
+func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, account *Account, taskID, rangeHeader string, fallbackURLs ...string) (*http.Response, error) {
+	if s == nil || s.httpUpstream == nil {
+		return nil, fmt.Errorf("PP video upstream transport is unavailable")
+	}
+	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformOPONE) {
+		return nil, fmt.Errorf("authenticated-content PP video account is required")
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("PP video task id is required")
+	}
+	token := strings.TrimSpace(account.GetOpenAIApiKey())
+	if token == "" {
+		return nil, fmt.Errorf("PP video api key not found in credentials")
+	}
+	baseURLRaw := strings.TrimSpace(account.GetOpenAIBaseURL())
+	if baseURLRaw == "" {
+		switch account.Platform {
+		case PlatformCTMOSeedance:
+			baseURLRaw = CTMOSeedanceDefaultBaseURL
+		case PlatformOPONE:
+			baseURLRaw = OPONEDefaultBaseURL
+		}
+	}
+	baseURL, err := normalizePPVideoBaseURL(baseURLRaw)
+	if err != nil {
+		return nil, err
+	}
+	contentPath := "/v1/videos/" + url.PathEscape(taskID) + "/content"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+contentPath, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9")
+	req.Header.Set("Authorization", "Bearer "+token)
+	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
+	account.ApplyHeaderOverrides(req.Header)
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	if account.Platform != PlatformOPONE || len(fallbackURLs) == 0 || strings.TrimSpace(fallbackURLs[0]) == "" {
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil {
+			return nil, fmt.Errorf("PP video content request returned no response")
+		}
+		return resp, nil
+	}
+	if err == nil && resp != nil && resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		return resp, nil
+	}
+
+	// OPONE documents the authenticated /content endpoint as the canonical
+	// download path. A stored provider URL is only a fallback for an unavailable
+	// or expired OPONE content endpoint, never the primary request.
+	providerProxies := []string{proxyURL}
+	if proxyURL != "" {
+		providerProxies = append(providerProxies, "")
+	}
+	for _, providerProxy := range providerProxies {
+		providerResp, providerErr := s.forwardPPVideoExternalContent(ctx, account, providerProxy, fallbackURLs[0], rangeHeader)
+		if providerErr == nil && providerResp != nil && providerResp.StatusCode >= http.StatusOK && providerResp.StatusCode < http.StatusMultipleChoices {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+			return providerResp, nil
+		}
+		if providerResp != nil && providerResp.Body != nil {
+			_ = providerResp.Body.Close()
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("PP video content request returned no response")
+	}
+	return resp, nil
+}
+
+func (s *OpenAIGatewayService) forwardPPVideoExternalContent(ctx context.Context, account *Account, proxyURL, rawURL, rangeHeader string) (*http.Response, error) {
+	contentURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || contentURL == nil || contentURL.Hostname() == "" || contentURL.User != nil {
+		return nil, fmt.Errorf("invalid PP video provider URL")
+	}
+	switch strings.ToLower(contentURL.Scheme) {
+	case "http", "https":
+	default:
+		return nil, fmt.Errorf("invalid PP video provider URL scheme")
+	}
+	if isBlockedHostname(contentURL.Hostname()) {
+		return nil, fmt.Errorf("unsafe PP video provider URL")
+	}
+	if ip := net.ParseIP(contentURL.Hostname()); ip != nil && (!ip.IsGlobalUnicast() || isPrivateIP(ip)) {
+		return nil, fmt.Errorf("unsafe PP video provider URL")
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, contentURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9")
+	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
+		req.Header.Set("Range", rangeHeader)
+	}
+	// Do not apply account headers here. The signed URL authorizes the download,
+	// and provider credentials must never be forwarded to the storage host.
+	return s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+}
+
+// ForwardCTMOSeedanceContent is retained for existing callers.
+func (s *OpenAIGatewayService) ForwardCTMOSeedanceContent(ctx context.Context, account *Account, taskID, rangeHeader string) (*http.Response, error) {
+	return s.ForwardPPVideoContent(ctx, account, taskID, rangeHeader)
+}
+
 func (s *OpenAIGatewayService) ppVideoPixverseV6MediaURLReady(ctx context.Context, mediaURL string, proxyURL string, account *Account) (bool, error) {
 	mediaURL = strings.TrimSpace(mediaURL)
 	if mediaURL == "" {
@@ -292,6 +478,260 @@ func (s *OpenAIGatewayService) ppVideoPixverseV6MediaURLReady(ctx context.Contex
 	}
 	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices, nil
+}
+
+func (s *OpenAIGatewayService) prepareGuangyingAssets(ctx context.Context, baseURL, token, proxyURL string, account *Account, body []byte) ([]byte, error) {
+	if !gjson.GetBytes(body, "assets").Exists() {
+		return body, nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil || payload == nil {
+		return nil, fmt.Errorf("parse Guangying request body: %w", err)
+	}
+	rawAssets, ok := payload["assets"].([]any)
+	if !ok {
+		return nil, fmt.Errorf("Guangying assets must be an array")
+	}
+	assets := make([]any, 0, len(rawAssets))
+	for index, value := range rawAssets {
+		asset, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("Guangying assets[%d] must be an object", index)
+		}
+		assetType := strings.ToLower(guangyingAssetString(asset, "type"))
+		name := guangyingAssetString(asset, "name")
+		fileID := guangyingAssetString(asset, "fileId")
+		rawURL := guangyingAssetString(asset, "url")
+		if fileID == "" {
+			if rawURL == "" {
+				return nil, fmt.Errorf("Guangying assets[%d] requires fileId or url", index)
+			}
+			var err error
+			fileID, err = s.uploadGuangyingAsset(ctx, baseURL, token, proxyURL, account, assetType, rawURL)
+			if err != nil {
+				return nil, fmt.Errorf("upload Guangying assets[%d]: %w", index, err)
+			}
+		}
+		assets = append(assets, map[string]any{
+			"type":   assetType,
+			"fileId": fileID,
+			"name":   name,
+		})
+	}
+	payload["assets"] = assets
+	prepared, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal Guangying request body: %w", err)
+	}
+	return prepared, nil
+}
+
+func guangyingAssetString(asset map[string]any, key string) string {
+	value, ok := asset[key].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func (s *OpenAIGatewayService) uploadGuangyingAsset(ctx context.Context, baseURL, token, proxyURL string, account *Account, assetType, rawURL string) (string, error) {
+	sourceURL, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || !guangyingMediaURLAllowed(sourceURL) {
+		return "", fmt.Errorf("reference URL must be a public HTTP or HTTPS URL")
+	}
+	downloadReq, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	downloadReq.Header.Set("Accept", guangyingAssetAcceptHeader(assetType))
+	downloadResp, err := guangyingMediaDownloadClient.Do(downloadReq)
+	if err != nil {
+		return "", fmt.Errorf("download reference: %w", err)
+	}
+	if downloadResp == nil {
+		return "", fmt.Errorf("download reference returned no response")
+	}
+	if downloadResp.StatusCode < http.StatusOK || downloadResp.StatusCode >= http.StatusMultipleChoices {
+		_ = downloadResp.Body.Close()
+		return "", fmt.Errorf("download reference returned HTTP %d", downloadResp.StatusCode)
+	}
+
+	filename := pathpkg.Base(sourceURL.Path)
+	contentType, limit, err := guangyingAssetContentType(assetType, downloadResp.Header.Get("Content-Type"), filename)
+	if err != nil {
+		_ = downloadResp.Body.Close()
+		return "", err
+	}
+	if downloadResp.ContentLength > limit {
+		_ = downloadResp.Body.Close()
+		return "", fmt.Errorf("reference exceeds %d bytes", limit)
+	}
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "reference" + guangyingExtensionForContentType(contentType)
+	}
+
+	pipeReader, pipeWriter := io.Pipe()
+	multipartWriter := multipart.NewWriter(pipeWriter)
+	streamErr := make(chan error, 1)
+	go func() {
+		defer func() { _ = downloadResp.Body.Close() }()
+		writeErr := multipartWriter.WriteField("type", assetType)
+		if writeErr == nil {
+			var part io.Writer
+			header := make(textproto.MIMEHeader)
+			header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{"name": "file", "filename": filename}))
+			header.Set("Content-Type", contentType)
+			part, writeErr = multipartWriter.CreatePart(header)
+			if writeErr == nil {
+				var copied int64
+				copied, writeErr = io.Copy(part, io.LimitReader(downloadResp.Body, limit+1))
+				if writeErr == nil && copied > limit {
+					writeErr = fmt.Errorf("reference exceeds %d bytes", limit)
+				}
+			}
+		}
+		if closeErr := multipartWriter.Close(); writeErr == nil {
+			writeErr = closeErr
+		}
+		_ = pipeWriter.CloseWithError(writeErr)
+		streamErr <- writeErr
+	}()
+
+	uploadReq, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(baseURL, "/")+"/v1/media/uploads", pipeReader)
+	if err != nil {
+		_ = pipeReader.Close()
+		return "", err
+	}
+	uploadReq.Header.Set("Authorization", "Bearer "+token)
+	uploadReq.Header.Set("Accept", "application/json")
+	uploadReq.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+	account.ApplyHeaderOverrides(uploadReq.Header)
+	uploadResp, requestErr := s.httpUpstream.Do(uploadReq, proxyURL, account.ID, account.Concurrency)
+	_ = pipeReader.Close()
+	copyErr := <-streamErr
+	if requestErr != nil {
+		return "", requestErr
+	}
+	if copyErr != nil {
+		if uploadResp != nil && uploadResp.Body != nil {
+			_ = uploadResp.Body.Close()
+		}
+		return "", copyErr
+	}
+	if uploadResp == nil {
+		return "", fmt.Errorf("Guangying upload returned no response")
+	}
+	defer func() { _ = uploadResp.Body.Close() }()
+	responseBody, err := ReadUpstreamResponseBody(uploadResp.Body, s.cfg, nil, openAITooLargeError)
+	if err != nil {
+		return "", err
+	}
+	if uploadResp.StatusCode < http.StatusOK || uploadResp.StatusCode >= http.StatusMultipleChoices {
+		return "", &PPVideoUpstreamError{
+			StatusCode:   uploadResp.StatusCode,
+			ResponseBody: append([]byte(nil), responseBody...),
+			err:          fmt.Errorf("Guangying upload returned HTTP %d", uploadResp.StatusCode),
+		}
+	}
+	fileID := strings.TrimSpace(gjson.GetBytes(responseBody, "data.id").String())
+	if fileID == "" {
+		return "", fmt.Errorf("Guangying upload response missing data.id")
+	}
+	return fileID, nil
+}
+
+func guangyingMediaURLAllowed(value *url.URL) bool {
+	if value == nil || (value.Scheme != "http" && value.Scheme != "https") || value.User != nil || isBlockedHostname(value.Hostname()) {
+		return false
+	}
+	if ip := net.ParseIP(value.Hostname()); ip != nil {
+		return ip.IsGlobalUnicast() && !isPrivateIP(ip)
+	}
+	return true
+}
+
+func guangyingAssetAcceptHeader(assetType string) string {
+	switch assetType {
+	case "image":
+		return "image/jpeg,image/png,image/webp"
+	case "video":
+		return "video/mp4,video/webm"
+	case "audio":
+		return "audio/mpeg,audio/wav,audio/mp4"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func guangyingAssetContentType(assetType, rawContentType, filename string) (string, int64, error) {
+	contentType, _, _ := mime.ParseMediaType(rawContentType)
+	contentType = strings.ToLower(strings.TrimSpace(contentType))
+	if contentType == "" || contentType == "application/octet-stream" {
+		extension := strings.ToLower(pathpkg.Ext(filename))
+		if assetType == "audio" && (extension == ".mp4" || extension == ".m4a") {
+			contentType = "audio/mp4"
+		} else {
+			contentType = guangyingContentTypeForExtension(extension)
+		}
+	}
+	allowed := false
+	switch assetType {
+	case "image":
+		allowed = contentType == "image/jpeg" || contentType == "image/png" || contentType == "image/webp"
+		if allowed {
+			return contentType, guangyingImageUploadLimit, nil
+		}
+	case "video":
+		allowed = contentType == "video/mp4" || contentType == "video/webm"
+	case "audio":
+		allowed = contentType == "audio/mpeg" || contentType == "audio/wav" || contentType == "audio/x-wav" || contentType == "audio/mp4"
+	}
+	if !allowed {
+		return "", 0, fmt.Errorf("unsupported %s content type %q", assetType, contentType)
+	}
+	return contentType, guangyingMediaUploadLimit, nil
+}
+
+func guangyingContentTypeForExtension(extension string) string {
+	switch strings.ToLower(strings.TrimSpace(extension)) {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".mp4", ".m4a":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".wav":
+		return "audio/wav"
+	default:
+		return ""
+	}
+}
+
+func guangyingExtensionForContentType(contentType string) string {
+	switch contentType {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/png":
+		return ".png"
+	case "image/webp":
+		return ".webp"
+	case "video/mp4", "audio/mp4":
+		return ".mp4"
+	case "video/webm":
+		return ".webm"
+	case "audio/mpeg":
+		return ".mp3"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	default:
+		return ""
+	}
 }
 
 func (s *OpenAIGatewayService) prepareByteDancePrivateImageAssets(ctx context.Context, baseURL, token, proxyURL string, account *Account, body []byte) ([]byte, error) {

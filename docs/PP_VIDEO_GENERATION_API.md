@@ -18,7 +18,7 @@ Content-Type: application/json
 Idempotency-Key: YOUR_UNIQUE_REQUEST_KEY
 ```
 
-同一个 `Idempotency-Key` 重试同一个请求会返回同一个任务结果；同一个 key 不能用于不同请求。
+同一个 `Idempotency-Key` 重试同一个请求会返回同一个任务结果；同一个 key 不能用于不同请求。该请求头是可选的：不传时每次调用都会创建独立的视频任务，即使请求正文完全相同。
 
 ## 音频语音合成（Qwen TTS）
 
@@ -108,11 +108,71 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | ByteDance | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` |
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
 | 88API Video | `SD2.0`、`SD2.5`、`gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0-turbo`、Seedance 2.0/2.5 官方版、Veo 3.1、Wan 3.0 Video 系列 | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`2K`、`4K`，按模型限制 |
+| 浙创 OPC Seedance | 下表列出的 9 个精确模型 ID | 文生、参考图片/视频/音频及首尾帧，按模型能力 | 按模型 `durations_seconds` | 模型固定档位，以模型 ID 为准 |
+| 光影 AI Seedance | `gy-model-13`、`gy-model-19`、`gy-model-20`、`gy-model-21`、`gy-model-22`、`gy-model-30`、`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40` | 文生、参考图片/视频/音频，按模型能力 | 4-30 秒，按模型目录限制 | `480p`、`720p`、`1080p`，按模型目录限制 |
+| OPONE Seedance | `seedance-2.5-b1`、`seedance-2.5-b2`、`seedance-2.5-s1`、`seedance-2.5-s5`、`seedance-2.5-s6`、`seedance-2.5-s7`、`seedance-2.5-s8`、`seedance-2.5-SS`、`seedance-2.0-Q`、`seedance-2.0fast-Q`、`seedance-2.0mini-Q`、`seedance-2.5-Q`、`seedance-2.5-Qs` | 文生、参考图片/视频/音频及首尾帧，按模型能力 | B 系列固定 30 秒；其余 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4k`，按模型限制 |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
 | MiniMax-H3（优云智算，`minimax-h3-compshare`） | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` |
 | Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` |
 | Grok Imagine Video | `grok-imagine-video` | 图生、参考生 | 1-15 秒整数 | `480p`、`720p` |
+
+#### 浙创 OPC Seedance 上游
+
+后台平台标识为 `ctmo-seedance`，默认上游地址为 `https://video.ctmoai.com`。账号使用 Bearer API Key；同步上游模型时，本站只保留下表 9 个受支持的精确模型 ID。账户映射的键和值都应使用相同的完整模型 ID，不要改写为 `SD2.5-30-10-10` 等上游内部名称。管理员应保存需要开放的模型映射，并在该分组关联的渠道中为每个完整模型 ID 单独配置价格；CTMO 不使用分组中的 480p/720p/1080p 统一每秒价。上游模型列表中的 `pricing` 是上游实时成本信息，不会直接替代本站渠道售价。
+
+当前 9 个模型应按下表建立 9 条精确模型定价。按次收费的模型选择渠道计费模式 `per_request`（后台显示“按请求”），按秒收费的模型选择 `video`（后台显示“视频”）。不要使用 `seedance-*` 等通配符合并配置，因为同一前缀下存在不同计费模式和价格。
+
+| 完整模型 ID | 计费模式 | 积分基础价 | 扣分公式 |
+| --- | --- | ---: | --- |
+| `seedance-2.0-930` | `per_request` | 5.6 积分/次 | 5.6 × 视频数 |
+| `seedance-2.0-903` | `per_request` | 5.6 积分/次 | 5.6 × 视频数 |
+| `seedance2.0-pro-720p` | `per_request` | 7.8 积分/次 | 7.8 × 视频数 |
+| `seedance2.5-pro-720p` | `video` | 1.4 积分/秒 | 1.4 × 请求秒数 × 视频数 |
+| `seedance2.5-one-720p` | `per_request` | 22.4 积分/次 | 22.4 × 视频数 |
+| `seedance2.5-one-1080p` | `per_request` | 26.88 积分/次 | 26.88 × 视频数 |
+| `seedance-2.0-max` | `video` | 1.4 积分/秒 | 1.4 × 请求秒数 × 视频数 |
+| `doubao-seedance-2.5` | `video` | 1.9 积分/秒 | 1.9 × 请求秒数 × 视频数 |
+| `seedance-2.5-720-max` | `video` | 2.2 积分/秒 | 2.2 × 请求秒数 × 视频数 |
+
+CTMO 渠道的默认价格字段直接填写上表积分值，不做人民币或美元换算。面向下游的最终扣分为模型积分基础价再乘分组有效倍率；开启“视频倍率独立”后使用视频独立倍率。若希望严格按表中数值扣分，应把有效视频倍率设为 `1`。按次模型完成结算时不会因实际视频时长变化而改变单次积分。
+
+下游仍调用本站统一创建和查询接口。网关把 `duration` 转换为上游整数 `seconds`，把 `ratio` / `aspect_ratio` 统一为 `aspect_ratio`，并透传 `images`、`videos`、`audios`。单图字段 `image` / `image_url` 转换为 `images`；`start_frame_url` / `end_frame_url` 转换为上游 `input_reference` / `image_end`。上游 `completed` 状态转换为本站 `succeeded`，完成响应中的 `video_url` 指向本站 `GET /v1/videos/{task_id}/content` 下载代理；代理校验任务归属并使用原上游账号拉取视频。
+
+#### 光影 AI Seedance 上游
+
+后台平台标识为 `guangying`，默认上游地址为 `https://api.guangying.store`，账号使用 Bearer API Key。本站从上游 `/v1/models` 动态同步，并只保留文档当前列出的 10 个 Seedance 模型，排除同目录中的 MiniMax H3（`gy-model-18`）及未知模型，避免该分组混入其他模型族。上游已下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不再同步，也不再接受新建任务；已创建任务仍可按原任务 ID 查询。模型同步会生成下述公开名称，管理员也可使用预设映射将公开名称关联到上游 ID，并在该分组关联的渠道中按精确公开名称配置 `per_request`（按次）或 `video`（按秒）价格。不同模型的时长、比例、分辨率和参考素材数量以上游目录为准。
+
+下游模型列表使用清晰名称，网关在请求上游前自动映射回原始 ID：
+
+| 下游公开名称 | 上游模型 ID | 渠道计费模式 | 上游目录积分参考 |
+| --- | --- | --- | --- |
+| `Seedance 2.5-全参720P` | `gy-model-31` | `video` | 720p：5 积分/秒 |
+| `特惠-Seedance 2.5-超分掺水版` | `gy-model-39` | `per_request` | 1080p：60 积分/次 |
+| `特价-Seedance 2.5-图文` | `gy-model-35` | `per_request` | 720p：80 积分/次；1080p：100 积分/次 |
+| `Seedance 2.5-全参1080超分` | `gy-model-40` | `video` | 1080p：5 积分/秒 |
+| `Seedance 2.0按次计费` | `gy-model-30` | `per_request` | 720p：30 积分/次 |
+| `Seedance 2.5-无参考视频 按秒计费` | `gy-model-22` | `video` | 480p：5；720p：7 积分/秒 |
+| `Seedance 2.0-无参考视频 按秒计费` | `gy-model-21` | `video` | 480p：4；720p：5；1080p：8 积分/秒 |
+| `竖屏-Seedance 2.0按次计费` | `gy-model-13` | `per_request` | 720p：18 积分/次 |
+| `竖屏-Seedance 2.0 Fast 按次计费` | `gy-model-20` | `per_request` | 720p：14 积分/次 |
+| `竖屏-Seedance 2.0 Mini 按次计费` | `gy-model-19` | `per_request` | 720p：10 积分/次 |
+
+上表积分来自上游当前目录，仅用于配置参考，不会自动覆盖本站渠道售价。`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40` 之前带“按次计费”或“按秒计费”后缀的公开名称仍作为兼容别名接受，但模型同步和预设映射只展示上表中的新名称。旧 ID 请求仅对仍在上表中的模型兼容；已经下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不属于兼容范围。
+
+下游仍调用本站统一创建和查询接口。网关只在 `guangying` 平台内把创建请求转为上游 `/v1/video/generations`，把状态查询转为 `/v1/tasks/{id}`，并用本站本地任务 ID 生成上游 `Idempotency-Key`。`images`、`image`、`image_url`、`videos`、`audios` 或 `assets[].url` 中的公网 HTTP(S) URL 会先按上游协议上传到 `/v1/media/uploads`，再作为 `assets[].fileId` 提交；该转换不会用于其他视频平台。下游不能直接传上游 `fileId`，以免共享上游账号时跨用户引用素材。完成响应优先读取 `data.downloadUrl`，其次读取 `data.results[0].url`。
+
+#### OPONE Seedance 上游
+
+后台平台标识为 `opone`，默认上游地址为 `https://api.opone.cc`，账号使用 Bearer API Key。模型从上游 `GET /v1/models` 同步，本站不对 OPONE 返回的模型 ID 做本地白名单过滤，因此同步结果以该 Key 的实时上游响应为准。上表 13 个模型已经配置本地参数规格；同步到其他新模型只代表上游将其列为可见模型，不代表本站已经掌握其参数和计费规格。
+
+下游仍调用本站统一的 `POST /v1/videos/generations`、`GET /v1/videos/{task_id}` 和 `GET /v1/videos/{task_id}/content`。网关向 OPONE 转发为 `POST /v1/videos`、`GET /v1/videos/{id}` 和带鉴权的内容请求，并把 `queued` / `in_progress` / `completed` / `failed` 归一为本站状态。`media_store_pending` 保持为处理中，客户端不应重复创建任务；B、S、Q 系列轮询间隔建议不少于 20 秒，`seedance-2.5-SS` 不少于 15 秒。
+
+B、S、Q 系列沿用 OPONE 原生的 `duration`、`resolution`、`aspect_ratio` 和素材字段。`seedance-2.5-SS` 沿用其 `seconds` 与 `metadata` 结构；为便于统一调用，本站也接受顶层 `duration`、`resolution`、`aspect_ratio`，并在转发前转换为 `seconds`、`metadata.resolution`、`metadata.ratio`。各模型的时长、分辨率和比例会在请求上游前校验。
+
+OPONE 当前公开文档没有列出 `seedance-2.5-s7` / `seedance-2.5-s8` 的独立参数规格；本站仅按上游模型列表开放这两个 ID，不再推断它们必须显式传 `duration`。下游未传时使用 S/Q 系列通用默认值 `5` 秒，显式传入时仍限制为 `4`-`30` 秒整数。
+
+管理员应按精确模型名配置渠道价格，计费模式可选 `per_request`（按次）或 `video`（按秒），并可按 `480p`、`720p`、`1080p`、`4k` 配置分辨率价档。`seedance-2.5-s5` 的按秒计费单位为输出时长加所有带 `durationSeconds` 的参考视频时长；其他 OPONE 模型仅按输出时长计费。
 
 两个 MiniMax-H3 平台使用相同的本站创建和查询地址，但由 **API Key 所属分组的平台** 决定调用哪一套接口。使用优云智算时，请获取绑定 `minimax-h3-compshare` 分组的本站 API Key，`model` 仍填写 `MiniMax-H3` 或 `minimax-h3-lite`。不要把平台标识 `minimax-h3-compshare` 填入 `model`，也无需增加 `platform` 请求字段。原平台客户可以继续使用原 Key 和原请求格式。
 
@@ -692,6 +752,7 @@ URL 的完整内容：
 | Happy Horse | 按输出视频秒数计费，720p/1080p 分别取本站该 API Key 所属分组的 `720p`/`1080p` 视频价格。 |
 | ByteDance | 按输出视频秒数计费。`480p`、`720p`、`1080p` 分别使用分组对应价档，`4K` 使用 `1080p` 价档。 |
 | Wan3.0 | 按输出视频秒数计费。`480P`、`720P`、`1080P` 分别使用分组对应价档。 |
+| OPONE Seedance | 使用渠道中精确模型的 `per_request`（按次）或 `video`（按秒）价格，可按分辨率配置价档。`seedance-2.5-s5` 按秒时额外计入参考视频时长。 |
 | MiniMax-H3（原平台） | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`2K` 使用分组 `1080p` 价档。 |
 | MiniMax-H3（优云智算） | 按输出视频秒数及五档分辨率分别计费，使用当前分组配置的美元/秒售价。请求 1080P/2K/4K 后实际降级为 768P 时，按创建任务时保存的 768P 单价结算。 |
 | MiniMax-Hailuo-2.3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`1080P` 使用分组 `1080p` 价档。 |

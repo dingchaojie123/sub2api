@@ -94,6 +94,11 @@ describe('billingModesForPlatform', () => {
       makeInterval({ tier_label: '4k', per_request_price: 0.5 }),
     ], 'video', t)).toBeNull()
   })
+  it('offers only per-request and per-second pricing for CTMO Seedance', () => {
+    expect(billingModesForPlatform('ctmo-seedance')).toEqual(['per_request', 'video'])
+    expect(billingModesForPlatform('guangying')).toEqual(['per_request', 'video'])
+    expect(billingModesForPlatform('opone')).toEqual(['per_request', 'video'])
+  })
   it('does not offer channel video-per-second pricing for PP video platforms', () => {
     expect(billingModesForPlatform('kling')).not.toContain('video')
     expect(billingModesForPlatform('happyhourse')).not.toContain('video')

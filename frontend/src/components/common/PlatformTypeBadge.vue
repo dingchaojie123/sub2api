@@ -99,6 +99,9 @@ const platformLabel = computed(() => {
   if (props.platform === 'kling') return 'K-Ling'
   if (props.platform === 'happyhourse') return 'Happy-Hourse'
   if (props.platform === 'seedance') return 'Seedance'
+  if (props.platform === 'ctmo-seedance') return '浙创 OPC Seedance'
+  if (props.platform === 'guangying') return '光影 AI Seedance'
+  if (props.platform === 'opone') return 'OPONE Seedance'
   if (props.platform === 'bytedance') return 'ByteDance'
   if (props.platform === 'wan3') return 'Wan3.0'
   if (props.platform === 'minimax-h3') return 'MiniMax-H3'
@@ -221,6 +224,15 @@ const platformClass = computed(() => {
   if (props.platform === 'seedance') {
     return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
   }
+  if (props.platform === 'ctmo-seedance') {
+    return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+  }
+  if (props.platform === 'guangying') {
+    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
+  }
+  if (props.platform === 'opone') {
+    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+  }
   if (props.platform === 'bytedance') {
     return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
   }
@@ -287,6 +299,15 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'seedance') {
     return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300'
+  }
+  if (props.platform === 'ctmo-seedance') {
+    return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300'
+  }
+  if (props.platform === 'guangying') {
+    return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300'
+  }
+  if (props.platform === 'opone') {
+    return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300'
   }
   if (props.platform === 'bytedance') {
     return 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'

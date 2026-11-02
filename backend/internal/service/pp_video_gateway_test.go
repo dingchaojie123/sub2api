@@ -782,6 +782,56 @@ func TestForwardPPVideoBufferedMarksUpstreamErrorResponseCommitted(t *testing.T)
 	require.True(t, IsResponseCommitted(ginContext))
 }
 
+func TestForwardPPVideoBufferedPreservesUpstreamErrorMessage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tt := range []struct {
+		name       string
+		statusCode int
+		response   string
+		message    string
+		request    string
+	}{
+		{
+			name: "s8 validation", statusCode: http.StatusBadRequest,
+			response: `{"error":{"code":"invalid_seconds","message":"duration is required"}}`,
+			message:  "duration is required",
+			request:  `{"model":"seedance-2.5-s8","prompt":"waves","duration":5,"resolution":"720p"}`,
+		},
+		{
+			name: "SS upstream quota", statusCode: http.StatusPaymentRequired,
+			response: `{"error":{"code":"insufficient_user_quota","message":"upstream balance is insufficient"}}`,
+			message:  "upstream balance is insufficient",
+			request:  `{"model":"seedance-2.5-SS","prompt":"waves","seconds":5,"metadata":{"resolution":"720p"}}`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+				StatusCode: tt.statusCode,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(tt.response))),
+			}}}
+			svc := &OpenAIGatewayService{httpUpstream: upstream}
+			account := &Account{
+				ID: 12, Platform: PlatformOPONE, Type: AccountTypeAPIKey, Concurrency: 1,
+				Credentials: map[string]any{"api_key": "opone-token"},
+			}
+			recorder := httptest.NewRecorder()
+			ginContext, _ := gin.CreateTestContext(recorder)
+			body := []byte(tt.request)
+			ginContext.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(body))
+
+			_, err := svc.ForwardPPVideoBuffered(
+				context.Background(), ginContext, account, PPVideoOperationGeneric, "", body,
+			)
+
+			require.ErrorContains(t, err, tt.message)
+			require.Equal(t, tt.statusCode, recorder.Code)
+			require.JSONEq(t, tt.response, recorder.Body.String())
+			require.True(t, IsResponseCommitted(ginContext))
+		})
+	}
+}
+
 func TestForwardPPVideoBufferedBuffersRetryableStatusError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	upstream := &httpUpstreamRecorder{

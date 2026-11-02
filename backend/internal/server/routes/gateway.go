@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -103,7 +103,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -118,6 +118,10 @@ func RegisterGatewayRoutes(
 	videoContentHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
 			h.OpenAIGateway.GrokVideoContent(c)
+			return
+		}
+		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformOPONE {
+			h.OpenAIGateway.PPVideoContent(c)
 			return
 		}
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
@@ -240,6 +244,7 @@ func RegisterGatewayRoutes(
 		gateway.DELETE("/videos/:request_id", h.OpenAIGateway.PPVideoCancel)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id/content", videoContentHandler)
+		gateway.HEAD("/videos/:request_id/content", videoContentHandler)
 	}
 
 	// Gemini 原生 API 兼容层（Gemini SDK/CLI 直连）
@@ -288,7 +293,9 @@ func RegisterGatewayRoutes(
 		modelProxy.GET("/v1/videos/:request_id", videoStatusHandler)
 		modelProxy.GET("/videos/:request_id", videoStatusHandler)
 		modelProxy.GET("/v1/videos/:request_id/content", videoContentHandler)
+		modelProxy.HEAD("/v1/videos/:request_id/content", videoContentHandler)
 		modelProxy.GET("/videos/:request_id/content", videoContentHandler)
+		modelProxy.HEAD("/videos/:request_id/content", videoContentHandler)
 	}
 
 	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform
@@ -357,6 +364,7 @@ func RegisterGatewayRoutes(
 	r.DELETE("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoCancel)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 	r.GET("/videos/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoContentHandler)
+	r.HEAD("/videos/:request_id/content", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoContentHandler)
 
 	// Antigravity 模型列表
 	r.GET("/antigravity/models", gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)

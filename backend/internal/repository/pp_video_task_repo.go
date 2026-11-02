@@ -101,6 +101,31 @@ func (r *usageBillingRepository) GetPPVideoTaskByIdempotencyKey(ctx context.Cont
 	return task, nil
 }
 
+func (r *usageBillingRepository) ReleaseFailedPPVideoTaskIdempotencyKey(ctx context.Context, localTaskID string, idempotencyKey string) (bool, error) {
+	if r == nil || r.db == nil {
+		return false, sql.ErrConnDone
+	}
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE pp_video_tasks
+		SET idempotency_key = NULL,
+			updated_at = NOW()
+		WHERE local_task_id = $1
+			AND idempotency_key = $2
+			AND status = 'failed'
+			AND (task_id IS NULL OR task_id = '')
+			AND billing_status = 'released'
+			AND settled_at IS NOT NULL
+	`, strings.TrimSpace(localTaskID), strings.TrimSpace(idempotencyKey))
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected == 1, nil
+}
+
 func (r *usageBillingRepository) GetPPVideoTaskForOwner(ctx context.Context, userID int64, apiKeyID int64, taskID string) (*service.PPVideoTask, error) {
 	if r == nil || r.db == nil {
 		return nil, sql.ErrConnDone
@@ -481,6 +506,7 @@ func (r *usageBillingRepository) ClaimPPVideoTasksForPolling(ctx context.Context
 			FROM pp_video_tasks AS candidate
 			WHERE candidate.billing_status IN ('held', 'none', 'settling', 'settling_none')
 				AND candidate.settled_at IS NULL
+				AND NOT (candidate.platform = 'guangying' AND candidate.status = 'requires_attention')
 				AND (candidate.poll_lease_until IS NULL OR candidate.poll_lease_until <= NOW())
 				AND (
 					NULLIF(candidate.task_id, '') IS NOT NULL

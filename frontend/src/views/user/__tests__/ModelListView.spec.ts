@@ -1,29 +1,21 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ModelListView from '../ModelListView.vue'
-
-const mockPublicSettings = vi.hoisted(() => ({ value: null as Record<string, unknown> | null }))
-const mockFetchPublicSettings = vi.hoisted(() => vi.fn())
-
-vi.mock('@/stores', () => ({
-  useAppStore: () => ({
-    cachedPublicSettings: mockPublicSettings.value,
-    fetchPublicSettings: mockFetchPublicSettings,
-  }),
-}))
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   const translations: Record<string, string> = {
+    'modelList.eyebrow': '公开报价',
     'modelList.title': '模型与价格',
-    'modelList.description': '按你可用的分组查看模型价格。',
-    'modelList.refresh': '重置分组',
-    'modelList.groupCount': '{count} 个模型',
+    'modelList.description': '查看当前支持的文本、图片与视频模型价格。',
+    'modelList.search': '搜索模型',
+    'modelList.searchPlaceholder': '搜索模型或规格',
+    'modelList.categories': '模型分类',
+    'modelList.matchCount': '{count} 个报价',
     'modelList.columns.model': '模型',
-    'modelList.columns.platformInput': '本平台输入',
-    'modelList.columns.platformOutput': '本平台输出',
-    'modelList.columns.officialInput': '官方输入',
-    'modelList.columns.officialOutput': '官方输出',
+    'modelList.emptyTitle': '未找到匹配模型',
+    'modelList.emptyDescription': '请调整搜索关键词。',
+    'modelList.availabilityNote': '“-”表示该档位暂不提供。',
   }
 
   return {
@@ -53,104 +45,58 @@ function renderView() {
 }
 
 describe('ModelListView', () => {
-  beforeEach(() => {
-    mockPublicSettings.value = null
-    mockFetchPublicSettings.mockReset()
-  })
-
-  it('renders the special ChatGPT pricing by default', () => {
+  it('renders the spreadsheet video price matrix by default', () => {
     const wrapper = renderView()
 
     expect(wrapper.text()).toContain('模型与价格')
-    expect(wrapper.text()).toContain('ChatGPT【特惠分组】')
-    expect(wrapper.text()).toContain('openai 分组模型价格')
-    expect(wrapper.text()).toContain('codex-auto-review')
-    expect(wrapper.text()).toContain('¥0.04 / 1M')
-    expect(wrapper.text()).toContain('30 / 1M')
-    expect(wrapper.findAll('[data-testid^="model-group-"]')).toHaveLength(7)
-    expect(wrapper.text()).toContain('glm - 官key openai协议')
-    expect(wrapper.text()).toContain('glm - 官key claude协议')
+    expect(wrapper.text()).toContain('视频生成')
+    expect(wrapper.text()).toContain('grok-imagine-video【官key】')
+    expect(wrapper.text()).toContain('¥0.18')
+    expect(wrapper.text()).toContain('veo-3.1-fast【官】')
+    expect(wrapper.text()).toContain('¥5.80')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(14)
   })
 
-  it('switches groups and renders Gemini pricing', async () => {
+  it('shows subsidized per-request and per-second Seedance prices', async () => {
     const wrapper = renderView()
 
-    await wrapper.get('[data-testid="model-group-gemini"]').trigger('click')
+    await wrapper.get('[data-testid="pricing-category-subsidized-video"]').trigger('click')
 
-    expect(wrapper.text()).toContain('gemini')
-    expect(wrapper.text()).toContain('gemini 分组模型价格')
-    expect(wrapper.text()).toContain('1.0x')
-    expect(wrapper.text()).toContain('gemini-2.5-pro')
-    expect(wrapper.text()).toContain('¥1.25 / 1M')
-    expect(wrapper.text()).toContain('10 / 1M')
+    expect(wrapper.text()).toContain('TikTok 补贴视频')
+    expect(wrapper.text()).toContain('按次')
+    expect(wrapper.text()).toContain('¥3.36 / 次')
+    expect(wrapper.text()).toContain('¥17.00 / 次')
+    expect(wrapper.text()).toContain('按秒')
+    expect(wrapper.text()).toContain('¥0.80 / 秒')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(7)
   })
 
-  it('renders ChatGPT enterprise pricing in the corrected column order', async () => {
+  it('switches to image and text pricing', async () => {
     const wrapper = renderView()
 
-    await wrapper.get('[data-testid="model-group-ChatGPT【企业分组】"]').trigger('click')
+    await wrapper.get('[data-testid="pricing-category-image"]').trigger('click')
+    expect(wrapper.text()).toContain('gpt-image【官】')
+    expect(wrapper.text()).toContain('Midjourney【官】')
+    expect(wrapper.text()).toContain('¥1.20')
 
-    const row = wrapper.findAll('tbody tr').find((item) => item.text().includes('gpt-5.4'))
-    expect(row).toBeTruthy()
-    expect(row?.findAll('td').map((cell) => cell.text())).toEqual([
-      'gpt-5.4',
-      '¥2.5 / 1M',
-      '¥15 / 1M',
-      '3.5 / 1M',
-      '21 / 1M',
-    ])
+    await wrapper.get('[data-testid="pricing-category-text"]').trigger('click')
+    expect(wrapper.text()).toContain('Claude Code【官】')
+    expect(wrapper.text()).toContain('7 折')
+    expect(wrapper.text()).toContain('Claude Code【官转】')
+    expect(wrapper.text()).toContain('3 折')
   })
 
-  it('renders all expected pricing columns', () => {
+  it('filters the active category and shows an empty state', async () => {
     const wrapper = renderView()
+    const search = wrapper.get('[data-testid="model-pricing-search"]')
 
-    expect(wrapper.text()).toContain('模型')
-    expect(wrapper.text()).toContain('本平台输入')
-    expect(wrapper.text()).toContain('本平台输出')
-    expect(wrapper.text()).toContain('官方输入')
-    expect(wrapper.text()).toContain('官方输出')
-  })
+    await search.setValue('Pixverse')
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Pixverse-V6【官】')
+    expect(wrapper.text()).not.toContain('grok-imagine-video【官key】')
 
-  it('resets to the default group when refresh is clicked', async () => {
-    const wrapper = renderView()
-
-    await wrapper.get('[data-testid="model-group-ChatGPT【企业分组】"]').trigger('click')
-    expect(wrapper.text()).toContain('ChatGPT【企业分组】')
-
-    await wrapper.get('[data-testid="model-list-refresh"]').trigger('click')
-    expect(wrapper.text()).toContain('ChatGPT【特惠分组】')
-    expect(wrapper.text()).toContain('¥0.04 / 1M')
-  })
-
-  it('uses model pricing page data supplied by public settings', () => {
-    mockPublicSettings.value = {
-      model_pricing_page_data: [
-        {
-          id: 'server-managed',
-          name: 'Server Managed',
-          provider: 'openai',
-          multiplier: 'custom',
-          rows: [
-            {
-              model: 'server-model-1',
-              platform_input: '¥0.11 / 1M',
-              platform_output: '¥0.22 / 1M',
-              official_input: '$0.33 / 1M',
-              official_output: '$0.44 / 1M',
-            },
-          ],
-        },
-      ],
-    }
-
-    const wrapper = renderView()
-
-    expect(wrapper.text()).toContain('Server Managed')
-    expect(wrapper.text()).toContain('server-model-1')
-    expect(wrapper.text()).toContain('¥0.11 / 1M')
-    expect(wrapper.text()).toContain('0.33 / 1M')
-    expect(wrapper.text()).toContain('0.44 / 1M')
-    expect(wrapper.text()).not.toContain('$')
-    expect(wrapper.text()).not.toContain('gpt pro')
+    await search.setValue('不存在的模型')
+    expect(wrapper.find('tbody').exists()).toBe(false)
+    expect(wrapper.text()).toContain('未找到匹配模型')
   })
 })

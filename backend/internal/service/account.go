@@ -781,6 +781,12 @@ func requestedModelLookupAliases(platform, requestedModel string) []string {
 		aliases = addAlias(aliases, JimengVideoLegacyRoutingModel)
 		aliases = addAlias(aliases, JimengVideoBillingModel)
 		return aliases
+	case PlatformGuangying:
+		var aliases []string
+		for _, alias := range ppVideoGuangyingModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
 	case PlatformGemini, PlatformAntigravity:
 		if trimmed == "gemini-3.1-pro-preview-customtools" {
 			return []string{"gemini-3.1-pro-preview"}
