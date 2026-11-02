@@ -92,6 +92,7 @@ var guangyingSeedanceModelMappings = []guangyingSeedanceModelMapping{
 	{Public: "特惠-Seedance 2.5-超分掺水版", Upstream: "gy-model-39", Aliases: []string{"特惠-Seedance 2.5-超分掺水版 按次计费"}},
 	{Public: "特价-Seedance 2.5-图文", Upstream: "gy-model-35", Aliases: []string{"特价-Seedance 2.5-图文 按次计费"}},
 	{Public: "Seedance 2.5-全参1080超分", Upstream: "gy-model-40", Aliases: []string{"Seedance 2.5-全参1080超分 按秒计费"}},
+	{Public: "限时限量-Seedance 2.5 满参", Upstream: "gy-model-50"},
 	{Public: "竖屏-Seedance 2.0按次计费", Upstream: "gy-model-13"},
 	{Public: "竖屏-Seedance 2.0 Mini 按次计费", Upstream: "gy-model-19"},
 	{Public: "竖屏-Seedance 2.0 Fast 按次计费", Upstream: "gy-model-20"},

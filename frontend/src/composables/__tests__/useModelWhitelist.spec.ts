@@ -102,11 +102,12 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('guangying')).toEqual(
       GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
     )
-    expect(GUANGYING_MODEL_MAPPINGS.slice(0, 4)).toEqual([
+    expect(GUANGYING_MODEL_MAPPINGS.slice(0, 5)).toEqual([
       { from: 'Seedance 2.5-全参720P', to: 'gy-model-31' },
       { from: '特惠-Seedance 2.5-超分掺水版', to: 'gy-model-39' },
       { from: '特价-Seedance 2.5-图文', to: 'gy-model-35' },
-      { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' }
+      { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' },
+      { from: '限时限量-Seedance 2.5 满参', to: 'gy-model-50' }
     ])
     expect(getPresetMappingsByPlatform('guangying')).toEqual(
       GUANGYING_MODEL_MAPPINGS.map(mapping => expect.objectContaining(mapping))
