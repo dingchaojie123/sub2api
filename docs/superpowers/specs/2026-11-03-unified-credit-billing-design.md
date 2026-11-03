@@ -192,6 +192,37 @@ Transfer-out and transfer-in entries share a `correlation_id` and commit in one
 transaction. Ledger rows are never updated or deleted by application code.
 Corrections use compensating entries.
 
+### `credit_holds`
+
+Open async obligations are tracked explicitly rather than inferred from ledger
+text:
+
+```text
+id                         BIGSERIAL PRIMARY KEY
+account_id                 BIGINT NOT NULL REFERENCES credit_accounts(id)
+hold_key                   VARCHAR(160) NOT NULL UNIQUE
+original_credits           NUMERIC(20,8) NOT NULL
+remaining_credits          NUMERIC(20,8) NOT NULL
+original_basis_cny         NUMERIC(20,8) NOT NULL
+remaining_basis_cny        NUMERIC(20,8) NOT NULL
+status                     VARCHAR(16) NOT NULL
+reference_type             VARCHAR(40) NOT NULL
+reference_id               VARCHAR(160) NOT NULL
+created_at                 TIMESTAMPTZ NOT NULL
+finalized_at               TIMESTAMPTZ NULL
+```
+
+Status is `open`, `captured`, or `released`. Hold creation, account mutation,
+and the `hold` ledger entry commit atomically. Capture or release locks both the
+account and hold row, updates the account, finalizes the hold, and appends the
+ledger entry in one transaction.
+
+When actual capture is below the remaining hold, the unused credits and
+revenue basis return to available. When actual capture is above the remaining
+hold, the transaction consumes the difference from available credits or fails
+without changing the account or hold. A terminal hold cannot be finalized a
+second time; an idempotent replay returns its original result.
+
 ### Usage and async task records
 
 New unambiguous fields are added while legacy fields remain readable:
@@ -524,6 +555,8 @@ that account and raises an operator alert; reads remain available.
 
 - concurrent deductions cannot overspend an account;
 - account mutation and ledger insertion are atomic;
+- hold creation/finalization, account mutation, and ledger insertion are
+  atomic;
 - duplicate callbacks and pollers cannot double-charge;
 - personal-to-organization transfer preserves credits and revenue basis;
 - backfill uses display balances exactly and is idempotent;
