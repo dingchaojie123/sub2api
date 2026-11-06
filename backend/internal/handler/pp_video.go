@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -34,7 +36,7 @@ func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil || apiKey.Group == nil ||
-		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformOPONE) {
+		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not supported for this platform")
 		return
 	}
@@ -50,7 +52,7 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	}
 	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
 	if err != nil || task == nil ||
-		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformOPONE) {
+		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
@@ -190,6 +192,7 @@ func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
 		h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to settle cancelled video billing")
 		return
 	}
+	h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 	h.gatewayService.WritePPVideoForwardResult(c, result)
 }
 
@@ -462,6 +465,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				h.errorResponse(c, http.StatusPaymentRequired, "insufficient_quota", err.Error())
 				return
 			}
+			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 		}
 	}
 	if task != nil && task.TaskID == "" && account.Platform == service.PlatformGuangying {
@@ -480,8 +484,11 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			return
 		}
 		if task != nil && task.TaskID == "" {
-			_ = h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash)
+			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash); releaseErr != nil {
+				reqLog.Warn("pp_video.release_hold_after_forward_failed", zap.Error(releaseErr))
+			}
 			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "upstream_error", err.Error())
+			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 		}
 		if !service.IsResponseCommitted(c) {
 			var upstreamErr *service.PPVideoUpstreamError
@@ -501,8 +508,11 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	if task.TaskID == "" {
 		if strings.TrimSpace(result.ResponseID) == "" {
-			_ = h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash)
+			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash); releaseErr != nil {
+				reqLog.Warn("pp_video.release_hold_after_missing_task_id_failed", zap.Error(releaseErr))
+			}
 			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "missing_task_id", "upstream response missing task id")
+			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 			h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream response missing video task id")
 			return
 		}
@@ -559,9 +569,23 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to settle video billing")
 				return
 			}
+		} else {
+			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 		}
 	}
 	h.gatewayService.WritePPVideoForwardResult(c, result)
+}
+
+func (h *OpenAIGatewayHandler) invalidatePPVideoBalanceCache(ctx context.Context, userID int64) {
+	if h == nil || h.billingCacheService == nil || userID <= 0 {
+		return
+	}
+	if err := h.billingCacheService.InvalidateUserBalance(ctx, userID); err != nil {
+		logger.L().Warn("pp_video.invalidate_balance_cache_failed",
+			zap.Int64("user_id", userID),
+			zap.Error(err),
+		)
+	}
 }
 
 func ppVideoOperationFromRequest(body []byte) service.PPVideoOperation {

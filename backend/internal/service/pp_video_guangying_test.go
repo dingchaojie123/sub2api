@@ -86,6 +86,8 @@ func TestGuangyingModelAliasesMapBothDirections(t *testing.T) {
 		"特价-Seedance 2.5-图文":        "gy-model-35",
 		"Seedance 2.5-全参1080超分":     "gy-model-40",
 		"限时限量-Seedance 2.5 满参":      "gy-model-50",
+		"Seedance 2.5-无视频":          "gy-model-58",
+		"限时限量-Seedance 2.5 满参-备选":   "gy-model-59",
 		"竖屏-Seedance 2.0按次计费":       "gy-model-13",
 		"竖屏-Seedance 2.0 Mini 按次计费": "gy-model-19",
 		"竖屏-Seedance 2.0 Fast 按次计费": "gy-model-20",
@@ -168,13 +170,18 @@ func TestGuangyingPathsResponseAndModelFiltering(t *testing.T) {
 	require.Equal(t, "Seedance 2.5-全参720P", gjson.GetBytes(normalized, "model").String())
 	require.Equal(t, PPVideoTaskStatusRequiresAttention, NormalizePPVideoTaskStatus("requires_attention"))
 
+	attention, err := ParsePPVideoResponse(PlatformGuangying, []byte(`{"data":{"id":"job-attention","status":"requires_attention","message":"generation failed"}}`))
+	require.NoError(t, err)
+	require.Equal(t, PPVideoTaskStatusFailed, attention.Status)
+	require.Equal(t, "video task requires attention", attention.ErrorMessage)
+
 	require.ElementsMatch(t,
-		[]string{"Seedance 2.0-无参考视频 按秒计费", "Seedance 2.5-全参720P", "限时限量-Seedance 2.5 满参"},
-		filterUpstreamModelsForPlatform(PlatformGuangying, []string{"seedance-2.0", "gy-model-31", "gy-model-21", "gy-model-50", "gy-model-27", "gy-model-18", "gy-model-999"}),
+		[]string{"Seedance 2.0-无参考视频 按秒计费", "Seedance 2.5-全参720P", "限时限量-Seedance 2.5 满参", "Seedance 2.5-无视频", "限时限量-Seedance 2.5 满参-备选"},
+		filterUpstreamModelsForPlatform(PlatformGuangying, []string{"seedance-2.0", "gy-model-31", "gy-model-21", "gy-model-50", "gy-model-58", "gy-model-59", "gy-model-27", "gy-model-18", "gy-model-999"}),
 	)
 	require.Equal(t,
-		[]string{"Seedance 2.5-全参720P", "限时限量-Seedance 2.5 满参"},
-		FilterPPVideoPublicModelsForPlatform(PlatformGuangying, []string{"gy-model-31", "Seedance 2.5-全参720P", "gy-model-50", "gy-model-27", "gy-model-18"}),
+		[]string{"Seedance 2.5-全参720P", "限时限量-Seedance 2.5 满参", "Seedance 2.5-无视频", "限时限量-Seedance 2.5 满参-备选"},
+		FilterPPVideoPublicModelsForPlatform(PlatformGuangying, []string{"gy-model-31", "Seedance 2.5-全参720P", "gy-model-50", "gy-model-58", "限时限量-Seedance 2.5 满参-备选", "gy-model-27", "gy-model-18"}),
 	)
 }
 

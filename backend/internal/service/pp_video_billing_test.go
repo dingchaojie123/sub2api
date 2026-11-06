@@ -259,6 +259,8 @@ func TestCalculatePPVideoCostUsesGuangyingModelPricing(t *testing.T) {
 		{name: "legacy public price supports new public request", billingMode: BillingModeVideo, unitPrice: 0.08, pricedModel: "Seedance 2.5-全参720P 按秒计费", requestModel: "Seedance 2.5-全参720P", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
 		{name: "new public price supports legacy public request", billingMode: BillingModeVideo, unitPrice: 0.08, pricedModel: "Seedance 2.5-全参720P", requestModel: "Seedance 2.5-全参720P 按秒计费", wantFormula: PPVideoBillingFormulaPerSecond, wantUnits: 5},
 		{name: "new upstream id price supports public name", billingMode: BillingModePerRequest, unitPrice: 0.8, pricedModel: "gy-model-50", requestModel: "限时限量-Seedance 2.5 满参", wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{name: "no-video upstream id price supports public name", billingMode: BillingModePerRequest, unitPrice: 0.6, pricedModel: "gy-model-58", requestModel: "Seedance 2.5-无视频", wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
+		{name: "fallback public price supports upstream id", billingMode: BillingModePerRequest, unitPrice: 0.85, pricedModel: "限时限量-Seedance 2.5 满参-备选", requestModel: "gy-model-59", wantFormula: PPVideoBillingFormulaPerRequest, wantUnits: 1},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {

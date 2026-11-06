@@ -265,6 +265,7 @@ export default {
         happyhourse: 'Happy-Hourse',
         seedance: 'Seedance',
         'ctmo-seedance': '浙创 OPC Seedance',
+		'xingapi-seedance': '星光 API Seedance',
         guangying: '光影 AI Seedance',
         opone: 'OPONE Seedance',
         bytedance: 'ByteDance',

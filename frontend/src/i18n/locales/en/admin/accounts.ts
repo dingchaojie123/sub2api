@@ -114,6 +114,7 @@ export default {
         happyhourse: 'Happy-Hourse',
         seedance: 'Seedance',
         'ctmo-seedance': 'CTMO Seedance',
+		'xingapi-seedance': 'Xingguang API Seedance',
         guangying: 'Guangying AI Seedance',
         opone: 'OPONE Seedance',
         bytedance: 'ByteDance',

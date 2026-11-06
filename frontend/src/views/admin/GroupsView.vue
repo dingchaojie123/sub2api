@@ -1009,7 +1009,7 @@
             {{
               t(
                 videoPricingI18nKey(
-                  createForm.platform === "ctmo-seedance" || createForm.platform === "guangying" || createForm.platform === "opone"
+				  createForm.platform === "ctmo-seedance" || createForm.platform === "xingapi-seedance" || createForm.platform === "guangying" || createForm.platform === "opone"
                     ? "ctmoDescription"
                     : isPPVideoPricingPlatform(createForm.platform)
                       ? "ppDescription"
@@ -2545,7 +2545,7 @@
             {{
               t(
                 videoPricingI18nKey(
-                  editForm.platform === "ctmo-seedance" || editForm.platform === "guangying" || editForm.platform === "opone"
+				  editForm.platform === "ctmo-seedance" || editForm.platform === "xingapi-seedance" || editForm.platform === "guangying" || editForm.platform === "opone"
                     ? "ctmoDescription"
                     : isPPVideoPricingPlatform(editForm.platform)
                       ? "ppDescription"
@@ -3876,6 +3876,7 @@ const platformOptions = computed(() => [
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
   { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
+	{ value: "xingapi-seedance", label: "星光 API Seedance" },
   { value: "guangying", label: "光影 AI Seedance" },
   { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },
@@ -3907,6 +3908,7 @@ const platformFilterOptions = computed(() => [
   { value: "happyhourse", label: "Happy-Hourse" },
   { value: "seedance", label: "Seedance" },
   { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
+	{ value: "xingapi-seedance", label: "星光 API Seedance" },
   { value: "guangying", label: "光影 AI Seedance" },
   { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },

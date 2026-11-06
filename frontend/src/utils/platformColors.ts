@@ -21,6 +21,7 @@ export type Platform =
   | 'happyhourse'
   | 'seedance'
   | 'ctmo-seedance'
+	| 'xingapi-seedance'
   | 'guangying'
   | 'opone'
   | 'bytedance'
@@ -51,6 +52,7 @@ const BADGE: Record<Platform, string> = {
   happyhourse: 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
+	'xingapi-seedance': 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300',
   guangying: 'bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300',
   opone: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300',
   bytedance: 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300',
@@ -83,6 +85,7 @@ const BADGE_LIGHT: Record<Platform, string> = {
   happyhourse: 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300',
   seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
+	'xingapi-seedance': 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
   guangying: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
   opone: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
   bytedance: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
@@ -114,6 +117,7 @@ const BORDER: Record<Platform, string> = {
   happyhourse: 'border-emerald-500/20 dark:border-emerald-500/20',
   seedance: 'border-teal-500/20 dark:border-teal-500/20',
   'ctmo-seedance': 'border-teal-500/20 dark:border-teal-500/20',
+	'xingapi-seedance': 'border-amber-500/20 dark:border-amber-500/20',
   guangying: 'border-rose-500/20 dark:border-rose-500/20',
   opone: 'border-indigo-500/20 dark:border-indigo-500/20',
   bytedance: 'border-violet-500/20 dark:border-violet-500/20',
@@ -146,6 +150,7 @@ const ACCENT_BAR: Record<Platform, string> = {
   happyhourse: 'bg-gradient-to-r from-emerald-400 to-emerald-600',
   seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
   'ctmo-seedance': 'bg-gradient-to-r from-teal-400 to-teal-600',
+	'xingapi-seedance': 'bg-gradient-to-r from-amber-400 to-amber-600',
   guangying: 'bg-gradient-to-r from-rose-400 to-rose-600',
   opone: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
   bytedance: 'bg-gradient-to-r from-violet-400 to-violet-600',
@@ -178,6 +183,7 @@ const TEXT: Record<Platform, string> = {
   happyhourse: 'text-emerald-700 dark:text-emerald-300',
   seedance: 'text-teal-700 dark:text-teal-300',
   'ctmo-seedance': 'text-teal-700 dark:text-teal-300',
+	'xingapi-seedance': 'text-amber-700 dark:text-amber-300',
   guangying: 'text-rose-700 dark:text-rose-300',
   opone: 'text-indigo-700 dark:text-indigo-300',
   bytedance: 'text-violet-700 dark:text-violet-300',
@@ -210,6 +216,7 @@ const ICON: Record<Platform, string> = {
   happyhourse: 'text-emerald-500 dark:text-emerald-300',
   seedance: 'text-teal-500 dark:text-teal-300',
   'ctmo-seedance': 'text-teal-500 dark:text-teal-300',
+	'xingapi-seedance': 'text-amber-500 dark:text-amber-300',
   guangying: 'text-rose-500 dark:text-rose-300',
   opone: 'text-indigo-500 dark:text-indigo-300',
   bytedance: 'text-violet-500 dark:text-violet-300',
@@ -242,6 +249,7 @@ const BUTTON: Record<Platform, string> = {
   happyhourse: 'bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 dark:bg-emerald-600/80 dark:hover:bg-emerald-600',
   seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
   'ctmo-seedance': 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
+	'xingapi-seedance': 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 dark:bg-amber-600/80 dark:hover:bg-amber-600',
   guangying: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 dark:bg-rose-600/80 dark:hover:bg-rose-600',
   opone: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600/80 dark:hover:bg-indigo-600',
   bytedance: 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 dark:bg-violet-600/80 dark:hover:bg-violet-600',
@@ -274,6 +282,7 @@ const DISCOUNT: Record<Platform, string> = {
   happyhourse: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
+	'xingapi-seedance': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
   guangying: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
   opone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
   bytedance: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
@@ -306,6 +315,7 @@ const GRADIENT: Record<Platform, string> = {
   happyhourse: 'from-emerald-500 to-emerald-600',
   seedance: 'from-teal-500 to-teal-600',
   'ctmo-seedance': 'from-teal-500 to-teal-600',
+	'xingapi-seedance': 'from-amber-500 to-amber-600',
   guangying: 'from-rose-500 to-rose-600',
   opone: 'from-indigo-500 to-indigo-600',
   bytedance: 'from-violet-500 to-violet-600',
@@ -338,6 +348,7 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   happyhourse: 'text-emerald-100',
   seedance: 'text-teal-100',
   'ctmo-seedance': 'text-teal-100',
+	'xingapi-seedance': 'text-amber-100',
   guangying: 'text-rose-100',
   opone: 'text-indigo-100',
   bytedance: 'text-violet-100',
@@ -369,6 +380,7 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   happyhourse: 'text-emerald-200',
   seedance: 'text-teal-200',
   'ctmo-seedance': 'text-teal-200',
+	'xingapi-seedance': 'text-amber-200',
   guangying: 'text-rose-200',
   opone: 'text-indigo-200',
   bytedance: 'text-violet-200',
@@ -387,7 +399,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-  return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'ctmo-seedance' || p === 'guangying' || p === 'opone' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
+	return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'ctmo-seedance' || p === 'xingapi-seedance' || p === 'guangying' || p === 'opone' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -451,6 +463,7 @@ export function platformLabel(p: string): string {
     case 'happyhourse': return 'Happy-Hourse'
     case 'seedance': return 'Seedance'
     case 'ctmo-seedance': return '浙创 OPC Seedance'
+	case 'xingapi-seedance': return '星光 API Seedance'
     case 'guangying': return '光影 AI Seedance'
     case 'opone': return 'OPONE Seedance'
     case 'bytedance': return 'ByteDance'

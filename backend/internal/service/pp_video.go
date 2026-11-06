@@ -29,6 +29,7 @@ const (
 	ModelVerseVideoDefaultBaseURL        = "https://api.modelverse.cn/v1"
 	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
 	CTMOSeedanceDefaultBaseURL           = "https://video.ctmoai.com"
+	XingAPISeedanceDefaultBaseURL        = "https://xingapi.top/v1"
 	GuangyingDefaultBaseURL              = "https://api.guangying.store"
 	OPONEDefaultBaseURL                  = "https://api.opone.cc"
 	ByteDanceVideoDefaultModel           = "doubao-seedance-2-0-260128"
@@ -93,6 +94,8 @@ var guangyingSeedanceModelMappings = []guangyingSeedanceModelMapping{
 	{Public: "特价-Seedance 2.5-图文", Upstream: "gy-model-35", Aliases: []string{"特价-Seedance 2.5-图文 按次计费"}},
 	{Public: "Seedance 2.5-全参1080超分", Upstream: "gy-model-40", Aliases: []string{"Seedance 2.5-全参1080超分 按秒计费"}},
 	{Public: "限时限量-Seedance 2.5 满参", Upstream: "gy-model-50"},
+	{Public: "Seedance 2.5-无视频", Upstream: "gy-model-58"},
+	{Public: "限时限量-Seedance 2.5 满参-备选", Upstream: "gy-model-59"},
 	{Public: "竖屏-Seedance 2.0按次计费", Upstream: "gy-model-13"},
 	{Public: "竖屏-Seedance 2.0 Mini 按次计费", Upstream: "gy-model-19"},
 	{Public: "竖屏-Seedance 2.0 Fast 按次计费", Upstream: "gy-model-20"},
@@ -156,7 +159,7 @@ func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
 	case Platform88APIVideo:
 		return true
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -197,6 +200,13 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		HasExplicitModel:     strings.TrimSpace(requestedModel) != "",
 	}
 	if platform == PlatformCTMOSeedance && public.HasExplicitModel && !ppVideoIsCTMOSeedanceModel(public.Model) {
+		return nil, PPVideoPublicRequest{}, fmt.Errorf(
+			"model %q is not supported by platform %q",
+			public.Model,
+			platform,
+		)
+	}
+	if platform == PlatformXingAPISeedance && public.HasExplicitModel && !ppVideoIsXingAPISeedanceModel(public.Model) {
 		return nil, PPVideoPublicRequest{}, fmt.Errorf(
 			"model %q is not supported by platform %q",
 			public.Model,
@@ -261,6 +271,11 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 		if err != nil {
 			return nil, PPVideoPublicRequest{}, err
 		}
+	case PlatformXingAPISeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload["model"] = public.UpstreamModel
 	case PlatformGuangying:
 		if operation != PPVideoOperationGeneric {
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
@@ -2116,6 +2131,14 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 			return "/v1/videos/" + url.PathEscape(taskID), nil
 		}
 		return "/v1/videos", nil
+	case PlatformXingAPISeedance:
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if taskID != "" {
+			return "/v1/videos/" + url.PathEscape(taskID), nil
+		}
+		return "/v1/videos/generations", nil
 	case PlatformGuangying:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
@@ -2359,6 +2382,19 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		),
 		RawBody: append([]byte(nil), body...),
 	}
+	ctmoExplicitError := platform == PlatformCTMOSeedance && ppVideoResponseHasExplicitError(body)
+	if ctmoExplicitError && result.ErrorMessage == "" {
+		result.ErrorMessage = ppVideoCTMOErrorMessage(body)
+	}
+	if platform == PlatformGuangying && result.Status == PPVideoTaskStatusRequiresAttention {
+		result.Status = PPVideoTaskStatusFailed
+		if result.ErrorMessage == "" {
+			result.ErrorMessage = "video task requires attention"
+		}
+	}
+	if ctmoExplicitError {
+		result.Status = PPVideoTaskStatusFailed
+	}
 	hasFinalVideo := ppVideoResponseHasFinalVideo(body)
 	if platform == PlatformCTMOSeedance {
 		// CTMO exposes its authenticated /content endpoint while generation is
@@ -2378,7 +2414,7 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		} else if hasFinalVideo && result.Status != PPVideoTaskStatusFailed {
 			result.Status = PPVideoTaskStatusSucceeded
 		}
-		if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformOPONE {
+		if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformOPONE && platform != PlatformXingAPISeedance {
 			result.Status = PPVideoTaskStatusProcessing
 		}
 	}
@@ -2386,6 +2422,46 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		result.VideoCount = 1
 	}
 	return result, nil
+}
+
+func ppVideoCTMOErrorMessage(body []byte) string {
+	for _, path := range []string{
+		"detail",
+		"message",
+		"data.detail",
+		"data.message",
+		"data.data.detail",
+		"data.data.message",
+	} {
+		if message := strings.TrimSpace(gjson.GetBytes(body, path).String()); message != "" {
+			return message
+		}
+	}
+	return ""
+}
+
+func ppVideoResponseHasExplicitError(body []byte) bool {
+	for _, path := range []string{
+		"error",
+		"error_message",
+		"detail",
+		"data.error",
+		"data.error_message",
+		"data.detail",
+		"data.data.error",
+		"data.data.error_message",
+		"data.data.detail",
+	} {
+		if value := gjson.GetBytes(body, path); value.Exists() && strings.TrimSpace(value.Raw) != "null" && strings.TrimSpace(value.String()) != "" {
+			return true
+		}
+	}
+	for _, path := range []string{"code", "data.code", "data.data.code"} {
+		if code := gjson.GetBytes(body, path); code.Exists() && code.Int() >= http.StatusBadRequest {
+			return true
+		}
+	}
+	return false
 }
 
 func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoPublicRequest, parsed PPVideoResponse) []byte {
@@ -2433,7 +2509,7 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 			}
 		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	} else if platform == PlatformCTMOSeedance && videoURL == "" && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	}
 	if videoURL != "" {
@@ -3260,6 +3336,8 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 		return model
 	case PlatformCTMOSeedance:
 		return model
+	case PlatformXingAPISeedance:
+		return model
 	case PlatformGuangying:
 		if upstreamModel, ok := ppVideoGuangyingUpstreamModel(model); ok {
 			return upstreamModel
@@ -3427,6 +3505,8 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsSeedanceModel(model)
 	case PlatformCTMOSeedance:
 		return ppVideoIsCTMOSeedanceModel(model)
+	case PlatformXingAPISeedance:
+		return ppVideoIsXingAPISeedanceModel(model)
 	case PlatformGuangying:
 		return ppVideoIsGuangyingModel(model)
 	case PlatformOPONE:
@@ -3537,6 +3617,10 @@ func ppVideoIsCTMOSeedanceModel(model string) bool {
 		}
 	}
 	return false
+}
+
+func ppVideoIsXingAPISeedanceModel(model string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(model)), "seedance")
 }
 
 func ppVideoIsGuangyingModel(model string) bool {

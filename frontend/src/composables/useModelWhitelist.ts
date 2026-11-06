@@ -45,6 +45,8 @@ export const GUANGYING_MODEL_MAPPINGS = [
   { from: '特价-Seedance 2.5-图文', to: 'gy-model-35' },
   { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' },
   { from: '限时限量-Seedance 2.5 满参', to: 'gy-model-50' },
+  { from: 'Seedance 2.5-无视频', to: 'gy-model-58' },
+  { from: '限时限量-Seedance 2.5 满参-备选', to: 'gy-model-59' },
   { from: '竖屏-Seedance 2.0按次计费', to: 'gy-model-13' },
   { from: '竖屏-Seedance 2.0 Mini 按次计费', to: 'gy-model-19' },
   { from: '竖屏-Seedance 2.0 Fast 按次计费', to: 'gy-model-20' },
@@ -482,6 +484,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'seedance':
       return seedanceModels
     case 'ctmo-seedance':
+	case 'xingapi-seedance':
       return []
     case 'guangying':
       return GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
@@ -628,6 +631,7 @@ export function getPresetMappingsByPlatform(platform: string) {
     platform === 'happyhourse' ||
     platform === 'seedance' ||
     platform === 'ctmo-seedance' ||
+	platform === 'xingapi-seedance' ||
     platform === 'opone'
   ) return []
   if (platform === 'antigravity') return antigravityPresetMappings

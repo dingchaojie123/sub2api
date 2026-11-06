@@ -8,6 +8,7 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'happyhourse',
   'seedance',
   'ctmo-seedance',
+	'xingapi-seedance',
   'guangying',
   'opone',
   'bytedance',
@@ -42,6 +43,7 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'happyhourse',
   'seedance',
   'ctmo-seedance',
+	'xingapi-seedance',
   'guangying',
   'opone',
   'bytedance',
@@ -182,6 +184,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     accountType: 'apikey',
     authScheme: 'bearer'
   },
+	'xingapi-seedance': {
+		id: 'xingapi-seedance',
+		label: '星光 API Seedance',
+		defaultBaseUrl: 'https://xingapi.top/v1',
+		baseUrlPlaceholder: 'https://xingapi.top/v1',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
   guangying: {
     id: 'guangying',
     label: '光影 AI Seedance',

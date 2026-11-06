@@ -39,6 +39,8 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		platformLabel = "Guangying"
 	} else if meta.Platform == PlatformOPONE {
 		platformLabel = "OPONE"
+	} else if meta.Platform == PlatformXingAPISeedance {
+		platformLabel = "XingAPI Seedance"
 	}
 	missing := func(reason string) error {
 		groupID := int64(0)
@@ -304,7 +306,7 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	var err error
 	if meta.Platform == Platform88APIVideo {
 		quote, err = s.calculate88APIVideoCost(ctx, meta, billingAPIKey)
-	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
+	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformXingAPISeedance || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
 		quote, err = s.calculateCTMOSeedanceCost(ctx, meta, billingAPIKey)
 	} else {
 		quote, err = s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)

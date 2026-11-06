@@ -42,6 +42,7 @@ const pOpts = computed(() => [
   { value: 'happyhourse', label: t('admin.accounts.platforms.happyhourse') },
   { value: 'seedance', label: t('admin.accounts.platforms.seedance') },
   { value: 'ctmo-seedance', label: t('admin.accounts.platforms.ctmo-seedance') },
+	{ value: 'xingapi-seedance', label: t('admin.accounts.platforms.xingapi-seedance') },
   { value: 'guangying', label: t('admin.accounts.platforms.guangying') },
   { value: 'opone', label: t('admin.accounts.platforms.opone') },
   { value: 'bytedance', label: t('admin.accounts.platforms.bytedance') },

@@ -34,6 +34,7 @@ const (
 	PlatformHappyHourse        = "happyhourse"
 	PlatformSeedance           = "seedance"
 	PlatformCTMOSeedance       = "ctmo-seedance"
+	PlatformXingAPISeedance    = "xingapi-seedance"
 	PlatformGuangying          = "guangying"
 	PlatformOPONE              = "opone"
 	PlatformByteDance          = "bytedance"

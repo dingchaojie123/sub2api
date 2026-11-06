@@ -35,6 +35,7 @@ describe("groups image pricing platform support", () => {
     expect(supportsVideoPricingPlatform("kling")).toBe(true);
     expect(supportsVideoPricingPlatform("happyhourse")).toBe(true);
     expect(supportsVideoPricingPlatform("seedance")).toBe(true);
+	expect(supportsVideoPricingPlatform("xingapi-seedance")).toBe(true);
     expect(supportsVideoPricingPlatform("guangying")).toBe(true);
     expect(supportsVideoPricingPlatform("opone")).toBe(true);
     expect(supportsVideoPricingPlatform("bytedance")).toBe(true);
@@ -51,6 +52,7 @@ describe("groups image pricing platform support", () => {
     expect(isPPVideoPricingPlatform("happyhourse")).toBe(true);
     expect(isPPVideoPricingPlatform("seedance")).toBe(true);
     expect(isPPVideoPricingPlatform("ctmo-seedance")).toBe(true);
+	expect(isPPVideoPricingPlatform("xingapi-seedance")).toBe(true);
     expect(isPPVideoPricingPlatform("guangying")).toBe(true);
     expect(isPPVideoPricingPlatform("opone")).toBe(true);
     expect(isPPVideoPricingPlatform("bytedance")).toBe(true);
@@ -64,6 +66,7 @@ describe("groups image pricing platform support", () => {
     expect(usesGroupVideoPriceConfig("happyhourse")).toBe(true);
     expect(usesGroupVideoPriceConfig("seedance")).toBe(true);
     expect(usesGroupVideoPriceConfig("ctmo-seedance")).toBe(false);
+	expect(usesGroupVideoPriceConfig("xingapi-seedance")).toBe(false);
     expect(usesGroupVideoPriceConfig("guangying")).toBe(false);
     expect(usesGroupVideoPriceConfig("opone")).toBe(false);
     expect(usesGroupVideoPriceConfig("bytedance")).toBe(true);

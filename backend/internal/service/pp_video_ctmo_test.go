@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -236,6 +237,51 @@ func TestCTMOSeedanceCompletedResponseWithoutProgressRemainsSucceeded(t *testing
 	)
 	require.NoError(t, err)
 	require.Equal(t, PPVideoTaskStatusSucceeded, parsed.Status)
+}
+
+func TestCTMOSeedanceExplicitErrorResponseIsFailed(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		`{"code":500,"message":"generation failed","data":null}`,
+		`{"code":500,"message":"generation failed","status":"processing"}`,
+	} {
+		parsed, err := ParsePPVideoResponse(PlatformCTMOSeedance, []byte(raw))
+
+		require.NoError(t, err)
+		require.Equal(t, PPVideoTaskStatusFailed, parsed.Status)
+		require.Equal(t, "generation failed", parsed.ErrorMessage)
+	}
+}
+
+func TestForwardCTMOSeedanceStatusPreservesPermanentUpstreamError(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusNotFound,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewBufferString(`{"error":{"message":"task not found"}}`)),
+	}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:       42,
+		Platform: PlatformCTMOSeedance,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key":  "ctmo-key",
+			"base_url": CTMOSeedanceDefaultBaseURL,
+		},
+	}
+
+	_, err := svc.ForwardPPVideoBuffered(
+		context.Background(), nil, account, PPVideoOperationGeneric, "missing-task", nil,
+	)
+
+	var upstreamErr *PPVideoUpstreamError
+	require.ErrorAs(t, err, &upstreamErr)
+	require.True(t, errors.Is(err, upstreamErr.err))
+	require.Equal(t, http.StatusNotFound, upstreamErr.StatusCode)
+	require.Equal(t, "task not found", ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
 }
 
 func TestForwardCTMOSeedancePendingStatusDoesNotReturnPrematureSuccess(t *testing.T) {

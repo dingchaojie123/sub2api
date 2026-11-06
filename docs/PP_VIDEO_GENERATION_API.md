@@ -109,7 +109,7 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
 | 88API Video | `SD2.0`、`SD2.5`、`gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0-turbo`、Seedance 2.0/2.5 官方版、Veo 3.1、Wan 3.0 Video 系列 | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`2K`、`4K`，按模型限制 |
 | 浙创 OPC Seedance | 下表列出的 9 个精确模型 ID | 文生、参考图片/视频/音频及首尾帧，按模型能力 | 按模型 `durations_seconds` | 模型固定档位，以模型 ID 为准 |
-| 光影 AI Seedance | `gy-model-13`、`gy-model-19`、`gy-model-20`、`gy-model-21`、`gy-model-22`、`gy-model-30`、`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40`、`gy-model-50` | 文生、参考图片/视频/音频，按模型能力 | 4-30 秒，按模型目录限制 | `480p`、`720p`、`1080p`，按模型目录限制 |
+| 光影 AI Seedance | `gy-model-13`、`gy-model-19`、`gy-model-20`、`gy-model-21`、`gy-model-22`、`gy-model-30`、`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40`、`gy-model-50`、`gy-model-58`、`gy-model-59` | 文生、参考图片/视频/音频，按模型能力 | 4-30 秒，按模型目录限制 | `480p`、`720p`、`1080p`，按模型目录限制 |
 | OPONE Seedance | `seedance-2.5-b1`、`seedance-2.5-b2`、`seedance-2.5-s1`、`seedance-2.5-s5`、`seedance-2.5-s6`、`seedance-2.5-s7`、`seedance-2.5-s8`、`seedance-2.5-SS`、`seedance-2.0-Q`、`seedance-2.0fast-Q`、`seedance-2.0mini-Q`、`seedance-2.5-Q`、`seedance-2.5-Qs` | 文生、参考图片/视频/音频及首尾帧，按模型能力 | B 系列固定 30 秒；其余 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4k`，按模型限制 |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
 | MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
@@ -141,7 +141,7 @@ CTMO 渠道的默认价格字段直接填写上表积分值，不做人民币或
 
 #### 光影 AI Seedance 上游
 
-后台平台标识为 `guangying`，默认上游地址为 `https://api.guangying.store`，账号使用 Bearer API Key。本站从上游 `/v1/models` 动态同步，并只保留文档当前列出的 11 个 Seedance 模型，排除同目录中的 MiniMax H3（`gy-model-18`）及未知模型，避免该分组混入其他模型族。上游已下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不再同步，也不再接受新建任务；已创建任务仍可按原任务 ID 查询。模型同步会生成下述公开名称，管理员也可使用预设映射将公开名称关联到上游 ID，并在该分组关联的渠道中按精确公开名称配置 `per_request`（按次）或 `video`（按秒）价格。不同模型的时长、比例、分辨率和参考素材数量以上游目录为准。
+后台平台标识为 `guangying`，默认上游地址为 `https://api.guangying.store`，账号使用 Bearer API Key。本站从上游 `/v1/models` 动态同步，只接受下表列出的 Seedance 模型，排除同目录中的 MiniMax H3（`gy-model-18`）及未知模型，避免该分组混入其他模型族。`gy-model-31`、`gy-model-35` 作为已有兼容映射继续保留；上游当前目录未返回时不会出现在动态同步结果中。上游已下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不再同步，也不再接受新建任务；已创建任务仍可按原任务 ID 查询。模型同步会生成下述公开名称，管理员也可使用预设映射将公开名称关联到上游 ID，并在该分组关联的渠道中按精确公开名称配置 `per_request`（按次）或 `video`（按秒）价格。不同模型的时长、比例、分辨率和参考素材数量以上游目录为准。
 
 下游模型列表使用清晰名称，网关在请求上游前自动映射回原始 ID：
 
@@ -151,7 +151,9 @@ CTMO 渠道的默认价格字段直接填写上表积分值，不做人民币或
 | `特惠-Seedance 2.5-超分掺水版` | `gy-model-39` | `per_request` | 1080p：60 积分/次 |
 | `特价-Seedance 2.5-图文` | `gy-model-35` | `per_request` | 720p：80 积分/次；1080p：100 积分/次 |
 | `Seedance 2.5-全参1080超分` | `gy-model-40` | `video` | 1080p：5 积分/秒 |
-| `限时限量-Seedance 2.5 满参` | `gy-model-50` | 按渠道配置 | 以上游最新目录为准 |
+| `限时限量-Seedance 2.5 满参` | `gy-model-50` | `per_request` | 720p：85 积分/次 |
+| `Seedance 2.5-无视频` | `gy-model-58` | `per_request` | 1080p：60 积分/次 |
+| `限时限量-Seedance 2.5 满参-备选` | `gy-model-59` | `per_request` | 720p：85 积分/次 |
 | `Seedance 2.0按次计费` | `gy-model-30` | `per_request` | 720p：30 积分/次 |
 | `Seedance 2.5-无参考视频 按秒计费` | `gy-model-22` | `video` | 480p：5；720p：7 积分/秒 |
 | `Seedance 2.0-无参考视频 按秒计费` | `gy-model-21` | `video` | 480p：4；720p：5；1080p：8 积分/秒 |

@@ -316,6 +316,7 @@ func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T
 func TestGatewayRoutesAuthenticatedVideoContentPlatformsAreDispatched(t *testing.T) {
 	for _, platform := range []string{
 		service.PlatformCTMOSeedance,
+		service.PlatformXingAPISeedance,
 		service.PlatformOPONE,
 	} {
 		router := newGatewayRoutesTestRouter(platform)

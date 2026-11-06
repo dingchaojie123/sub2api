@@ -48,9 +48,9 @@ var guangyingMediaDownloadClient = &http.Client{
 	},
 }
 
-// PPVideoUpstreamError preserves an HTTP error returned before a video task is
-// created, such as ByteDance's reference-image asset registration endpoints.
-// Callers can distinguish a provider validation error from a transport failure.
+// PPVideoUpstreamError preserves an HTTP error returned by video submission,
+// status, or asset endpoints so callers can distinguish permanent provider
+// responses from transport failures.
 type PPVideoUpstreamError struct {
 	StatusCode   int
 	ResponseBody []byte
@@ -120,6 +120,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformCTMOSeedance {
 		baseURLRaw = CTMOSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformXingAPISeedance {
+		baseURLRaw = XingAPISeedanceDefaultBaseURL
 	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformGuangying {
 		baseURLRaw = GuangyingDefaultBaseURL
@@ -224,14 +227,19 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		if upstreamMessage != "" {
 			upstreamErr = fmt.Errorf("PP video upstream returned HTTP %d: %s", resp.StatusCode, upstreamMessage)
 		}
+		wrappedErr := &PPVideoUpstreamError{
+			StatusCode:   resp.StatusCode,
+			ResponseBody: append([]byte(nil), respBody...),
+			err:          upstreamErr,
+		}
 		if isStatus && resp.StatusCode >= http.StatusInternalServerError {
-			return nil, upstreamErr
+			return nil, wrappedErr
 		}
 		writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
 		if c != nil {
 			MarkResponseCommitted(c)
 		}
-		return nil, upstreamErr
+		return nil, wrappedErr
 	}
 	parsed, err := ParsePPVideoResponse(account.Platform, respBody)
 	if err != nil {
@@ -473,7 +481,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
-	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformOPONE) {
+	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformOPONE) {
 		return nil, fmt.Errorf("authenticated-content PP video account is required")
 	}
 	taskID = strings.TrimSpace(taskID)
@@ -489,6 +497,8 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		switch account.Platform {
 		case PlatformCTMOSeedance:
 			baseURLRaw = CTMOSeedanceDefaultBaseURL
+		case PlatformXingAPISeedance:
+			baseURLRaw = XingAPISeedanceDefaultBaseURL
 		case PlatformOPONE:
 			baseURLRaw = OPONEDefaultBaseURL
 		}

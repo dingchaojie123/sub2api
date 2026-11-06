@@ -96,6 +96,7 @@ describe('billingModesForPlatform', () => {
   })
   it('offers only per-request and per-second pricing for CTMO Seedance', () => {
     expect(billingModesForPlatform('ctmo-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('xingapi-seedance')).toEqual(['per_request', 'video'])
     expect(billingModesForPlatform('guangying')).toEqual(['per_request', 'video'])
     expect(billingModesForPlatform('opone')).toEqual(['per_request', 'video'])
   })

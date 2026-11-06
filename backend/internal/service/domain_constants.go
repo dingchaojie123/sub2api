@@ -54,6 +54,7 @@ const (
 	PlatformHappyHourse        = domain.PlatformHappyHourse
 	PlatformSeedance           = domain.PlatformSeedance
 	PlatformCTMOSeedance       = domain.PlatformCTMOSeedance
+	PlatformXingAPISeedance    = domain.PlatformXingAPISeedance
 	PlatformGuangying          = domain.PlatformGuangying
 	PlatformOPONE              = domain.PlatformOPONE
 	PlatformByteDance          = domain.PlatformByteDance
@@ -87,6 +88,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformHappyHourse,
 	PlatformSeedance,
 	PlatformCTMOSeedance,
+	PlatformXingAPISeedance,
 	PlatformGuangying,
 	PlatformOPONE,
 	PlatformByteDance,

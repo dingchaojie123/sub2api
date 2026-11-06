@@ -20,7 +20,7 @@ func TestClaimPPVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks AS task.*poll_lease_owner = \$1.*poll_lease_token = \$2.*poll_lease_until = \$4.*NOT \(candidate\.platform = 'guangying' AND candidate\.status = 'requires_attention'\).*FOR UPDATE SKIP LOCKED.*RETURNING`).
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks AS task.*poll_lease_owner = \$1.*poll_lease_token = \$2.*poll_lease_until = \$4.*FOR UPDATE SKIP LOCKED.*RETURNING`).
 		WithArgs("worker-a", "lease-token", 10, leaseUntil, submitCutoff).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "vidtask_poll", "task_poll", int64(10), int64(20), nil, int64(30),

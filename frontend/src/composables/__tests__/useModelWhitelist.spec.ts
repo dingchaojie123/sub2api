@@ -50,7 +50,8 @@ describe('useModelWhitelist', () => {
     for (const platform of [
       'kling',
       'happyhourse',
-      'seedance'
+	  'seedance',
+	  'xingapi-seedance'
     ]) {
       expect(getModelsByPlatform(platform)).toEqual([])
       expect(getPresetMappingsByPlatform(platform)).toEqual([])
@@ -102,12 +103,14 @@ describe('useModelWhitelist', () => {
     expect(getModelsByPlatform('guangying')).toEqual(
       GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
     )
-    expect(GUANGYING_MODEL_MAPPINGS.slice(0, 5)).toEqual([
+    expect(GUANGYING_MODEL_MAPPINGS.slice(0, 7)).toEqual([
       { from: 'Seedance 2.5-全参720P', to: 'gy-model-31' },
       { from: '特惠-Seedance 2.5-超分掺水版', to: 'gy-model-39' },
       { from: '特价-Seedance 2.5-图文', to: 'gy-model-35' },
       { from: 'Seedance 2.5-全参1080超分', to: 'gy-model-40' },
-      { from: '限时限量-Seedance 2.5 满参', to: 'gy-model-50' }
+      { from: '限时限量-Seedance 2.5 满参', to: 'gy-model-50' },
+      { from: 'Seedance 2.5-无视频', to: 'gy-model-58' },
+      { from: '限时限量-Seedance 2.5 满参-备选', to: 'gy-model-59' }
     ])
     expect(getPresetMappingsByPlatform('guangying')).toEqual(
       GUANGYING_MODEL_MAPPINGS.map(mapping => expect.objectContaining(mapping))

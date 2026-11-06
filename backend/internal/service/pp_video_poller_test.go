@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -44,6 +46,26 @@ func TestPPVideoPollerRequiresAttentionStopsAutomaticPolling(t *testing.T) {
 	require.Empty(t, gateway.releases)
 }
 
+func TestPPVideoPollerGuangyingRequiresAttentionReleasesHold(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_attention", "provider-attention", PPVideoTaskStatusRequiresAttention, now.Add(-time.Minute))
+	task.Platform = PlatformGuangying
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeFailed, result.Outcome)
+	require.Len(t, repo.statusUpdates, 1)
+	require.Equal(t, PPVideoTaskStatusFailed, repo.statusUpdates[0].Status)
+	require.Equal(t, "upstream_task_requires_attention", repo.statusUpdates[0].LastErrorCode)
+	require.Len(t, gateway.settlements, 1)
+	require.Equal(t, PPVideoTaskStatusFailed, gateway.settlements[0].FinalStatus)
+	require.Empty(t, gateway.releases)
+}
+
 func TestPPVideoPollerSuccessSettlesWithProviderDuration(t *testing.T) {
 	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
 	task := newPPVideoPollerTask("ppvidtask_success", "provider-success", PPVideoTaskStatusProcessing, now.Add(-time.Minute))
@@ -79,6 +101,46 @@ func TestPPVideoPollerUpstreamErrorLeavesTaskForRetry(t *testing.T) {
 	require.Equal(t, PPVideoPollerOutcomeRetry, result.Outcome)
 	require.Empty(t, gateway.settlements)
 	require.Empty(t, gateway.releases)
+}
+
+func TestPPVideoPollerCTMOPermanentStatusErrorReleasesHold(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_ctmo_missing", "provider-missing", PPVideoTaskStatusProcessing, now.Add(-time.Minute))
+	task.Platform = PlatformCTMOSeedance
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{err: &PPVideoUpstreamError{
+		StatusCode:   http.StatusNotFound,
+		ResponseBody: []byte(`{"error":{"message":"task failed and was removed"}}`),
+		err:          fmt.Errorf("upstream returned 404"),
+	}}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeFailed, result.Outcome)
+	require.Len(t, repo.statusUpdates, 1)
+	require.Equal(t, "upstream_task_unavailable", repo.statusUpdates[0].LastErrorCode)
+	require.Equal(t, "task failed and was removed", repo.statusUpdates[0].LastErrorMessage)
+	require.Len(t, gateway.settlements, 1)
+}
+
+func TestPPVideoPollerProcessingTimeoutSettlesSubmittedTask(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_processing_timeout", "provider-timeout", PPVideoTaskStatusProcessing, now.Add(-2*time.Hour))
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeTimedOut, result.Outcome)
+	require.Len(t, repo.statusUpdates, 1)
+	require.Equal(t, PPVideoTaskStatusFailed, repo.statusUpdates[0].Status)
+	require.Len(t, gateway.settlements, 1)
+	require.Empty(t, gateway.releases)
+	require.Empty(t, repo.submitFailures)
 }
 
 func TestPPVideoPollerSubmitTimeoutReleasesHold(t *testing.T) {

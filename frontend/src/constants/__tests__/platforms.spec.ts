@@ -33,6 +33,7 @@ describe('video account platform metadata', () => {
       'happyhourse',
       'seedance',
       'ctmo-seedance',
+	  'xingapi-seedance',
       'guangying',
       'opone',
       'bytedance',
@@ -47,7 +48,7 @@ describe('video account platform metadata', () => {
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
+      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'xingapi-seedance' ? 'https://xingapi.top/v1' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
         platform === 'bytedance' ||
         platform === 'wan3' ||
         platform === 'minimax-h3' ||

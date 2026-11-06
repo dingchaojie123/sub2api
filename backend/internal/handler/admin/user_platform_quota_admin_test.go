@@ -96,23 +96,26 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 	cache := &billingCacheStub{}
 	h := buildTestHandler(repo, cache)
 
-	body := `{"quotas":[
-		{"platform":"anthropic","daily_limit_usd":10.0,"weekly_limit_usd":null,"monthly_limit_usd":100.0},
-		{"platform":"openai","daily_limit_usd":80.0,"weekly_limit_usd":300.0,"monthly_limit_usd":null},
-		{"platform":"gemini","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"antigravity","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"grok","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"jimeng","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"doubao","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"qwen","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"kimi","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"deepseek","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"midjourney","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"kling","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"happyhourse","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null},
-		{"platform":"seedance","daily_limit_usd":null,"weekly_limit_usd":null,"monthly_limit_usd":null}
-	]}`
-	c, w := putReq(t, body)
+	dailyAnthropic, monthlyAnthropic := 10.0, 100.0
+	dailyOpenAI, weeklyOpenAI := 80.0, 300.0
+	inputs := make([]PlatformQuotaInput, 0, len(service.AllowedQuotaPlatforms))
+	for _, platform := range service.AllowedQuotaPlatforms {
+		input := PlatformQuotaInput{Platform: platform}
+		switch platform {
+		case service.PlatformAnthropic:
+			input.DailyLimitUSD = &dailyAnthropic
+			input.MonthlyLimitUSD = &monthlyAnthropic
+		case service.PlatformOpenAI:
+			input.DailyLimitUSD = &dailyOpenAI
+			input.WeeklyLimitUSD = &weeklyOpenAI
+		}
+		inputs = append(inputs, input)
+	}
+	body, err := json.Marshal(UpdateUserPlatformQuotasRequest{Quotas: inputs})
+	if err != nil {
+		t.Fatalf("marshal quota request: %v", err)
+	}
+	c, w := putReq(t, string(body))
 	h.UpdateUserPlatformQuotas(c)
 
 	if w.Code != http.StatusOK {

@@ -241,7 +241,7 @@ func (s *MediaQuoteService) resolveChannelVideoQuote(
 		return PPVideoBillingQuote{}, false, nil
 	}
 	platform := strings.TrimSpace(apiKey.Group.Platform)
-	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformGuangying && platform != PlatformOPONE {
+	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformXingAPISeedance && platform != PlatformGuangying && platform != PlatformOPONE {
 		return PPVideoBillingQuote{}, false, nil
 	}
 

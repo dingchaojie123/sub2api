@@ -9,6 +9,7 @@ describe('video account platform colors', () => {
     ['happyhourse', 'Happy-Hourse', 'emerald'],
     ['seedance', 'Seedance', 'teal'],
     ['ctmo-seedance', '浙创 OPC Seedance', 'teal'],
+	['xingapi-seedance', '星光 API Seedance', 'amber'],
     ['guangying', '光影 AI Seedance', 'rose'],
     ['opone', 'OPONE Seedance', 'indigo'],
     ['bytedance', 'ByteDance', 'violet'],

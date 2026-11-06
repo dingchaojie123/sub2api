@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -245,6 +246,9 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 	if IsTerminalPPVideoTaskStatus(status) {
 		return s.settleFromTask(ctx, task, status, nil)
 	}
+	if task.Platform == PlatformGuangying && status == PPVideoTaskStatusRequiresAttention {
+		return s.releaseAndFail(ctx, task, "upstream_task_requires_attention", "video task requires attention")
+	}
 	if status == PPVideoTaskStatusRequiresAttention {
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeSkipped, Status: status}, nil
 	}
@@ -285,6 +289,9 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 	}
 	result, err := s.Gateway.ForwardPPVideoBuffered(requestCtx, nil, account, task.Operation, task.TaskID, nil, publicRequest)
 	if err != nil {
+		if task.Platform == PlatformCTMOSeedance && isPermanentPPVideoStatusError(err) {
+			return s.releaseAndFail(ctx, task, "upstream_task_unavailable", ppVideoPollerErrorMessage(err))
+		}
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err
 	}
 	if result == nil {
@@ -417,6 +424,22 @@ func (s *PPVideoPollerService) releaseAndFail(ctx context.Context, task *PPVideo
 	if task == nil {
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeSkipped}, nil
 	}
+	if strings.TrimSpace(task.TaskID) != "" {
+		updated, err := s.Repo.MarkPPVideoTaskStatus(ctx, MarkPPVideoTaskStatusParams{
+			TaskID:           task.TaskID,
+			Status:           PPVideoTaskStatusFailed,
+			LastErrorCode:    code,
+			LastErrorMessage: message,
+		})
+		if err != nil {
+			return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err
+		}
+		result, err := s.settleFromTask(ctx, updated, PPVideoTaskStatusFailed, nil)
+		if err == nil && strings.Contains(code, "timeout") {
+			result.Outcome = PPVideoPollerOutcomeTimedOut
+		}
+		return result, err
+	}
 	if err := s.Gateway.ReleasePPVideoBalanceHold(ctx, task, task.RequestHash); err != nil {
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err
 	}
@@ -431,6 +454,32 @@ func (s *PPVideoPollerService) releaseAndFail(ctx context.Context, task *PPVideo
 		outcome = PPVideoPollerOutcomeTimedOut
 	}
 	return PPVideoPollerTaskResult{Outcome: outcome, Status: PPVideoTaskStatusFailed}, nil
+}
+
+func isPermanentPPVideoStatusError(err error) bool {
+	var upstreamErr *PPVideoUpstreamError
+	if !errors.As(err, &upstreamErr) || upstreamErr == nil {
+		return false
+	}
+	switch upstreamErr.StatusCode {
+	case http.StatusBadRequest, http.StatusNotFound, http.StatusGone, http.StatusUnprocessableEntity:
+		return true
+	default:
+		return false
+	}
+}
+
+func ppVideoPollerErrorMessage(err error) string {
+	var upstreamErr *PPVideoUpstreamError
+	if errors.As(err, &upstreamErr) && upstreamErr != nil {
+		if message := strings.TrimSpace(ExtractUpstreamErrorMessage(upstreamErr.ResponseBody)); message != "" {
+			return message
+		}
+	}
+	if err == nil {
+		return "video task is unavailable upstream"
+	}
+	return err.Error()
 }
 
 func (s *PPVideoPollerService) resolveAccount(ctx context.Context, accountID int64, platform string) (*Account, func(), error) {

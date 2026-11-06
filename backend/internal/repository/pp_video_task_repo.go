@@ -506,7 +506,6 @@ func (r *usageBillingRepository) ClaimPPVideoTasksForPolling(ctx context.Context
 			FROM pp_video_tasks AS candidate
 			WHERE candidate.billing_status IN ('held', 'none', 'settling', 'settling_none')
 				AND candidate.settled_at IS NULL
-				AND NOT (candidate.platform = 'guangying' AND candidate.status = 'requires_attention')
 				AND (candidate.poll_lease_until IS NULL OR candidate.poll_lease_until <= NOW())
 				AND (
 					NULLIF(candidate.task_id, '') IS NOT NULL

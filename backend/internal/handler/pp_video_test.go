@@ -1,15 +1,39 @@
 package handler
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+type ppVideoBillingCacheStub struct {
+	service.BillingCache
+	invalidated []int64
+}
+
+func (s *ppVideoBillingCacheStub) InvalidateUserBalance(_ context.Context, userID int64) error {
+	s.invalidated = append(s.invalidated, userID)
+	return nil
+}
+
+func TestInvalidatePPVideoBalanceCache(t *testing.T) {
+	cache := &ppVideoBillingCacheStub{}
+	cacheService := service.NewBillingCacheService(cache, nil, nil, nil, nil, nil, &config.Config{}, nil)
+	t.Cleanup(cacheService.Stop)
+	h := &OpenAIGatewayHandler{billingCacheService: cacheService}
+
+	h.invalidatePPVideoBalanceCache(context.Background(), 42)
+	h.invalidatePPVideoBalanceCache(context.Background(), 0)
+
+	require.Equal(t, []int64{42}, cache.invalidated)
+}
 
 func TestPPVideoOperationFromRequestTreatsUpdatedImageFieldsAsImageToVideo(t *testing.T) {
 	t.Parallel()
