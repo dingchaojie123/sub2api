@@ -542,13 +542,93 @@ export default {
     description: '查看当前支持的文本、图片与视频模型价格，所有价格均按所选规格和计费方式展示。',
     search: '搜索模型',
     searchPlaceholder: '搜索模型、分辨率或计费方式',
-    categories: '模型分类',
-    matchCount: '{count} 个报价',
     emptyTitle: '未找到匹配模型',
-    emptyDescription: '请调整搜索关键词或切换模型分类。',
-    availabilityNote: '价格单位为人民币；“-”表示该档位暂不提供。渠道标识（官 / 官key / 官转）沿用报价表。',
+    emptyDescription: '请调整搜索关键词或筛选条件。',
+    availabilityNote: '价格单位以各报价所示为准（积分或人民币）；展示价格仅供估算，实际扣费以任务创建时的报价和使用记录为准。',
+    filters: {
+      title: '筛选模型',
+      showing: '显示 {shown} / {total}',
+      clear: '清除筛选',
+      all: '全部',
+      category: '类型',
+      channel: '渠道',
+      billing: '计费方式'
+    },
+    card: {
+      channel: '渠道',
+      billing: '计费方式',
+      morePrices: '另有 {count} 档价格',
+      detail: '查看详情'
+    },
+    detail: {
+      prices: '用户价格',
+      pricesHint: '以下为展示价格，实际扣款可在使用记录中查看。'
+    }
+  },
+
+  videoTasks: {
+    title: '视频任务',
+    description: '查询本站记录的生成任务、状态和结果。',
+    autoRefreshHint: '页面可见且存在未完成任务时，每 10 秒自动刷新视频状态。',
+    refresh: '刷新',
+    filters: {
+      taskId: '搜索任务 ID',
+      model: '搜索模型',
+      apiKey: 'API Key 名称',
+      allStatus: '全部状态',
+      startDate: '开始日期',
+      endDate: '结束日期',
+      search: '搜索',
+      reset: '重置'
+    },
+    status: {
+      processing: '处理中',
+      succeeded: '已完成',
+      failed: '失败',
+      requiresAttention: '需关注',
+      unknown: '未知'
+    },
     columns: {
-      model: '模型'
+      taskId: '任务 ID',
+      model: '模型',
+      status: '状态',
+      prompt: '提示词摘要',
+      outputCount: '输出数',
+      createdAt: '创建时间',
+      totalTime: '总用时',
+      charged: '实际扣费',
+      actions: '操作'
+    },
+    credits: '积分',
+    held: '冻结 {amount}',
+    detailButton: '任务详情',
+    copyId: '复制任务 ID',
+    copied: '任务 ID 已复制',
+    empty: '暂无任务',
+    loadFailed: '加载视频任务失败',
+    detail: {
+      title: '任务详情',
+      close: '关闭',
+      status: '状态',
+      totalTime: '总用时',
+      model: '模型',
+      resolution: '分辨率',
+      duration: '时长',
+      charged: '实际扣费',
+      refunded: '退款金额',
+      createdAt: '创建时间',
+      prompt: '提示词摘要',
+      noPrompt: '未记录提示词',
+      error: '失败原因',
+      result: '生成结果',
+      resultIndex: '第 {index} 个结果',
+      loadingVideo: '正在加载视频…',
+      retry: '重试',
+      videoFailed: '视频加载失败，请稍后重试',
+      videoExpired: '视频已过期或已被上游删除，无法播放。',
+      videoUnavailable: '该模型的结果暂不支持在此处预览，请通过 API 获取。',
+      download: '下载',
+      downloadFailed: '下载失败，请稍后重试'
     }
   },
 

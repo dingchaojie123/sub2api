@@ -400,7 +400,18 @@ func syncBalanceCacheAfterDeduction(ctx context.Context, p *postUsageBillingPara
 		}
 		return
 	}
-	deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
+	deps.billingCacheService.QueueDeductBalance(p.User.ID, balanceDeductedAmount(p, result))
+}
+
+// balanceDeductedAmount 返回本次扣费实际从真实余额里扣掉的金额。
+// 价格按积分计价，事务内会按账号的「真实余额 / 积分余额」比值换算后扣减，
+// 因此可能与 p.Cost.ActualCost 不同；缓存与余额提醒必须使用这个真实扣减量。
+// 事务没有回传时（例如旧路径）回退到 p.Cost.ActualCost。
+func balanceDeductedAmount(p *postUsageBillingParams, result *UsageBillingApplyResult) float64 {
+	if result != nil && result.BalanceDeducted != nil {
+		return *result.BalanceDeducted
+	}
+	return p.Cost.ActualCost
 }
 
 // notifyBalanceLow sends balance low notification after deduction.
@@ -431,14 +442,14 @@ func notifyBalanceLow(p *postUsageBillingParams, deps *billingDeps, result *Usag
 		"threshold", p.User.BalanceNotifyThreshold,
 		"result_has_new_balance", result != nil && result.NewBalance != nil,
 	)
-	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, p.Cost.ActualCost)
+	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, balanceDeductedAmount(p, result))
 }
 
 // resolveOldBalance returns the pre-deduction balance.
-// Prefers the DB transaction result (newBalance + cost) over snapshot.
+// Prefers the DB transaction result (newBalance + real deducted amount) over snapshot.
 func resolveOldBalance(p *postUsageBillingParams, result *UsageBillingApplyResult) float64 {
 	if result != nil && result.NewBalance != nil {
-		return *result.NewBalance + p.Cost.ActualCost
+		return *result.NewBalance + balanceDeductedAmount(p, result)
 	}
 	// Legacy fallback: snapshot balance from request context
 	return p.User.Balance

@@ -274,9 +274,12 @@ func (s *MediaQuoteService) resolveChannelImagePricing(ctx context.Context, apiK
 	return resolved
 }
 
+// resolveConversion 解析计费来源（个人 / 组织）。
+// 价格本身即积分价：预估积分等于结算金额，实际扣费时积分余额也只扣这个数，
+// 与账号的充值档位无关，所以换算系数恒为 1。
 func (s *MediaQuoteService) resolveConversion(ctx context.Context, apiKey *APIKey) (MediaQuoteBillingSource, MediaQuoteConversionSnapshot, error) {
 	source := MediaQuoteBillingSource{Type: APIKeyBillingSourcePersonal}
-	balance, displayBalance := apiKey.User.Balance, apiKey.User.DisplayBalance
+	conversion := MediaQuoteConversionSnapshot{CreditsPerSettlementUnit: 1}
 	var billingSource *APIKeyBillingSource
 	if s.organizations != nil {
 		sources, err := s.organizations.GetAPIKeyBillingSources(ctx, []int64{apiKey.ID})
@@ -291,22 +294,13 @@ func (s *MediaQuoteService) resolveConversion(ctx context.Context, apiKey *APIKe
 		if billingSource.Status != APIKeyBillingSourceActive || billingSource.OrganizationID == nil {
 			return source, MediaQuoteConversionSnapshot{}, ErrMediaQuoteBillingSource
 		}
-		organization, err := s.organizations.GetForUser(ctx, *billingSource.OrganizationID, apiKey.UserID)
-		if err != nil {
+		if _, err := s.organizations.GetForUser(ctx, *billingSource.OrganizationID, apiKey.UserID); err != nil {
 			return source, MediaQuoteConversionSnapshot{}, ErrMediaQuoteBillingSource
 		}
 		source.Type = APIKeyBillingSourceOrganization
 		source.OrganizationID = billingSource.OrganizationID
-		balance, displayBalance = organization.Balance, organization.DisplayBalance
 	}
-	ratio := 1.0
-	if balance > 0 {
-		ratio = displayBalance / balance
-	}
-	if ratio < 0 {
-		ratio = 0
-	}
-	return source, MediaQuoteConversionSnapshot{CreditsPerSettlementUnit: ratio}, nil
+	return source, conversion, nil
 }
 
 func isSupportedVideoQuoteResolution(value string) bool {

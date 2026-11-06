@@ -193,11 +193,12 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 		result.NewOrganizationBalance = &newBalance
 		result.BalanceOverdrafted = !sufficient
 	} else if cmd.BalanceCost > 0 {
-		newBalance, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+		newBalance, realDeducted, sufficient, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
 		if err != nil {
 			return err
 		}
 		result.NewBalance = &newBalance
+		result.BalanceDeducted = &realDeducted
 		result.BalanceOverdrafted = !sufficient
 	}
 
@@ -234,27 +235,22 @@ func deductUsageBillingOrganization(ctx context.Context, tx *sql.Tx, cmd *servic
 	// The organization and member are an immutable request-time billing snapshot.
 	// Do not re-check the current key binding or membership status here: either may
 	// have changed after the upstream accepted the request.
-	var balance float64
-	err := tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
-		display_balance=CASE WHEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END)>0
-			THEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END) ELSE 0 END,
-		updated_at=NOW() WHERE id=$2 AND balance >= $1 RETURNING balance`, amount, organizationID).Scan(&balance)
+	// 组织账号与个人账号一致：积分余额只扣 amount，真实余额按组织当前比值同步扣减。
+	var balance, display float64
+	err := tx.QueryRowContext(ctx, `SELECT balance,COALESCE(display_balance,0) FROM organizations WHERE id=$1 FOR UPDATE`, organizationID).Scan(&balance, &display)
 	if errors.Is(err, sql.ErrNoRows) {
-		err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
-			display_balance=CASE WHEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END)>0
-				THEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END) ELSE 0 END,
-			updated_at=NOW() WHERE id=$2 RETURNING balance`, amount, organizationID).Scan(&balance)
-		if errors.Is(err, sql.ErrNoRows) {
-			return 0, false, service.ErrOrganizationNotFound
-		}
-		if err != nil {
-			return 0, false, err
-		}
-		if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET monthly_used=monthly_used+$1,updated_at=NOW() WHERE organization_id=$2 AND user_id=$3`, amount, organizationID, memberUserID); err != nil {
-			return 0, false, err
-		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text,'overdraft',true))`, organizationID, memberUserID, cmd.APIKeyID, cmd.RequestID, -amount, balance, cmd.Model)
-		return balance, false, err
+		return 0, false, service.ErrOrganizationNotFound
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	plan := planCreditDeduction(balance, display, amount)
+	var newBalance float64
+	err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
+		display_balance=GREATEST(COALESCE(display_balance,0)-$2,0),
+		updated_at=NOW() WHERE id=$3 RETURNING balance`, plan.Real, plan.Credits, organizationID).Scan(&newBalance)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, service.ErrOrganizationNotFound
 	}
 	if err != nil {
 		return 0, false, err
@@ -262,8 +258,12 @@ func deductUsageBillingOrganization(ctx context.Context, tx *sql.Tx, cmd *servic
 	if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET monthly_used=monthly_used+$1,updated_at=NOW() WHERE organization_id=$2 AND user_id=$3`, amount, organizationID, memberUserID); err != nil {
 		return 0, false, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text))`, organizationID, memberUserID, cmd.APIKeyID, cmd.RequestID, -amount, balance, cmd.Model)
-	return balance, true, err
+	ledgerSQL := `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text))`
+	if !plan.Sufficient {
+		ledgerSQL = `INSERT INTO organization_quota_ledger(organization_id,member_user_id,api_key_id,request_id,entry_type,amount,balance_after,detail) VALUES($1,$2,$3,$4,'usage',$5,$6,jsonb_build_object('model',$7::text,'overdraft',true))`
+	}
+	_, err = tx.ExecContext(ctx, ledgerSQL, organizationID, memberUserID, cmd.APIKeyID, cmd.RequestID, -amount, newBalance, cmd.Model)
+	return newBalance, plan.Sufficient, err
 }
 
 func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
@@ -294,46 +294,40 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 	return service.ErrSubscriptionNotFound
 }
 
-func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, bool, error) {
-	var newBalance float64
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			display_balance = CASE
-				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
-					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
-				ELSE 0
-			END,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-		RETURNING balance
-	`, amount, userID).Scan(&newBalance)
-	if err == nil {
-		return newBalance, true, nil
+// deductUsageBillingBalance 按积分扣费：积分余额只扣 amount（价格本身），
+// 真实余额按账号当前比值同步扣减。余额不足时仍然记账（允许透支），sufficient=false。
+// 返回扣减后的真实余额、本次实际扣掉的真实金额，以及余额是否充足。
+func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (newBalance, realDeducted float64, sufficient bool, err error) {
+	var balance, display float64
+	err = tx.QueryRowContext(ctx, `
+		SELECT balance, COALESCE(display_balance, 0)
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, userID).Scan(&balance, &display)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, false, service.ErrUserNotFound
 	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return 0, false, err
+	if err != nil {
+		return 0, 0, false, err
 	}
 
+	plan := planCreditDeduction(balance, display, amount)
 	err = tx.QueryRowContext(ctx, `
 		UPDATE users
 		SET balance = balance - $1,
-			display_balance = CASE
-				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
-					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
-				ELSE 0
-			END,
+			display_balance = GREATEST(COALESCE(display_balance, 0) - $2, 0),
 			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
+		WHERE id = $3 AND deleted_at IS NULL
 		RETURNING balance
-	`, amount, userID).Scan(&newBalance)
+	`, plan.Real, plan.Credits, userID).Scan(&newBalance)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, service.ErrUserNotFound
+		return 0, 0, false, service.ErrUserNotFound
 	}
 	if err != nil {
-		return 0, false, err
+		return 0, 0, false, err
 	}
-	return newBalance, false, nil
+	return newBalance, plan.Real, plan.Sufficient, nil
 }
 
 func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
@@ -345,33 +339,43 @@ func reserveUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	} else if ok {
 		return reserveOrganizationBalance(ctx, tx, organizationID, memberUserID, cmd)
 	}
-	var balance, frozen float64
+	var balance, display float64
 	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			display_balance = CASE
-				WHEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
-					THEN COALESCE(display_balance, 0) - ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
-				ELSE 0
-			END,
-			frozen_balance = COALESCE(frozen_balance, 0) + $1,
-			frozen_display_balance = COALESCE(frozen_display_balance, 0) + ($1 * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END),
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND balance >= $1
-		RETURNING balance, frozen_balance
-	`, cmd.HoldAmount, cmd.UserID).Scan(&balance, &frozen)
-	if err == nil {
-		return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	if exists, existsErr := userExistsForBilling(ctx, tx, cmd.UserID); existsErr != nil {
-		return nil, existsErr
-	} else if !exists {
+		SELECT balance, COALESCE(display_balance, 0)
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, cmd.UserID).Scan(&balance, &display)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrUserNotFound
 	}
-	return nil, service.ErrBatchImageInsufficientBalance
+	if err != nil {
+		return nil, err
+	}
+
+	plan := planCreditDeduction(balance, display, cmd.HoldAmount)
+	if !plan.Sufficient {
+		return nil, service.ErrBatchImageInsufficientBalance
+	}
+
+	var newBalance, frozen float64
+	err = tx.QueryRowContext(ctx, `
+		UPDATE users
+		SET balance = balance - $1,
+			display_balance = GREATEST(COALESCE(display_balance, 0) - $2, 0),
+			frozen_balance = COALESCE(frozen_balance, 0) + $1,
+			frozen_display_balance = COALESCE(frozen_display_balance, 0) + $3,
+			updated_at = NOW()
+		WHERE id = $4 AND deleted_at IS NULL
+		RETURNING balance, frozen_balance
+	`, plan.Real, plan.Credits, plan.FrozenCredits, cmd.UserID).Scan(&newBalance, &frozen)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service.BatchImageBalanceHoldResult{NewBalance: &newBalance, FrozenBalance: &frozen}, nil
 }
 
 func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
@@ -398,45 +402,7 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 		logger.LegacyPrintf("repository.usage_billing", "[BatchImage] capture failed, hold was never reserved: batch=%s", cmd.BatchID)
 		return nil, service.ErrBatchImageHoldNotReserved
 	}
-	var balance, frozen float64
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance
-				+ CASE WHEN $1 > $2 THEN $1 - $2 ELSE 0 END
-				- CASE WHEN $2 > $1 THEN $2 - $1 ELSE 0 END,
-			display_balance = CASE
-				WHEN $1 > $2 THEN COALESCE(display_balance, 0)
-					+ (CASE WHEN $1 > 0 THEN ($1 - $2) / $1 ELSE 0 END)
-						* (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
-				WHEN $2 > $1 THEN CASE
-					WHEN COALESCE(display_balance, 0) - (($2 - $1) * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END) > 0
-						THEN COALESCE(display_balance, 0) - (($2 - $1) * CASE WHEN balance > 0 THEN COALESCE(display_balance, 0) / balance ELSE 1 END)
-					ELSE 0
-				END
-				ELSE COALESCE(display_balance, 0)
-			END,
-			frozen_balance = COALESCE(frozen_balance, 0) - $1,
-			frozen_display_balance = CASE
-				WHEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END) > 0
-					THEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
-				ELSE 0
-			END,
-			updated_at = NOW()
-		WHERE id = $3 AND deleted_at IS NULL AND COALESCE(frozen_balance, 0) >= $1
-		RETURNING balance, frozen_balance
-	`, cmd.HoldAmount, cmd.ActualAmount, cmd.UserID).Scan(&balance, &frozen)
-	if err == nil {
-		return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	if exists, existsErr := userExistsForBilling(ctx, tx, cmd.UserID); existsErr != nil {
-		return nil, existsErr
-	} else if !exists {
-		return nil, service.ErrUserNotFound
-	}
-	return nil, errors.New("batch image frozen balance is insufficient")
+	return settleUserFrozenBalance(ctx, tx, cmd.UserID, cmd.HoldAmount, cmd.ActualAmount)
 }
 
 func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
@@ -462,34 +428,49 @@ func releaseUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 		logger.LegacyPrintf("repository.usage_billing", "[BatchImage] release skipped, hold was never reserved: batch=%s", cmd.BatchID)
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
-	var balance, frozen float64
+	return settleUserFrozenBalance(ctx, tx, cmd.UserID, cmd.HoldAmount, 0)
+}
+
+// settleUserFrozenBalance 结算（actualCredits>0）或释放（actualCredits=0）一笔个人账号冻结。
+// 冻结的积分整体解冻，实际消耗之外的积分和对应的真实余额退回可用余额。
+func settleUserFrozenBalance(ctx context.Context, tx *sql.Tx, userID int64, holdCredits, actualCredits float64) (*service.BatchImageBalanceHoldResult, error) {
+	var frozenBalance, frozenDisplay float64
 	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance + $1,
-			display_balance = COALESCE(display_balance, 0)
-				+ (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE $1 END),
-			frozen_balance = COALESCE(frozen_balance, 0) - $1,
-			frozen_display_balance = CASE
-				WHEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END) > 0
-					THEN COALESCE(frozen_display_balance, 0) - (CASE WHEN COALESCE(frozen_balance, 0) > 0 THEN COALESCE(frozen_display_balance, 0) * ($1 / frozen_balance) ELSE 0 END)
-				ELSE 0
-			END,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL AND COALESCE(frozen_balance, 0) >= $1
-		RETURNING balance, frozen_balance
-	`, cmd.HoldAmount, cmd.UserID).Scan(&balance, &frozen)
-	if err == nil {
-		return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
-	}
-	if exists, existsErr := userExistsForBilling(ctx, tx, cmd.UserID); existsErr != nil {
-		return nil, existsErr
-	} else if !exists {
+		SELECT COALESCE(frozen_balance, 0), COALESCE(frozen_display_balance, 0)
+		FROM users
+		WHERE id = $1 AND deleted_at IS NULL
+		FOR UPDATE
+	`, userID).Scan(&frozenBalance, &frozenDisplay)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrUserNotFound
 	}
-	return nil, errors.New("batch image frozen balance is insufficient")
+	if err != nil {
+		return nil, err
+	}
+
+	plan, ok := planCreditSettlement(frozenBalance, frozenDisplay, holdCredits, actualCredits)
+	if !ok {
+		return nil, errors.New("batch image frozen balance is insufficient")
+	}
+
+	var balance, frozen float64
+	err = tx.QueryRowContext(ctx, `
+		UPDATE users
+		SET balance = balance + $1,
+			display_balance = COALESCE(display_balance, 0) + $2,
+			frozen_balance = COALESCE(frozen_balance, 0) - $3,
+			frozen_display_balance = GREATEST(COALESCE(frozen_display_balance, 0) - $4, 0),
+			updated_at = NOW()
+		WHERE id = $5 AND deleted_at IS NULL
+		RETURNING balance, frozen_balance
+	`, plan.RefundReal, plan.RefundCredits, plan.ReleasedReal, plan.ReleasedCredits, userID).Scan(&balance, &frozen)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
 }
 
 func batchImageOrganizationBillingOwner(cmd *service.BatchImageBalanceHoldCommand) (int64, int64, bool, error) {
@@ -521,15 +502,26 @@ func reserveOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID,
 	if limit > 0 && used+frozen+cmd.HoldAmount > limit {
 		return nil, service.ErrBatchImageInsufficientBalance
 	}
+	var orgBalance, orgDisplay float64
+	err = tx.QueryRowContext(ctx, `SELECT balance,COALESCE(display_balance,0) FROM organizations WHERE id=$1 FOR UPDATE`, organizationID).Scan(&orgBalance, &orgDisplay)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrOrganizationForbidden
+	}
+	if err != nil {
+		return nil, err
+	}
+	plan := planCreditDeduction(orgBalance, orgDisplay, cmd.HoldAmount)
+	if !plan.Sufficient {
+		return nil, service.ErrBatchImageInsufficientBalance
+	}
 	var balance, orgFrozen float64
 	err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1,
-		display_balance=CASE WHEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END)>0
-			THEN COALESCE(display_balance,0)-($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END) ELSE 0 END,
+		display_balance=GREATEST(COALESCE(display_balance,0)-$2,0),
 		frozen_balance=frozen_balance+$1,
-		frozen_display_balance=COALESCE(frozen_display_balance,0)+($1*CASE WHEN balance>0 THEN COALESCE(display_balance,0)/balance ELSE 1 END),
-		updated_at=NOW() WHERE id=$2 AND balance >= $1 RETURNING balance,frozen_balance`, cmd.HoldAmount, organizationID).Scan(&balance, &orgFrozen)
+		frozen_display_balance=COALESCE(frozen_display_balance,0)+$3,
+		updated_at=NOW() WHERE id=$4 RETURNING balance,frozen_balance`, plan.Real, plan.Credits, plan.FrozenCredits, organizationID).Scan(&balance, &orgFrozen)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, service.ErrBatchImageInsufficientBalance
+		return nil, service.ErrOrganizationForbidden
 	}
 	if err != nil {
 		return nil, err
@@ -555,13 +547,17 @@ func captureOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID,
 	if !held {
 		return nil, service.ErrBatchImageHoldNotReserved
 	}
+	settle, err := planOrganizationSettlement(ctx, tx, organizationID, cmd.HoldAmount, cmd.ActualAmount)
+	if err != nil {
+		return nil, err
+	}
 	var balance, frozen float64
 	err = tx.QueryRowContext(ctx, `UPDATE organizations SET
-		balance=balance+($1-$2),
-		display_balance=COALESCE(display_balance,0)+(CASE WHEN $1>0 THEN ($1-$2)/$1 ELSE 0 END)*(CASE WHEN frozen_balance>0 THEN COALESCE(frozen_display_balance,0)*($1/frozen_balance) ELSE 0 END),
-		frozen_balance=frozen_balance-$1,
-		frozen_display_balance=GREATEST(0,COALESCE(frozen_display_balance,0)-(CASE WHEN frozen_balance>0 THEN COALESCE(frozen_display_balance,0)*($1/frozen_balance) ELSE 0 END)),
-		updated_at=NOW() WHERE id=$3 AND frozen_balance >= $1 RETURNING balance,frozen_balance`, cmd.HoldAmount, cmd.ActualAmount, organizationID).Scan(&balance, &frozen)
+		balance=balance+$1,
+		display_balance=COALESCE(display_balance,0)+$2,
+		frozen_balance=frozen_balance-$3,
+		frozen_display_balance=GREATEST(COALESCE(frozen_display_balance,0)-$4,0),
+		updated_at=NOW() WHERE id=$5 RETURNING balance,frozen_balance`, settle.RefundReal, settle.RefundCredits, settle.ReleasedReal, settle.ReleasedCredits, organizationID).Scan(&balance, &frozen)
 	if err != nil {
 		return nil, err
 	}
@@ -573,6 +569,23 @@ func captureOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID,
 		return nil, err
 	}
 	return &service.BatchImageBalanceHoldResult{NewBalance: &balance, FrozenBalance: &frozen}, nil
+}
+
+// planOrganizationSettlement 锁定组织行并计算一笔冻结的结算 / 释放结果。
+func planOrganizationSettlement(ctx context.Context, tx *sql.Tx, organizationID int64, holdCredits, actualCredits float64) (creditSettlementPlan, error) {
+	var frozenBalance, frozenDisplay float64
+	err := tx.QueryRowContext(ctx, `SELECT COALESCE(frozen_balance,0),COALESCE(frozen_display_balance,0) FROM organizations WHERE id=$1 FOR UPDATE`, organizationID).Scan(&frozenBalance, &frozenDisplay)
+	if errors.Is(err, sql.ErrNoRows) {
+		return creditSettlementPlan{}, service.ErrOrganizationNotFound
+	}
+	if err != nil {
+		return creditSettlementPlan{}, err
+	}
+	plan, ok := planCreditSettlement(frozenBalance, frozenDisplay, holdCredits, actualCredits)
+	if !ok {
+		return creditSettlementPlan{}, errors.New("organization frozen balance is insufficient")
+	}
+	return plan, nil
 }
 
 func releaseOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID, memberUserID int64, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
@@ -587,13 +600,17 @@ func releaseOrganizationBalance(ctx context.Context, tx *sql.Tx, organizationID,
 	if !held {
 		return &service.BatchImageBalanceHoldResult{}, nil
 	}
+	settle, err := planOrganizationSettlement(ctx, tx, organizationID, cmd.HoldAmount, 0)
+	if err != nil {
+		return nil, err
+	}
 	var balance, frozen float64
 	err = tx.QueryRowContext(ctx, `UPDATE organizations SET
 		balance=balance+$1,
-		display_balance=COALESCE(display_balance,0)+(CASE WHEN frozen_balance>0 THEN COALESCE(frozen_display_balance,0)*($1/frozen_balance) ELSE $1 END),
-		frozen_balance=frozen_balance-$1,
-		frozen_display_balance=GREATEST(0,COALESCE(frozen_display_balance,0)-(CASE WHEN frozen_balance>0 THEN COALESCE(frozen_display_balance,0)*($1/frozen_balance) ELSE 0 END)),
-		updated_at=NOW() WHERE id=$2 AND frozen_balance >= $1 RETURNING balance,frozen_balance`, cmd.HoldAmount, organizationID).Scan(&balance, &frozen)
+		display_balance=COALESCE(display_balance,0)+$2,
+		frozen_balance=frozen_balance-$3,
+		frozen_display_balance=GREATEST(COALESCE(frozen_display_balance,0)-$4,0),
+		updated_at=NOW() WHERE id=$5 RETURNING balance,frozen_balance`, settle.RefundReal, settle.RefundCredits, settle.ReleasedReal, settle.ReleasedCredits, organizationID).Scan(&balance, &frozen)
 	if err != nil {
 		return nil, err
 	}
@@ -632,21 +649,6 @@ func batchImageHoldClaimExists(ctx context.Context, tx *sql.Tx, holdRequestID st
 	return false, err
 }
 
-func userExistsForBilling(ctx context.Context, tx *sql.Tx, userID int64) (bool, error) {
-	var exists int
-	err := tx.QueryRowContext(ctx, `
-		SELECT 1
-		FROM users
-		WHERE id = $1 AND deleted_at IS NULL
-	`, userID).Scan(&exists)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
-}
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {
 	var exhausted bool

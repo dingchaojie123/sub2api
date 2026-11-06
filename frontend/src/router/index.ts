@@ -243,6 +243,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/video-tasks',
+    name: 'VideoTasks',
+    component: () => import('@/views/user/VideoTasksView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Video Tasks',
+      titleKey: 'videoTasks.title',
+      descriptionKey: 'videoTasks.description'
+    }
+  },
+  {
     path: '/model-pricing',
     name: 'ModelList',
     component: () => import('@/views/user/ModelListView.vue'),

@@ -537,13 +537,93 @@ export default {
     description: 'View current text, image, and video model pricing by specification and billing method.',
     search: 'Search models',
     searchPlaceholder: 'Search model, resolution, or billing method',
-    categories: 'Model categories',
-    matchCount: '{count} prices',
     emptyTitle: 'No matching models',
-    emptyDescription: 'Try another search term or model category.',
-    availabilityNote: 'Prices are in CNY. “-” means the tier is currently unavailable. Channel labels follow the supplied price list.',
+    emptyDescription: 'Try another search term or adjust the filters.',
+    availabilityNote: 'Prices use the unit shown on each quote (credits or CNY). Displayed prices are estimates; the final charge follows the quote at task creation and your usage records.',
+    filters: {
+      title: 'Filter models',
+      showing: 'Showing {shown} / {total}',
+      clear: 'Clear filters',
+      all: 'All',
+      category: 'Type',
+      channel: 'Channel',
+      billing: 'Billing'
+    },
+    card: {
+      channel: 'Channel',
+      billing: 'Billing',
+      morePrices: '{count} more tiers',
+      detail: 'View details'
+    },
+    detail: {
+      prices: 'Your prices',
+      pricesHint: 'Displayed prices are shown below. Actual charges are listed in your usage records.'
+    }
+  },
+
+  videoTasks: {
+    title: 'Video Tasks',
+    description: 'Look up generation tasks recorded on this site, with their status and results.',
+    autoRefreshHint: 'While this page is visible and has unfinished tasks, video status refreshes every 10 seconds.',
+    refresh: 'Refresh',
+    filters: {
+      taskId: 'Search task ID',
+      model: 'Search model',
+      apiKey: 'API key name',
+      allStatus: 'All statuses',
+      startDate: 'Start date',
+      endDate: 'End date',
+      search: 'Search',
+      reset: 'Reset'
+    },
+    status: {
+      processing: 'Processing',
+      succeeded: 'Completed',
+      failed: 'Failed',
+      requiresAttention: 'Needs attention',
+      unknown: 'Unknown'
+    },
     columns: {
-      model: 'Model'
+      taskId: 'Task ID',
+      model: 'Model',
+      status: 'Status',
+      prompt: 'Prompt',
+      outputCount: 'Outputs',
+      createdAt: 'Created',
+      totalTime: 'Total time',
+      charged: 'Charged',
+      actions: 'Actions'
+    },
+    credits: 'credits',
+    held: 'Held {amount}',
+    detailButton: 'Details',
+    copyId: 'Copy task ID',
+    copied: 'Task ID copied',
+    empty: 'No tasks yet',
+    loadFailed: 'Failed to load video tasks',
+    detail: {
+      title: 'Task details',
+      close: 'Close',
+      status: 'Status',
+      totalTime: 'Total time',
+      model: 'Model',
+      resolution: 'Resolution',
+      duration: 'Duration',
+      charged: 'Charged',
+      refunded: 'Refunded',
+      createdAt: 'Created',
+      prompt: 'Prompt',
+      noPrompt: 'No prompt recorded',
+      error: 'Failure reason',
+      result: 'Result',
+      resultIndex: 'Result {index}',
+      loadingVideo: 'Loading video…',
+      retry: 'Retry',
+      videoFailed: 'Failed to load the video. Please try again later.',
+      videoExpired: 'The video has expired or was removed upstream and can no longer be played.',
+      videoUnavailable: 'Results for this model cannot be previewed here. Please fetch them through the API.',
+      download: 'Download',
+      downloadFailed: 'Download failed. Please try again later.'
     }
   },
 

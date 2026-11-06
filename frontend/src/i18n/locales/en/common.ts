@@ -159,6 +159,7 @@ export default {
 	apiKeys: 'API Keys',
     batchImage: 'Batch Images',
     usage: 'Usage',
+    videoTasks: 'Video Tasks',
     modelList: 'Model List',
     redeem: 'Redeem',
     lottery: 'Lucky Wheel',

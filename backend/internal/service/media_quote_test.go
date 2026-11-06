@@ -69,7 +69,7 @@ func TestMediaQuoteServiceImage(t *testing.T) {
 	require.Equal(t, "estimate", quote.Status)
 	require.Equal(t, "1K", quote.Pricing.Resolution)
 	require.InDelta(t, 1.2, quote.SettlementAmount.Value, 0.0000001)
-	require.InDelta(t, 12, quote.EstimatedCredits, 0.0000001)
+	require.InDelta(t, 1.2, quote.EstimatedCredits, 0.0000001)
 	require.Equal(t, "unit_price_per_image * quantity * rate_multiplier", quote.Pricing.Formula)
 	require.Equal(t, "group", quote.Pricing.PricingSource)
 	require.Equal(t, string(BillingModeImage), quote.Pricing.BillingMode)
@@ -82,7 +82,7 @@ func TestMediaQuoteServiceVideo(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "720p", quote.Pricing.Resolution)
 	require.InDelta(t, 2, quote.SettlementAmount.Value, 0.0000001)
-	require.InDelta(t, 20, quote.EstimatedCredits, 0.0000001)
+	require.InDelta(t, 2, quote.EstimatedCredits, 0.0000001)
 	require.NotNil(t, quote.Pricing.DurationSeconds)
 	require.Equal(t, 5, *quote.Pricing.DurationSeconds)
 	require.Equal(t, "group", quote.Pricing.PricingSource)
@@ -106,7 +106,7 @@ func TestMediaQuoteServiceVideoUsesChannelBillingMode(t *testing.T) {
 			billingMode:      BillingModePerRequest,
 			unitPrice:        5.6,
 			wantSettlement:   22.4,
-			wantCredits:      224,
+			wantCredits:      22.4,
 			wantFormula:      "unit_price_per_request * quantity * rate_multiplier",
 			wantSnapshotMode: string(BillingModePerRequest),
 		},
@@ -116,7 +116,7 @@ func TestMediaQuoteServiceVideoUsesChannelBillingMode(t *testing.T) {
 			billingMode:      BillingModeVideo,
 			unitPrice:        1.4,
 			wantSettlement:   28,
-			wantCredits:      280,
+			wantCredits:      28,
 			wantFormula:      "unit_price_per_second * duration_seconds * quantity * rate_multiplier",
 			wantSnapshotMode: string(BillingModeVideo),
 		},
@@ -224,7 +224,7 @@ func TestMediaQuoteServiceSupportsOPONE4KChannelTier(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "4k", quote.Pricing.Resolution)
 	require.InDelta(t, 30, quote.SettlementAmount.Value, 0.0000001)
-	require.InDelta(t, 300, quote.EstimatedCredits, 0.0000001)
+	require.InDelta(t, 30, quote.EstimatedCredits, 0.0000001)
 }
 
 func TestMediaQuoteServiceImageUsesChannelPricingLikeActualBilling(t *testing.T) {
@@ -252,7 +252,7 @@ func TestMediaQuoteServiceImageUsesChannelPricingLikeActualBilling(t *testing.T)
 	require.NoError(t, err)
 	require.InDelta(t, price, quote.Pricing.UnitPrice, 0.0000001)
 	require.InDelta(t, 1.2, quote.SettlementAmount.Value, 0.0000001)
-	require.InDelta(t, 12, quote.EstimatedCredits, 0.0000001)
+	require.InDelta(t, 1.2, quote.EstimatedCredits, 0.0000001)
 	require.Equal(t, PricingSourceChannel, quote.Pricing.PricingSource)
 	require.Equal(t, string(BillingModeImage), quote.Pricing.BillingMode)
 }
@@ -267,7 +267,7 @@ func TestMediaQuoteServiceRejectsUnsupportedAndForeignKey(t *testing.T) {
 	require.ErrorIs(t, err, ErrMediaQuoteInvalidRequest)
 }
 
-func TestMediaQuoteServiceUsesOrganizationDisplayConversion(t *testing.T) {
+func TestMediaQuoteServiceDoesNotApplyOrganizationRatio(t *testing.T) {
 	key := mediaQuoteTestKey()
 	organizationID := int64(12)
 	organizations := &mediaQuoteOrganizationRepo{
@@ -279,5 +279,7 @@ func TestMediaQuoteServiceUsesOrganizationDisplayConversion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, APIKeyBillingSourceOrganization, quote.BillingSource.Type)
 	require.Equal(t, organizationID, *quote.BillingSource.OrganizationID)
-	require.InDelta(t, 20, quote.EstimatedCredits, 0.0000001)
+	// 组织余额比值为 50，但预估积分只等于价格本身。
+	require.InDelta(t, quote.SettlementAmount.Value, quote.EstimatedCredits, 0.0000001)
+	require.InDelta(t, 1, quote.Conversion.CreditsPerSettlementUnit, 0.0000001)
 }

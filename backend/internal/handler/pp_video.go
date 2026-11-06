@@ -459,6 +459,10 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to create video task")
 			return
 		}
+		// 提示词只用于「视频任务」记录页展示，写入失败不能影响任务提交。
+		if promptErr := h.gatewayService.RecordPPVideoTaskPrompt(c.Request.Context(), task.LocalTaskID, originalBody); promptErr != nil {
+			reqLog.Warn("pp_video.record_prompt_failed", zap.String("local_task_id", task.LocalTaskID), zap.Error(promptErr))
+		}
 		if billingStatus == service.PPVideoBillingStatusHeld {
 			if err := h.gatewayService.ReservePPVideoBalanceHold(c.Request.Context(), task, payloadHash); err != nil {
 				_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "hold_failed", err.Error())

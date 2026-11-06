@@ -127,6 +127,14 @@ func RegisterUserRoutes(
 			billing.POST("/quotes", h.MediaQuote.Create)
 		}
 
+		// 视频任务记录（仅当前用户自己的任务）
+		videoTasks := authenticated.Group("/video-tasks")
+		{
+			videoTasks.GET("", h.OpenAIGateway.ListUserVideoTasks)
+			videoTasks.GET("/:id", h.OpenAIGateway.GetUserVideoTask)
+			videoTasks.GET("/:id/content", h.OpenAIGateway.GetUserVideoTaskContent)
+		}
+
 		// 公告（用户可见）
 		announcements := authenticated.Group("/announcements")
 		{

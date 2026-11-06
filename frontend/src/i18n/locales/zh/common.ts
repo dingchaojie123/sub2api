@@ -159,6 +159,7 @@ export default {
 	apiKeys: 'API 密钥',
     batchImage: '批量生图',
     usage: '使用记录',
+    videoTasks: '视频任务',
     modelList: '模型列表',
     redeem: '兑换',
     lottery: '幸运盲盒',
