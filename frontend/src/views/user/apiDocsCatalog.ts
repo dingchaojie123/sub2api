@@ -7,6 +7,7 @@ import qwenTts from '../../../../docs/QWEN_TTS_API.md?raw'
 import advanced from '../../../../docs/video-api/advanced.md?raw'
 import doubaoSeedance from '../../../../docs/video-api/doubao-seedance.md?raw'
 import generalModels from '../../../../docs/video-api/general-models.md?raw'
+import maiTokenSeedance from '../../../../docs/video-api/mai-token-seedance.md?raw'
 import minimaxH3 from '../../../../docs/video-api/minimax-h3.md?raw'
 import pixverse from '../../../../docs/video-api/pixverse.md?raw'
 import seedanceSeries from '../../../../docs/video-api/seedance-series.md?raw'
@@ -36,6 +37,7 @@ export const apiDocPages: ApiDocPage[] = [
   { slug: 'video', path: 'PP_VIDEO_GENERATION_API.md', title: '快速开始', group: 'video', markdown: videoEntry },
   { slug: 'doubao-seedance', path: 'video-api/doubao-seedance.md', title: 'Seedance（doubao 系列）', group: 'video', markdown: doubaoSeedance },
   { slug: 'seedance-series', path: 'video-api/seedance-series.md', title: 'Seedance（其他型号）', group: 'video', markdown: seedanceSeries },
+  { slug: 'mai-token-seedance', path: 'video-api/mai-token-seedance.md', title: 'sdtj-2.5-480p', group: 'video', markdown: maiTokenSeedance },
   { slug: 'wan', path: 'video-api/wan.md', title: 'Wan3.0', group: 'video', markdown: wan },
   { slug: 'general-models', path: 'video-api/general-models.md', title: '综合视频模型', group: 'video', markdown: generalModels },
   { slug: 'minimax-h3', path: 'video-api/minimax-h3.md', title: 'MiniMax-H3', group: 'video', markdown: minimaxH3 },

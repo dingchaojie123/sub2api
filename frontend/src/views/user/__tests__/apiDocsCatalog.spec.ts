@@ -19,10 +19,15 @@ describe('apiDocsCatalog', () => {
       expect(page.markdown.trim().length, page.slug).toBeGreaterThan(100)
       expect(apiDocGroups.some((group) => group.id === page.group), page.slug).toBe(true)
     })
+    expect(findApiDocPage('mai-token-seedance')).toMatchObject({
+      path: 'video-api/mai-token-seedance.md',
+      group: 'video',
+    })
   })
 
   it('resolves relative links between pages', () => {
     expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'video-api/wan.md')).toBe('wan')
+    expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'video-api/mai-token-seedance.md')).toBe('mai-token-seedance')
     expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'QWEN_TTS_API.md')).toBe('qwen-tts')
     expect(resolveApiDocSlug('video-api/wan.md', '../PP_VIDEO_GENERATION_API.md')).toBe('video')
     expect(resolveApiDocSlug('video-api/wan.md', 'advanced.md')).toBe('advanced')
@@ -58,6 +63,7 @@ describe('apiDocsCatalog', () => {
       forbidden.forEach((word) => {
         expect(page.markdown.includes(word), `${page.slug} mentions "${word}"`).toBe(false)
       })
+      expect(page.markdown).not.toContain('api.mai-token.com')
     })
   })
 

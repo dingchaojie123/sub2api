@@ -74,6 +74,19 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain(`显示 ${modelSquareCatalog.length} / ${modelSquareCatalog.length}`)
   })
 
+  it('lists sdtj-2.5-480p as an independent 480P per-second model', () => {
+    const model = modelSquareCatalog.find((item) => item.name === 'sdtj-2.5-480p')
+
+    expect(model).toMatchObject({ category: 'video', billing: '按秒' })
+    expect(model?.prices).toEqual([
+      expect.objectContaining({ label: '480P', suffix: '积分 / 秒' }),
+    ])
+    expect(model?.specs).toEqual(expect.arrayContaining([
+      { label: '时长', value: '4-30 秒' },
+      { label: '分辨率', value: '固定 480P' },
+    ]))
+  })
+
   it('shows the previously CNY-quoted models in credits with the numbers unchanged', () => {
     const wrapper = renderView()
     const price = (id: string, label: string) =>

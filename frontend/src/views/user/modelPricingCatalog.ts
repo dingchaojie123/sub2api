@@ -293,6 +293,22 @@ const officialVideoModels: ModelSquareItem[] = [
 
 const channelVideoModels: ModelSquareItem[] = [
   {
+    id: 'mai-token-seedance-sdtj-2.5-480p',
+    name: 'sdtj-2.5-480p',
+    category: 'video',
+    channel: '常规',
+    billing: '按秒',
+    iconModel: 'doubao',
+    description: '固定 480P 的 Seedance 2.5 视频模型，支持文生、首尾帧和图片、视频、音频参考；最终按返回的计费秒数结算。',
+    prices: [credit('480P', '1.2', '秒')],
+    specs: [
+      spec('时长', '4-30 秒'),
+      spec('分辨率', '固定 480P'),
+      spec('画面比例', `${RATIOS_ALL} / adaptive`),
+      ...refSpecs(30, 10, 10, 50),
+    ],
+  },
+  {
     id: 'limited-seedance-2.5-full',
     name: '限时限量-Seedance 2.5 满参',
     category: 'video',

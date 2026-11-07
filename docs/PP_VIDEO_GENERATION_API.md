@@ -44,6 +44,7 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` | [查看](video-api/wan.md) |
 | 综合视频模型 | `gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0`、`seedance-2.0`、`seedance-2.0-fast`、`seedance-2.0-mini`、`seedance-2.5`、`veo-3.1`、`veo-3.1-fast`、`wan3.0-video` | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4K`，按模型限制 | [查看](video-api/general-models.md) |
 | Seedance（其他型号） | `seedance-2.0-930`、`seedance-2.0-903`、`seedance-933`、`seedance2.0-933-C`、`seedance2.5-V`、`Seedance 2.5-全参720P`、`限时限量-Seedance 2.5 满参`、`Seedance 2.5-无视频`、`限时限量-Seedance 2.5 满参-备选`、`Seedance 2.0按次计费`、`Seedance 2.5-无参考视频 按秒计费`、`Seedance 2.0-无参考视频 按秒计费`、`竖屏-Seedance 2.0按次计费`、`竖屏-Seedance 2.0 Fast 按次计费`、`竖屏-Seedance 2.0 Mini 按次计费` | 文生、参考图片/视频/音频，部分模型支持首尾帧，按模型能力 | 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`，按模型限制 | [查看](video-api/seedance-series.md) |
+| Seedance 2.5 480P | `sdtj-2.5-480p` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | 固定 `480p` | [查看](video-api/mai-token-seedance.md) |
 | MiniMax-H3 | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` | [查看](video-api/minimax-h3.md) |
 | Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` | [查看](video-api/pixverse.md) |
 
