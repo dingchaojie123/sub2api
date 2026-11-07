@@ -468,9 +468,6 @@ func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 	default:
 		result.Status = NormalizePPVideoTaskStatus(status)
 	}
-	if result.TaskID == "" {
-		return PPVideoResponse{}, fmt.Errorf("Mai Token Seedance response missing task id")
-	}
 	if result.VideoCount <= 0 {
 		result.VideoCount = 1
 	}

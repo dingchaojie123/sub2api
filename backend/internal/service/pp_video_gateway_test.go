@@ -1205,3 +1205,51 @@ func TestForwardPPVideoBufferedAdaptsPublicRequestToSeedance(t *testing.T) {
 		"model": "video-v1"
 	}`, string(result.ResponseBody))
 }
+
+func TestForwardPPVideoBufferedMaiTokenStatusFallsBackToRequestedTaskID(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"status":"completed","usage":{"billing_seconds":7}}`))),
+	}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID: 31, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "mai-key"},
+	}
+
+	result, err := svc.ForwardPPVideoBuffered(
+		context.Background(), nil, account, PPVideoOperationGeneric, "mai-status-1", nil,
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, "mai-status-1", result.ResponseID)
+	require.Equal(t, PPVideoTaskStatusSucceeded, result.TaskStatus)
+	require.Equal(t, int64(7), result.VideoProviderBillingSeconds)
+	require.Equal(t, "mai-status-1", gjson.GetBytes(result.ResponseBody, "id").String())
+}
+
+func TestForwardPPVideoBufferedMaiTokenSubmissionRequiresTaskID(t *testing.T) {
+	t.Parallel()
+
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"status":"queued"}`))),
+	}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID: 32, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "mai-key"},
+	}
+	body := []byte(`{"model":"sdtj-2.5-480p","prompt":"waves","duration":4,"resolution":"480p"}`)
+
+	result, err := svc.ForwardPPVideoBuffered(
+		context.Background(), nil, account, PPVideoOperationGeneric, "", body,
+	)
+
+	require.ErrorContains(t, err, "missing task id")
+	require.Nil(t, result)
+}

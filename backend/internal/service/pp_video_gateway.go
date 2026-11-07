@@ -295,6 +295,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if isStatus && strings.TrimSpace(parsed.TaskID) == "" {
 		parsed.TaskID = strings.TrimSpace(taskID)
 	}
+	if isSubmission && strings.TrimSpace(parsed.TaskID) == "" {
+		return nil, fmt.Errorf("%s response missing task id", account.Platform)
+	}
 	if account.Platform == Platform88APIVideo && parsed.Status != PPVideoTaskStatusSucceeded {
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
