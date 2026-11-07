@@ -16,6 +16,7 @@ export const ppVideoPricingPlatforms = new Set([
   "seedance",
   "ctmo-seedance",
 	"xingapi-seedance",
+  "mai-token-seedance",
   "guangying",
   "opone",
   "bytedance",

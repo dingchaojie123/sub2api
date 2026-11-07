@@ -9,6 +9,7 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'seedance',
   'ctmo-seedance',
 	'xingapi-seedance',
+  'mai-token-seedance',
   'guangying',
   'opone',
   'bytedance',
@@ -44,6 +45,7 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'seedance',
   'ctmo-seedance',
 	'xingapi-seedance',
+  'mai-token-seedance',
   'guangying',
   'opone',
   'bytedance',
@@ -193,6 +195,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
 		accountType: 'apikey',
 		authScheme: 'bearer'
 	},
+  'mai-token-seedance': {
+    id: 'mai-token-seedance',
+    label: 'Mai Token Seedance',
+    defaultBaseUrl: 'https://api.mai-token.com',
+    baseUrlPlaceholder: 'https://api.mai-token.com',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
   guangying: {
     id: 'guangying',
     label: '光影 AI Seedance',

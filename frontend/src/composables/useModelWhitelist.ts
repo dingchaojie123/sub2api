@@ -192,9 +192,11 @@ export const MINIMAX_HAILUO_23_FIXED_MODEL = 'MiniMax-Hailuo-2.3'
 export const PIXVERSE_V6_FIXED_MODEL = 'pixverse-v6'
 export const GROK_IMAGINE_VIDEO_FIXED_MODEL = 'grok-imagine-video'
 export const KUAISHOU_FIXED_MODEL = 'kling-v3'
+export const MAI_TOKEN_SEEDANCE_FIXED_MODEL = 'sdtj-2.5-480p'
 const klingModels: string[] = []
 const happyHourseModels: string[] = []
 const seedanceModels: string[] = []
+const maiTokenSeedanceModels = [MAI_TOKEN_SEEDANCE_FIXED_MODEL]
 const bytedanceModels = [...BYTEDANCE_FIXED_MODELS]
 const wan3Models = [...WAN3_FIXED_MODELS]
 const minimaxH3Models = [MINIMAX_H3_FIXED_MODEL, MINIMAX_HAILUO_23_FIXED_MODEL]
@@ -486,6 +488,8 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'ctmo-seedance':
 	case 'xingapi-seedance':
       return []
+    case 'mai-token-seedance':
+      return maiTokenSeedanceModels
     case 'guangying':
       return GUANGYING_MODEL_MAPPINGS.map(mapping => mapping.from)
     case 'opone':
@@ -540,6 +544,14 @@ export function getPresetMappingsByPlatform(platform: string) {
         color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400'
       }
     ]
+  }
+  if (platform === 'mai-token-seedance') {
+    return [{
+      label: 'Mai Token Seedance 2.5 480p',
+      from: MAI_TOKEN_SEEDANCE_FIXED_MODEL,
+      to: MAI_TOKEN_SEEDANCE_FIXED_MODEL,
+      color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400'
+    }]
   }
   if (platform === 'bytedance') {
     return BYTEDANCE_FIXED_MODELS.map(model => ({

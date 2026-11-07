@@ -34,6 +34,7 @@ describe('video account platform metadata', () => {
       'seedance',
       'ctmo-seedance',
 	  'xingapi-seedance',
+	  'mai-token-seedance',
       'guangying',
       'opone',
       'bytedance',
@@ -48,7 +49,7 @@ describe('video account platform metadata', () => {
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'xingapi-seedance' ? 'https://xingapi.top/v1' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
+      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'xingapi-seedance' ? 'https://xingapi.top/v1' : platform === 'mai-token-seedance' ? 'https://api.mai-token.com' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
         platform === 'bytedance' ||
         platform === 'wan3' ||
         platform === 'minimax-h3' ||
@@ -64,6 +65,17 @@ describe('video account platform metadata', () => {
       expect(metadata.accountType).toBe('apikey')
       expect(isVideoAccountPlatform(platform)).toBe(true)
     }
+  })
+
+  it('keeps Mai Token Seedance isolated from other Seedance providers', () => {
+    expect(getVideoAccountPlatformMetadata('mai-token-seedance')).toMatchObject({
+      id: 'mai-token-seedance',
+      label: 'Mai Token Seedance',
+      defaultBaseUrl: 'https://api.mai-token.com',
+      accountType: 'apikey',
+      authScheme: 'bearer'
+    })
+    expect(VIDEO_ACCOUNT_PLATFORMS.filter(platform => platform === 'mai-token-seedance')).toHaveLength(1)
   })
 })
 

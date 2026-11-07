@@ -117,6 +117,13 @@ describe('useModelWhitelist', () => {
     )
   })
 
+  it('Mai Token Seedance exposes only its documented model', () => {
+    expect(getModelsByPlatform('mai-token-seedance')).toEqual(['sdtj-2.5-480p'])
+    expect(getPresetMappingsByPlatform('mai-token-seedance')).toEqual([
+      expect.objectContaining({ from: 'sdtj-2.5-480p', to: 'sdtj-2.5-480p' })
+    ])
+  })
+
 	it('MiniMax Speech uses upstream model synchronization instead of a local preset', () => {
 		expect(getModelsByPlatform('minimax-speech')).toEqual([])
 	})
