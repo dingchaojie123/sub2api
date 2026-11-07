@@ -158,7 +158,16 @@ func (r *usageBillingRepository) MarkPPVideoTaskSubmitted(ctx context.Context, p
 			response_status = $4,
 			response_content_type = $5,
 			response_body = $6,
+			generated_video_duration_milliseconds = CASE WHEN $7 > 0 THEN $7 ELSE generated_video_duration_milliseconds END,
+			input_video_duration_milliseconds = CASE WHEN $8 > 0 THEN $8 ELSE input_video_duration_milliseconds END,
+			provider_billing_seconds = CASE WHEN $9 > 0 THEN $9 ELSE provider_billing_seconds END,
+			video_count = CASE WHEN $10 > 0 THEN $10 ELSE video_count END,
+			video_resolution = CASE WHEN NULLIF($11, '') IS NOT NULL THEN $11 ELSE video_resolution END,
+			output_width = CASE WHEN $12 > 0 THEN $12 ELSE output_width END,
+			output_height = CASE WHEN $13 > 0 THEN $13 ELSE output_height END,
+			frame_rate = CASE WHEN $14 > 0 THEN $14 ELSE frame_rate END,
 			submitted_at = COALESCE(submitted_at, NOW()),
+			finished_at = CASE WHEN $3 IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
 			updated_at = NOW()
 		WHERE local_task_id = $1
 			AND status = 'submitting'
@@ -173,6 +182,14 @@ func (r *usageBillingRepository) MarkPPVideoTaskSubmitted(ctx context.Context, p
 		params.ResponseStatus,
 		strings.TrimSpace(params.ResponseContentType),
 		params.ResponseBody,
+		params.GeneratedVideoDurationMilliseconds,
+		params.InputVideoDurationMilliseconds,
+		params.ProviderBillingSeconds,
+		params.VideoCount,
+		strings.TrimSpace(params.VideoResolution),
+		params.OutputWidth,
+		params.OutputHeight,
+		params.FrameRate,
 	)
 	task, err := scanPPVideoTask(row)
 	if err != nil {

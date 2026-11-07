@@ -150,7 +150,10 @@ func TestMarkPPVideoTaskSubmittedRejectsLateSubmission(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE local_task_id = \$1.*status = 'submitting'.*task_id IS NULL.*settled_at IS NULL.*RETURNING`).
-		WithArgs("ppvidtask_1", "provider-task-1", service.PPVideoTaskStatusProcessing, 200, "application/json", `{}`).
+		WithArgs(
+			"ppvidtask_1", "provider-task-1", service.PPVideoTaskStatusProcessing, 200, "application/json", `{}`,
+			int64(0), int64(0), int64(0), 0, "", 0, 0, 0.0,
+		).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	repo := &usageBillingRepository{db: db}
@@ -164,6 +167,64 @@ func TestMarkPPVideoTaskSubmittedRejectsLateSubmission(t *testing.T) {
 	})
 
 	require.ErrorIs(t, err, service.ErrPPVideoTaskNotFound)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestMarkPPVideoTaskSubmittedPersistsImmediateCompletionMetrics(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	now := time.Date(2026, 11, 7, 8, 0, 0, 0, time.UTC)
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*generated_video_duration_milliseconds.*input_video_duration_milliseconds.*provider_billing_seconds.*finished_at.*RETURNING`).
+		WithArgs(
+			"ppvidtask_immediate", "mai-immediate-1", service.PPVideoTaskStatusSucceeded,
+			200, "application/json", `{"id":"mai-immediate-1","status":"completed"}`,
+			int64(12000), int64(3500), int64(12), 1, "480p", 854, 480, 24.0,
+		).
+		WillReturnRows(newPPVideoTaskRows(now).AddRow(
+			int64(1), "ppvidtask_immediate", "mai-immediate-1", int64(10), int64(20), nil, int64(30),
+			service.PlatformMaiTokenSeedance, service.PPVideoOperationGeneric, service.MaiTokenSeedanceModel,
+			service.PPVideoTaskStatusSucceeded, service.PPVideoBillingStatusHeld,
+			"payload_hash", "", "hold", "capture", "release",
+			12.0, 12.0, nil, "USD", 12, int64(12000), int64(3500), int64(12000), int64(12), 1, "480p",
+			854, 480, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 12.0, 1.0, 0.0,
+			200, "application/json", `{"id":"mai-immediate-1","status":"completed"}`,
+			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
+			service.APIKeyBillingSourcePersonal, nil, nil,
+		))
+
+	repo := &usageBillingRepository{db: db}
+	task, err := repo.MarkPPVideoTaskSubmitted(ctx, service.MarkPPVideoTaskSubmittedParams{
+		LocalTaskID:                        "ppvidtask_immediate",
+		TaskID:                             "mai-immediate-1",
+		Status:                             service.PPVideoTaskStatusSucceeded,
+		GeneratedVideoDurationMilliseconds: 12000,
+		InputVideoDurationMilliseconds:     3500,
+		ProviderBillingSeconds:             12,
+		VideoCount:                         1,
+		VideoResolution:                    "480p",
+		OutputWidth:                        854,
+		OutputHeight:                       480,
+		FrameRate:                          24,
+		ResponseStatus:                     200,
+		ResponseContentType:                "application/json",
+		ResponseBody:                       `{"id":"mai-immediate-1","status":"completed"}`,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, int64(12000), task.GeneratedVideoDurationMilliseconds)
+	require.Equal(t, int64(3500), task.InputVideoDurationMilliseconds)
+	require.Equal(t, int64(12), task.ProviderBillingSeconds)
+	require.Equal(t, 1, task.VideoCount)
+	require.Equal(t, "480p", task.VideoResolution)
+	require.Equal(t, 854, task.OutputWidth)
+	require.Equal(t, 480, task.OutputHeight)
+	require.InDelta(t, 24, task.FrameRate, 1e-12)
+	require.NotNil(t, task.FinishedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

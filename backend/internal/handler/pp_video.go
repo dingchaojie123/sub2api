@@ -580,7 +580,15 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 		task, err = h.gatewayService.MarkPPVideoTaskSubmitted(c.Request.Context(), service.MarkPPVideoTaskSubmittedParams{
 			LocalTaskID: task.LocalTaskID, TaskID: result.ResponseID, Status: status,
-			ResponseStatus: result.ResponseStatusCode, ResponseContentType: result.ResponseContentType,
+			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
+			InputVideoDurationMilliseconds:     result.VideoInputDurationMilliseconds,
+			ProviderBillingSeconds:             result.VideoProviderBillingSeconds,
+			VideoCount:                         result.VideoCount,
+			VideoResolution:                    result.VideoResolution,
+			OutputWidth:                        result.VideoOutputWidth,
+			OutputHeight:                       result.VideoOutputHeight,
+			FrameRate:                          result.VideoFrameRate,
+			ResponseStatus:                     result.ResponseStatusCode, ResponseContentType: result.ResponseContentType,
 			ResponseBody: string(result.ResponseBody),
 		})
 		if err != nil {

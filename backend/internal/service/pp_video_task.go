@@ -132,12 +132,20 @@ type CreatePPVideoTaskParams struct {
 }
 
 type MarkPPVideoTaskSubmittedParams struct {
-	LocalTaskID         string
-	TaskID              string
-	Status              string
-	ResponseStatus      int
-	ResponseContentType string
-	ResponseBody        string
+	LocalTaskID                        string
+	TaskID                             string
+	Status                             string
+	GeneratedVideoDurationMilliseconds int64
+	InputVideoDurationMilliseconds     int64
+	ProviderBillingSeconds             int64
+	VideoCount                         int
+	VideoResolution                    string
+	OutputWidth                        int
+	OutputHeight                       int
+	FrameRate                          float64
+	ResponseStatus                     int
+	ResponseContentType                string
+	ResponseBody                       string
 }
 
 type MarkPPVideoTaskStatusParams struct {
