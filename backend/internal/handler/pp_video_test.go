@@ -306,11 +306,11 @@ func TestPPVideoTaskContentAvailableRequiresCapturedMaiTokenBilling(t *testing.T
 	t.Parallel()
 
 	maiTask := &service.PPVideoTask{Platform: service.PlatformMaiTokenSeedance, Status: service.PPVideoTaskStatusSucceeded}
-	require.False(t, ppVideoTaskContentAvailable(maiTask))
+	require.False(t, service.PPVideoTaskContentAvailable(maiTask.Platform, maiTask.Status, maiTask.BillingStatus))
 	maiTask.BillingStatus = service.PPVideoBillingStatusSettling
-	require.False(t, ppVideoTaskContentAvailable(maiTask))
+	require.False(t, service.PPVideoTaskContentAvailable(maiTask.Platform, maiTask.Status, maiTask.BillingStatus))
 	maiTask.BillingStatus = service.PPVideoBillingStatusCaptured
-	require.True(t, ppVideoTaskContentAvailable(maiTask))
+	require.True(t, service.PPVideoTaskContentAvailable(maiTask.Platform, maiTask.Status, maiTask.BillingStatus))
 
-	require.True(t, ppVideoTaskContentAvailable(&service.PPVideoTask{Platform: service.PlatformCTMOSeedance}))
+	require.True(t, service.PPVideoTaskContentAvailable(service.PlatformCTMOSeedance, service.PPVideoTaskStatusSucceeded, ""))
 }

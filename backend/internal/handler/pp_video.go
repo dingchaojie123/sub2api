@@ -57,7 +57,7 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
-	if !ppVideoTaskContentAvailable(task) {
+	if !service.PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not available")
 		return
 	}
@@ -753,8 +753,4 @@ func ppVideoTaskBillingPending(task *service.PPVideoTask) bool {
 		return true
 	}
 	return service.NormalizePPVideoTaskStatus(gjson.Get(task.ResponseBody, "status").String()) == service.PPVideoTaskStatusSucceeded
-}
-
-func ppVideoTaskContentAvailable(task *service.PPVideoTask) bool {
-	return task != nil && (task.Platform != service.PlatformMaiTokenSeedance || task.BillingStatus == service.PPVideoBillingStatusCaptured)
 }

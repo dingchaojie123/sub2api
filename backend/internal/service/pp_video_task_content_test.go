@@ -143,7 +143,7 @@ func TestForwardMaiTokenSeedanceTaskContentUsesOriginalAccountAndHEAD(t *testing
 		ID: 19, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "mai-key"},
 	}
-	task := &PPVideoTask{TaskID: "task/one", Platform: PlatformMaiTokenSeedance, AccountID: 19, Status: PPVideoTaskStatusSucceeded}
+	task := &PPVideoTask{TaskID: "task/one", Platform: PlatformMaiTokenSeedance, AccountID: 19, Status: PPVideoTaskStatusSucceeded, BillingStatus: PPVideoBillingStatusCaptured}
 
 	resp, err := svc.ForwardPPVideoTaskContentWithMethod(context.Background(), http.MethodHead, account, task, "bytes=0-99", `"etag"`)
 
@@ -155,4 +155,26 @@ func TestForwardMaiTokenSeedanceTaskContentUsesOriginalAccountAndHEAD(t *testing
 	require.Equal(t, "Bearer mai-key", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "bytes=0-99", upstream.requests[0].Header.Get("Range"))
 	require.Equal(t, `"etag"`, upstream.requests[0].Header.Get("If-Range"))
+}
+
+func TestForwardMaiTokenSeedanceTaskContentRequiresCapturedBilling(t *testing.T) {
+	t.Parallel()
+
+	for _, billingStatus := range []string{PPVideoBillingStatusHeld, PPVideoBillingStatusSettling} {
+		t.Run(billingStatus, func(t *testing.T) {
+			upstream := &oponeUpstreamRecorder{}
+			svc := &OpenAIGatewayService{httpUpstream: upstream}
+			account := &Account{ID: 19, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "mai-key"}}
+			task := &PPVideoTask{
+				TaskID: "task/one", Platform: PlatformMaiTokenSeedance, AccountID: 19,
+				Status: PPVideoTaskStatusSucceeded, BillingStatus: billingStatus,
+			}
+
+			resp, err := svc.ForwardPPVideoTaskUserContent(context.Background(), account, task, "", "")
+
+			require.Error(t, err)
+			require.Nil(t, resp)
+			require.Empty(t, upstream.requests)
+		})
+	}
 }

@@ -26,6 +26,9 @@ func ppVideoTaskUsesAuthenticatedContent(platform string) bool {
 //
 // 直链通常带签名且会过期；过期后会返回错误，页面显示「视频加载失败」，用户仍可用 API 重新查询。
 func (s *OpenAIGatewayService) ForwardPPVideoTaskUserContent(ctx context.Context, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
+	if task == nil || !PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) {
+		return nil, fmt.Errorf("video content is not available for this task")
+	}
 	if task != nil && ppVideoTaskUsesAuthenticatedContent(task.Platform) {
 		return s.ForwardPPVideoTaskContent(ctx, account, task, rangeHeader, ifRangeHeader)
 	}
@@ -44,7 +47,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskUserContent(ctx context.Context
 }
 
 func (s *OpenAIGatewayService) ForwardPPVideoTaskContentWithMethod(ctx context.Context, method string, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
-	if s == nil || s.httpUpstream == nil || task == nil || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
+	if s == nil || s.httpUpstream == nil || task == nil || !PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
 		return nil, fmt.Errorf("original video task account is required")
 	}
 	return s.forwardPPVideoContentWithMethod(ctx, method, account, task.TaskID, rangeHeader, ifRangeHeader)

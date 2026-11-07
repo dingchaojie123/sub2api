@@ -134,6 +134,27 @@ func TestUserVideoTaskFromRecord_SucceededTaskCanPlayOnEveryVideoPlatform(t *tes
 	require.False(t, notVideo.CanPlay)
 }
 
+func TestUserVideoTaskFromRecord_MaiTokenCanPlayOnlyAfterCapture(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		billingStatus string
+		want          bool
+	}{
+		{billingStatus: service.PPVideoBillingStatusHeld, want: false},
+		{billingStatus: service.PPVideoBillingStatusSettling, want: false},
+		{billingStatus: service.PPVideoBillingStatusCaptured, want: true},
+	} {
+		got := userVideoTaskFromRecord(&service.PPVideoTaskRecord{
+			LocalTaskID: "ppvidtask_mai", Platform: service.PlatformMaiTokenSeedance,
+			Status: service.PPVideoTaskStatusSucceeded, BillingStatus: tt.billingStatus,
+			CreatedAt: time.Now(),
+		})
+
+		require.Equal(t, tt.want, got.CanPlay, tt.billingStatus)
+	}
+}
+
 func TestUserVideoTaskFromRecord_TruncatesLongErrorMessage(t *testing.T) {
 	got := userVideoTaskFromRecord(&service.PPVideoTaskRecord{
 		LocalTaskID:      "ppvidtask_5",

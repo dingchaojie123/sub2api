@@ -471,7 +471,7 @@ func ppVideoAccountProxyURL(account *Account) string {
 // ForwardPPVideoTaskContent serves the existing owner-checked /content endpoint.
 // Completed OPONE tasks can have a working media URL even when their API stream stalls.
 func (s *OpenAIGatewayService) ForwardPPVideoTaskContent(ctx context.Context, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
-	if s == nil || s.httpUpstream == nil || task == nil || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
+	if s == nil || s.httpUpstream == nil || task == nil || !PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
 		return nil, fmt.Errorf("original video task account is required")
 	}
 	stored := ""

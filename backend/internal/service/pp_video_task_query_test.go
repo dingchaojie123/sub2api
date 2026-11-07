@@ -56,6 +56,28 @@ func TestPPVideoTaskCanStreamContent(t *testing.T) {
 	require.False(t, PPVideoTaskCanStreamContent(PlatformOpenAI))
 }
 
+func TestPPVideoTaskContentAvailableRequiresCapturedMaiTokenBilling(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name          string
+		platform      string
+		status        string
+		billingStatus string
+		want          bool
+	}{
+		{name: "held", platform: PlatformMaiTokenSeedance, status: PPVideoTaskStatusSucceeded, billingStatus: PPVideoBillingStatusHeld, want: false},
+		{name: "settling", platform: PlatformMaiTokenSeedance, status: PPVideoTaskStatusSucceeded, billingStatus: PPVideoBillingStatusSettling, want: false},
+		{name: "captured", platform: PlatformMaiTokenSeedance, status: PPVideoTaskStatusSucceeded, billingStatus: PPVideoBillingStatusCaptured, want: true},
+		{name: "other platform", platform: PlatformCTMOSeedance, status: PPVideoTaskStatusSucceeded, billingStatus: PPVideoBillingStatusHeld, want: true},
+		{name: "processing", platform: PlatformMaiTokenSeedance, status: PPVideoTaskStatusProcessing, billingStatus: PPVideoBillingStatusCaptured, want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, PPVideoTaskContentAvailable(tt.platform, tt.status, tt.billingStatus))
+		})
+	}
+}
+
 func TestPPVideoTaskEndpoint(t *testing.T) {
 	require.Equal(t, "/v1/videos/generations", PPVideoTaskEndpoint(PPVideoOperationGeneric))
 	require.Equal(t, "/v1/videos/text2video", PPVideoTaskEndpoint(PPVideoOperationKlingTextToVideo))

@@ -188,6 +188,15 @@ func PPVideoTaskCanStreamContent(platform string) bool {
 	return IsPPVideoPlatform(platform)
 }
 
+// PPVideoTaskContentAvailable reports whether a finished task may expose its video.
+// Mai Token results stay private until the held balance has been captured.
+func PPVideoTaskContentAvailable(platform, status, billingStatus string) bool {
+	if !PPVideoTaskCanStreamContent(platform) || PPVideoTaskStatusGroup(status) != PPVideoTaskStatusSucceeded {
+		return false
+	}
+	return platform != PlatformMaiTokenSeedance || billingStatus == PPVideoBillingStatusCaptured
+}
+
 // PPVideoTaskEndpoint 返回创建该任务时调用的接口路径，用于详情展示。
 func PPVideoTaskEndpoint(operation PPVideoOperation) string {
 	switch operation {

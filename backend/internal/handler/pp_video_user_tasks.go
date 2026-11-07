@@ -76,10 +76,9 @@ func userVideoTaskFromRecord(record *service.PPVideoTaskRecord) userVideoTask {
 		TotalSeconds:    record.TotalSeconds(),
 		ErrorCode:       record.LastErrorCode,
 		ErrorMessage:    truncateRunes(record.FailureReason(), userVideoTaskErrorMessageMaxRunes),
-		CanPlay: status == service.PPVideoTaskStatusSucceeded &&
-			service.PPVideoTaskCanStreamContent(record.Platform),
-		CreatedAt:  record.CreatedAt,
-		FinishedAt: record.FinishedAt,
+		CanPlay:         service.PPVideoTaskContentAvailable(record.Platform, record.Status, record.BillingStatus),
+		CreatedAt:       record.CreatedAt,
+		FinishedAt:      record.FinishedAt,
 	}
 }
 
@@ -188,9 +187,7 @@ func (h *OpenAIGatewayHandler) GetUserVideoTaskContent(c *gin.Context) {
 		zap.String("task", c.Param("id")),
 	)
 	task, err := h.gatewayService.GetPPVideoTaskForUser(c.Request.Context(), subject.UserID, c.Param("id"))
-	if err != nil || task == nil ||
-		!service.PPVideoTaskCanStreamContent(task.Platform) ||
-		service.PPVideoTaskStatusGroup(task.Status) != service.PPVideoTaskStatusSucceeded {
+	if err != nil || task == nil || !service.PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) {
 		response.NotFound(c, "Video content is not available")
 		return
 	}
