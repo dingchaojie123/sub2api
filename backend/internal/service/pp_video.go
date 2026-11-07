@@ -30,6 +30,7 @@ const (
 	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
 	CTMOSeedanceDefaultBaseURL           = "https://video.ctmoai.com"
 	XingAPISeedanceDefaultBaseURL        = "https://xingapi.top/v1"
+	MaiTokenSeedanceDefaultBaseURL       = "https://api.mai-token.com"
 	GuangyingDefaultBaseURL              = "https://api.guangying.store"
 	OPONEDefaultBaseURL                  = "https://api.opone.cc"
 	ByteDanceVideoDefaultModel           = "doubao-seedance-2-0-260128"
@@ -42,6 +43,7 @@ const (
 	PixverseV6VideoDefaultModel          = "pixverse-v6"
 	GrokImagineVideoDefaultModel         = "grok-imagine-video"
 	KuaishouVideoDefaultModel            = "kling-v3"
+	MaiTokenSeedanceModel                = "sdtj-2.5-480p"
 
 	ppVideoLegacySiteModel             = "video-v1"
 	ppVideoSeedanceDefaultModel        = ByteDanceVideoDefaultModel
@@ -159,7 +161,7 @@ func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
 	case Platform88APIVideo:
 		return true
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -3507,6 +3509,8 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsCTMOSeedanceModel(model)
 	case PlatformXingAPISeedance:
 		return ppVideoIsXingAPISeedanceModel(model)
+	case PlatformMaiTokenSeedance:
+		return strings.TrimSpace(model) == MaiTokenSeedanceModel
 	case PlatformGuangying:
 		return ppVideoIsGuangyingModel(model)
 	case PlatformOPONE:
@@ -3542,7 +3546,7 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if ppVideoIsJimengModel(model) {
 		return true
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		if candidate == platform {
 			continue
 		}

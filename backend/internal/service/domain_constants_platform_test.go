@@ -28,6 +28,7 @@ func TestVideoPlatformsAreAllowedQuotaPlatforms(t *testing.T) {
 		PlatformSeedance,
 		PlatformCTMOSeedance,
 		PlatformXingAPISeedance,
+		PlatformMaiTokenSeedance,
 		PlatformGuangying,
 		PlatformOPONE,
 		PlatformByteDance,

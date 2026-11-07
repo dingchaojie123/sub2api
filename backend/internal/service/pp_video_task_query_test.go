@@ -48,7 +48,7 @@ func TestPPVideoTaskStatusGroupTreatsSubmittingAsProcessing(t *testing.T) {
 
 func TestPPVideoTaskCanStreamContent(t *testing.T) {
 	for _, platform := range []string{
-		PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformOPONE, PlatformGuangying, PlatformKling,
+		PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformMaiTokenSeedance, PlatformOPONE, PlatformGuangying, PlatformKling,
 	} {
 		require.True(t, PPVideoTaskCanStreamContent(platform), platform)
 	}

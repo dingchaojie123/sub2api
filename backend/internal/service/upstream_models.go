@@ -723,6 +723,10 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 			if ppVideoIsXingAPISeedanceModel(model) {
 				filtered = append(filtered, model)
 			}
+		case PlatformMaiTokenSeedance:
+			if strings.TrimSpace(model) == MaiTokenSeedanceModel {
+				filtered = append(filtered, model)
+			}
 		case PlatformGuangying:
 			if publicModel, ok := ppVideoGuangyingPublicModel(model); ok {
 				filtered = append(filtered, publicModel)
