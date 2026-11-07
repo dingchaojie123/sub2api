@@ -2482,6 +2482,10 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if !IsPPVideoPlatform(platform) || len(raw) == 0 || !gjson.ValidBytes(raw) {
 		return raw
 	}
+	maiTokenBillingPending := platform == PlatformMaiTokenSeedance &&
+		NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded &&
+		(NormalizePPVideoTaskStatus(extractPPVideoText(raw, "status", "state")) == PPVideoTaskStatusSucceeded ||
+			gjson.GetBytes(raw, "billing_pending").Bool())
 	if platform == PlatformCTMOSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
 		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
@@ -2504,6 +2508,10 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	status := NormalizePPVideoTaskStatus(parsed.Status)
 	if status != "" {
 		payload["status"] = status
+	}
+	if maiTokenBillingPending {
+		payload["status"] = "in_progress"
+		payload["billing_pending"] = true
 	}
 	model := strings.TrimSpace(public.Model)
 	if model == "" {

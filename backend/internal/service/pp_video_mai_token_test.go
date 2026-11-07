@@ -37,8 +37,8 @@ func TestMaiTokenSeedanceResponseStatesAndPublicURLs(t *testing.T) {
 	}{
 		{name: "queued", body: `{"id":"task-1","status":"queued","result":{"url":"https://api.mai-token.com/v1/videos/task-1/content"}}`, wantStatus: PPVideoTaskStatusProcessing},
 		{name: "in progress", body: `{"task_id":"task-2","status":"in_progress"}`, wantStatus: PPVideoTaskStatusProcessing},
-		{name: "completed", body: `{"id":"task-3","status":"completed","usage":{"output_video_duration":5,"reference_video_duration":5.06195,"video_count":1},"result":{"url":"https://api.mai-token.com/v1/videos/task-3/content"}}`, wantStatus: PPVideoTaskStatusSucceeded},
-		{name: "completed without URL", body: `{"id":"task-4","status":"completed","usage":{"output_video_duration":5}}`, wantStatus: PPVideoTaskStatusSucceeded},
+		{name: "completed", body: `{"id":"task-3","status":"completed","usage":{"output_video_duration":5,"reference_video_duration":5.06195,"billing_seconds":11,"video_count":1},"result":{"url":"https://api.mai-token.com/v1/videos/task-3/content"}}`, wantStatus: PPVideoTaskStatusSucceeded},
+		{name: "completed without URL", body: `{"id":"task-4","status":"completed","usage":{"output_video_duration":5,"billing_seconds":5}}`, wantStatus: PPVideoTaskStatusSucceeded},
 		{name: "failed", body: `{"id":"task-5","status":"failed","error":{"message":"rejected"}}`, wantStatus: PPVideoTaskStatusFailed},
 	}
 
@@ -94,6 +94,30 @@ func TestMaiTokenSeedanceParsesProviderBillingSecondsAsIndependentInteger(t *tes
 		invalid, parseErr := ParsePPVideoResponse(PlatformMaiTokenSeedance, []byte(raw))
 		require.NoError(t, parseErr)
 		require.Zero(t, invalid.ProviderBillingSeconds, raw)
+	}
+}
+
+func TestMaiTokenSeedanceCompletedWaitsForAuthoritativeBillingSeconds(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		`{"id":"missing","status":"completed","result":{"url":"https://api.mai-token.com/v1/videos/missing/content"}}`,
+		`{"id":"pending","status":"completed","billing_pending":true,"usage":{"billing_seconds":11},"result":{"url":"https://api.mai-token.com/v1/videos/pending/content"}}`,
+	} {
+		parsed, err := ParsePPVideoResponse(PlatformMaiTokenSeedance, []byte(raw))
+		require.NoError(t, err)
+		require.Equal(t, PPVideoTaskStatusProcessing, parsed.Status, raw)
+
+		public := NormalizePPVideoPublicResponse(
+			PlatformMaiTokenSeedance,
+			[]byte(raw),
+			PPVideoPublicRequest{Model: MaiTokenSeedanceModel},
+			parsed,
+		)
+		require.Equal(t, "in_progress", gjson.GetBytes(public, "status").String(), raw)
+		require.True(t, gjson.GetBytes(public, "billing_pending").Bool(), raw)
+		require.False(t, gjson.GetBytes(public, "result.url").Exists(), raw)
+		require.False(t, gjson.GetBytes(public, "video_url").Exists(), raw)
 	}
 }
 

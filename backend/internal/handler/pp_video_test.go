@@ -270,3 +270,47 @@ func TestWriteStoredCTMOPrematureSuccessReturnsProcessingWithoutURLs(t *testing.
 	require.False(t, gjson.GetBytes(body, "video_url").Exists())
 	require.False(t, gjson.GetBytes(body, "result_url").Exists())
 }
+
+func TestWriteStoredMaiTokenBillingPendingResponseHidesResultURLs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	writeStoredPPVideoResponse(c, &service.PPVideoTask{
+		Platform:               service.PlatformMaiTokenSeedance,
+		Model:                  service.MaiTokenSeedanceModel,
+		TaskID:                 "mai-pending-1",
+		Status:                 service.PPVideoTaskStatusSucceeded,
+		BillingStatus:          service.PPVideoBillingStatusSettling,
+		ProviderBillingSeconds: 11,
+		ResponseStatus:         200,
+		ResponseContentType:    "application/json",
+		ResponseBody: `{
+			"id":"mai-pending-1",
+			"status":"completed",
+			"metadata":{"url":"https://api.mai-token.com/private"},
+			"result":{"url":"https://api.mai-token.com/v1/videos/mai-pending-1/content"},
+			"video_url":"https://api.mai-token.com/v1/videos/mai-pending-1/content"
+		}`,
+	})
+
+	body := recorder.Body.Bytes()
+	require.Equal(t, "in_progress", gjson.GetBytes(body, "status").String())
+	require.True(t, gjson.GetBytes(body, "billing_pending").Bool())
+	require.False(t, gjson.GetBytes(body, "metadata.url").Exists())
+	require.False(t, gjson.GetBytes(body, "result.url").Exists())
+	require.False(t, gjson.GetBytes(body, "video_url").Exists())
+}
+
+func TestPPVideoTaskContentAvailableRequiresCapturedMaiTokenBilling(t *testing.T) {
+	t.Parallel()
+
+	maiTask := &service.PPVideoTask{Platform: service.PlatformMaiTokenSeedance, Status: service.PPVideoTaskStatusSucceeded}
+	require.False(t, ppVideoTaskContentAvailable(maiTask))
+	maiTask.BillingStatus = service.PPVideoBillingStatusSettling
+	require.False(t, ppVideoTaskContentAvailable(maiTask))
+	maiTask.BillingStatus = service.PPVideoBillingStatusCaptured
+	require.True(t, ppVideoTaskContentAvailable(maiTask))
+
+	require.True(t, ppVideoTaskContentAvailable(&service.PPVideoTask{Platform: service.PlatformCTMOSeedance}))
+}

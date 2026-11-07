@@ -464,8 +464,13 @@ func validatePPVideoSuccessfulSettlement(in *PPVideoSettlementInput) error {
 	if in == nil || in.Task == nil {
 		return ErrPPVideoTaskNotFound
 	}
-	if !ppVideoResponseHasFinalVideo([]byte(in.Task.ResponseBody)) {
+	hasFinalVideo := ppVideoResponseHasFinalVideo([]byte(in.Task.ResponseBody)) ||
+		(in.Task.Platform == PlatformMaiTokenSeedance && strings.TrimSpace(in.Task.TaskID) != "")
+	if !hasFinalVideo {
 		return ErrPPVideoSettlementBillingFailed.WithCause(errors.New("PP video settlement missing final video URL"))
+	}
+	if in.Task.Platform == PlatformMaiTokenSeedance && in.Task.ProviderBillingSeconds <= 0 {
+		return ErrPPVideoSettlementBillingFailed.WithCause(errors.New("Mai Token settlement missing provider billing seconds"))
 	}
 	if in.APIKey == nil || in.Account == nil {
 		return ErrPPVideoSettlementBillingFailed.WithCause(errors.New("PP video settlement missing api key or account"))
@@ -539,6 +544,12 @@ func ppVideoActualSettlementCost(task *PPVideoTask) float64 {
 func ppVideoRawSettlementCost(task *PPVideoTask) float64 {
 	if task == nil {
 		return 0
+	}
+	if task.Platform == PlatformMaiTokenSeedance {
+		if task.ProviderBillingSeconds <= 0 || task.BillingUnitPrice <= 0 {
+			return 0
+		}
+		return ppVideoTaskBillingUnits(task, task.ProviderBillingSeconds*1000) * task.BillingUnitPrice
 	}
 	if task.Platform == PlatformMiniMaxH3CompShare {
 		durationMs := task.GeneratedVideoDurationMilliseconds

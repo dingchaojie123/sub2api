@@ -57,6 +57,10 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
+	if !ppVideoTaskContentAvailable(task) {
+		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not available")
+		return
+	}
 	selection, err := h.gatewayService.SelectPPVideoTaskAccountForStatus(c.Request.Context(), task.AccountID, task.Platform)
 	if err != nil || selection == nil || selection.Account == nil {
 		h.errorResponse(c, http.StatusServiceUnavailable, "no_available_account", "No eligible video account")
@@ -217,6 +221,16 @@ func preparePPVideoMultipartRequest(platform string, req *http.Request) (*servic
 	return submission, public, nil
 }
 
+// isPPVideoUnifiedRequest reports whether the request was sent to the unified
+// (v2) video generation endpoint, whose body must be translated before the
+// platform normalizers see it.
+func isPPVideoUnifiedRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/v2/videos/generations")
+}
+
 func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.PPVideoOperation, requestID string) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
@@ -268,6 +282,10 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 	if !isStatus {
 		mediaType, _, contentTypeErr := mime.ParseMediaType(c.GetHeader("Content-Type"))
 		isMultipartSubmission = contentTypeErr == nil && strings.EqualFold(mediaType, "multipart/form-data")
+		if isMultipartSubmission && isPPVideoUnifiedRequest(c) {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "The unified video API (v2) only accepts application/json requests")
+			return
+		}
 		if isMultipartSubmission {
 			if operation == "" {
 				operation = service.PPVideoOperationGeneric
@@ -301,6 +319,16 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				} else {
 					operation = service.PPVideoOperationGeneric
 				}
+			}
+			if isPPVideoUnifiedRequest(c) {
+				// originalBody keeps the client's v2 request for security audit and
+				// idempotency hashing; only the body handed to the pipeline is translated.
+				translatedBody, translateErr := service.TranslatePPVideoUnifiedRequest(apiKey.Group.Platform, body)
+				if translateErr != nil {
+					h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", translateErr.Error())
+					return
+				}
+				body = translatedBody
 			}
 			preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(apiKey.Group.Platform, operation, body)
 			if prepareErr != nil {
@@ -620,6 +648,10 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			QuotaPlatform: service.QuotaPlatform(c.Request.Context(), apiKey),
 		}); err != nil {
 			reqLog.Warn("pp_video.settlement_failed", zap.Error(err))
+			if ppVideoTaskBillingPending(task) && !service.IsResponseCommitted(c) {
+				writeStoredPPVideoResponse(c, task)
+				return
+			}
 			if !service.IsResponseCommitted(c) {
 				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to settle video billing")
 				return
@@ -712,6 +744,9 @@ func normalizeStoredPPVideoResponseBody(task *service.PPVideoTask) []byte {
 	if strings.TrimSpace(parsed.TaskID) == "" {
 		parsed.TaskID = strings.TrimSpace(task.TaskID)
 	}
+	if ppVideoTaskBillingPending(task) {
+		parsed.Status = service.PPVideoTaskStatusProcessing
+	}
 	durationMilliseconds := task.GeneratedVideoDurationMilliseconds
 	if durationMilliseconds <= 0 {
 		durationMilliseconds = task.RequestedVideoDurationMilliseconds
@@ -722,6 +757,9 @@ func normalizeStoredPPVideoResponseBody(task *service.PPVideoTask) []byte {
 		VideoCount:           task.VideoCount,
 		Resolution:           task.VideoResolution,
 	}, parsed)
+	if ppVideoTaskBillingPending(task) {
+		return normalized
+	}
 	if task.Platform == service.PlatformCTMOSeedance && parsed.Status != service.PPVideoTaskStatusSucceeded {
 		return normalized
 	}
@@ -729,4 +767,18 @@ func normalizeStoredPPVideoResponseBody(task *service.PPVideoTask) []byte {
 		return raw
 	}
 	return normalized
+}
+
+func ppVideoTaskBillingPending(task *service.PPVideoTask) bool {
+	if task == nil || task.Platform != service.PlatformMaiTokenSeedance || task.BillingStatus == service.PPVideoBillingStatusCaptured {
+		return false
+	}
+	if service.NormalizePPVideoTaskStatus(task.Status) == service.PPVideoTaskStatusSucceeded {
+		return true
+	}
+	return service.NormalizePPVideoTaskStatus(gjson.Get(task.ResponseBody, "status").String()) == service.PPVideoTaskStatusSucceeded
+}
+
+func ppVideoTaskContentAvailable(task *service.PPVideoTask) bool {
+	return task != nil && (task.Platform != service.PlatformMaiTokenSeedance || task.BillingStatus == service.PPVideoBillingStatusCaptured)
 }

@@ -458,7 +458,11 @@ func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 	case "queued", "in_progress":
 		result.Status = PPVideoTaskStatusProcessing
 	case "completed":
-		result.Status = PPVideoTaskStatusSucceeded
+		if gjson.GetBytes(body, "billing_pending").Bool() || result.ProviderBillingSeconds <= 0 {
+			result.Status = PPVideoTaskStatusProcessing
+		} else {
+			result.Status = PPVideoTaskStatusSucceeded
+		}
 	case "failed":
 		result.Status = PPVideoTaskStatusFailed
 	default:

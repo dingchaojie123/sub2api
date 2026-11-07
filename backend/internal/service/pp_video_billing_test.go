@@ -803,6 +803,59 @@ func TestPPVideoActualSettlementCostUsesSeedancePerSecondFormula(t *testing.T) {
 	require.InDelta(t, 6*unitPrice, ppVideoActualSettlementCost(task), 1e-12)
 }
 
+func TestMaiTokenSettlementUsesProviderBillingSecondsOnly(t *testing.T) {
+	t.Parallel()
+
+	task := &PPVideoTask{
+		Platform:                           PlatformMaiTokenSeedance,
+		BillingFormula:                     PPVideoBillingFormulaPerSecond,
+		BillingUnitPrice:                   0.25,
+		RequestedVideoDurationMilliseconds: 4000,
+		GeneratedVideoDurationMilliseconds: 5000,
+		InputVideoDurationMilliseconds:     5062,
+		ProviderBillingSeconds:             11,
+		VideoCount:                         1,
+	}
+
+	require.InDelta(t, 2.75, ppVideoRawSettlementCost(task), 1e-12)
+	task.ProviderBillingSeconds = 0
+	require.Zero(t, ppVideoRawSettlementCost(task))
+}
+
+func TestMaiTokenSuccessfulSettlementRequiresProviderBillingSeconds(t *testing.T) {
+	t.Parallel()
+
+	err := validatePPVideoSuccessfulSettlement(&PPVideoSettlementInput{
+		Task: &PPVideoTask{
+			Platform:      PlatformMaiTokenSeedance,
+			ResponseBody:  `{"id":"mai-1","status":"completed","result":{"url":"https://api.mai-token.com/v1/videos/mai-1/content"}}`,
+			BillingStatus: PPVideoBillingStatusHeld,
+		},
+		APIKey:  &APIKey{ID: 2},
+		Account: &Account{ID: 3},
+	})
+
+	require.ErrorIs(t, err, ErrPPVideoSettlementBillingFailed)
+	require.ErrorContains(t, err, "billing seconds")
+}
+
+func TestMaiTokenSuccessfulSettlementUsesAuthenticatedContentEndpoint(t *testing.T) {
+	t.Parallel()
+
+	err := validatePPVideoSuccessfulSettlement(&PPVideoSettlementInput{
+		Task: &PPVideoTask{
+			TaskID:                 "mai-1",
+			Platform:               PlatformMaiTokenSeedance,
+			ProviderBillingSeconds: 11,
+			ResponseBody:           `{"id":"mai-1","status":"completed","usage":{"billing_seconds":11}}`,
+		},
+		APIKey:  &APIKey{ID: 2},
+		Account: &Account{ID: 3},
+	})
+
+	require.NoError(t, err)
+}
+
 func TestPPVideoActualSettlementCostKeepsCTMOPerRequestPrice(t *testing.T) {
 	t.Parallel()
 

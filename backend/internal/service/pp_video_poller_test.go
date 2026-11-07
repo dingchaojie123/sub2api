@@ -147,6 +147,45 @@ func TestPPVideoPollerProcessingTimeoutSettlesSubmittedTask(t *testing.T) {
 	require.Empty(t, repo.submitFailures)
 }
 
+func TestPPVideoPollerDoesNotTimeOutMaiTokenBillingPendingTask(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_mai_pending", "mai-pending", PPVideoTaskStatusProcessing, now.Add(-2*time.Hour))
+	task.Platform = PlatformMaiTokenSeedance
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{result: &OpenAIForwardResult{
+		TaskStatus:         PPVideoTaskStatusProcessing,
+		ResponseStatusCode: 200,
+		ResponseBody:       []byte(`{"id":"mai-pending","status":"completed"}`),
+	}}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeProcessing, result.Outcome)
+	require.Equal(t, 1, gateway.forwards)
+	require.Empty(t, gateway.settlements)
+	require.Empty(t, gateway.releases)
+}
+
+func TestPPVideoPollerRetriesMaiTokenSettlementWithoutPollingUpstream(t *testing.T) {
+	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
+	task := newPPVideoPollerTask("ppvidtask_mai_settling", "mai-settling", PPVideoTaskStatusSucceeded, now.Add(-2*time.Hour))
+	task.Platform = PlatformMaiTokenSeedance
+	task.BillingStatus = PPVideoBillingStatusSettling
+	task.ProviderBillingSeconds = 11
+	repo := &ppVideoPollerRepoStub{task: task}
+	gateway := &ppVideoPollerGatewayStub{}
+	poller := newPPVideoPollerTestService(repo, gateway, now)
+
+	result, err := poller.ProcessTask(context.Background(), task)
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoPollerOutcomeSucceeded, result.Outcome)
+	require.Zero(t, gateway.forwards)
+	require.Len(t, gateway.settlements, 1)
+}
+
 func TestPPVideoPollerSubmitTimeoutReleasesHold(t *testing.T) {
 	now := time.Date(2026, 8, 15, 10, 0, 0, 0, time.UTC)
 	task := newPPVideoPollerTask("ppvidtask_timeout", "", PPVideoTaskStatusSubmitting, now.Add(-11*time.Minute))
@@ -166,11 +205,13 @@ func TestPPVideoPollerSubmitTimeoutReleasesHold(t *testing.T) {
 type ppVideoPollerGatewayStub struct {
 	result      *OpenAIForwardResult
 	err         error
+	forwards    int
 	settlements []*PPVideoSettlementInput
 	releases    []*PPVideoTask
 }
 
 func (g *ppVideoPollerGatewayStub) ForwardPPVideoBuffered(_ context.Context, _ *gin.Context, _ *Account, _ PPVideoOperation, _ string, _ []byte, _ ...PPVideoPublicRequest) (*OpenAIForwardResult, error) {
+	g.forwards++
 	if g.err != nil {
 		return nil, g.err
 	}
