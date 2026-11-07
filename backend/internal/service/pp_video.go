@@ -278,6 +278,14 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
 		payload["model"] = public.UpstreamModel
+	case PlatformMaiTokenSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeMaiTokenSeedancePayload(payload, body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 	case PlatformGuangying:
 		if operation != PPVideoOperationGeneric {
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
