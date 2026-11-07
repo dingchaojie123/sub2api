@@ -125,6 +125,7 @@ type PPVideoResponse struct {
 	OutputHeight                   int
 	FrameRate                      float64
 	InputVideoDurationMilliseconds int64
+	ProviderBillingSeconds         int64
 	ErrorMessage                   string
 	RawBody                        []byte
 }

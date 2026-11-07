@@ -24,7 +24,7 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 				billing_status, request_hash, idempotency_key, hold_id, capture_id,
 				release_id, estimated_total_cost, hold_amount, currency, requested_video_duration_seconds,
 				requested_video_duration_milliseconds, input_video_duration_milliseconds,
-				generated_video_duration_milliseconds, video_count, video_resolution,
+				generated_video_duration_milliseconds, provider_billing_seconds, video_count, video_resolution,
 				output_width, output_height, frame_rate, has_audio, kling_mode,
 				billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price,
 				billing_source, billing_organization_id, billing_member_user_id
@@ -32,9 +32,9 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 			VALUES (
 				$1, $2, $3, $4, $5, $6, $7, $8, $9,
 				$10, $11, NULLIF($12, ''), $13, $14,
-				$15, $16, $17, $18, $19, $20, $21, $22, $23, $24,
-				$25, $26, $27, $28, $29, $30, $31, $32, $33,
-				$34, $35, $36
+				$15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25,
+				$26, $27, $28, $29, $30, $31, $32, $33, $34,
+				$35, $36, $37
 			)
 			RETURNING `+ppVideoTaskColumns(),
 		strings.TrimSpace(params.LocalTaskID),
@@ -59,6 +59,7 @@ func (r *usageBillingRepository) CreatePPVideoTask(ctx context.Context, params s
 		params.RequestedVideoDurationMilliseconds,
 		params.InputVideoDurationMilliseconds,
 		int64(0),
+		params.ProviderBillingSeconds,
 		params.VideoCount,
 		strings.TrimSpace(params.VideoResolution),
 		params.OutputWidth,
@@ -227,16 +228,20 @@ func (r *usageBillingRepository) MarkPPVideoTaskStatus(ctx context.Context, para
 					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $11 > 0 THEN $11
 					ELSE input_video_duration_milliseconds
 				END,
-				response_status = CASE
+				provider_billing_seconds = CASE
 					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $12 > 0 THEN $12
+					ELSE provider_billing_seconds
+				END,
+				response_status = CASE
+					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $13 > 0 THEN $13
 					ELSE response_status
 				END,
 				response_content_type = CASE
-					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND NULLIF($13, '') IS NOT NULL THEN $13
+					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND NULLIF($14, '') IS NOT NULL THEN $14
 					ELSE response_content_type
 				END,
 				response_body = CASE
-					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $14 <> '' THEN $14
+					WHEN settled_at IS NULL AND billing_status IN ('held', 'none') AND $15 <> '' THEN $15
 					ELSE response_body
 			END,
 			finished_at = CASE
@@ -257,6 +262,7 @@ func (r *usageBillingRepository) MarkPPVideoTaskStatus(ctx context.Context, para
 		params.OutputHeight,
 		params.FrameRate,
 		params.InputVideoDurationMilliseconds,
+		params.ProviderBillingSeconds,
 		params.ResponseStatus,
 		strings.TrimSpace(params.ResponseContentType),
 		params.ResponseBody,
@@ -566,7 +572,7 @@ func ppVideoTaskColumns() string {
 		COALESCE(idempotency_key, ''), hold_id, capture_id, release_id,
 		estimated_total_cost, hold_amount, actual_cost, currency, requested_video_duration_seconds,
 		requested_video_duration_milliseconds, input_video_duration_milliseconds,
-		generated_video_duration_milliseconds, video_count, video_resolution,
+		generated_video_duration_milliseconds, provider_billing_seconds, video_count, video_resolution,
 		output_width, output_height, frame_rate, has_audio, kling_mode,
 		billing_formula, billing_units, billing_unit_price, billing_fallback_unit_price,
 		response_status, response_content_type, response_body,
@@ -608,6 +614,7 @@ func scanPPVideoTask(row ppVideoTaskScanner) (*service.PPVideoTask, error) {
 		&task.RequestedVideoDurationMilliseconds,
 		&task.InputVideoDurationMilliseconds,
 		&task.GeneratedVideoDurationMilliseconds,
+		&task.ProviderBillingSeconds,
 		&task.VideoCount,
 		&task.VideoResolution,
 		&task.OutputWidth,

@@ -594,6 +594,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		task, err = h.gatewayService.MarkPPVideoTaskStatus(c.Request.Context(), service.MarkPPVideoTaskStatusParams{
 			TaskID: task.TaskID, Status: status,
 			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
+			ProviderBillingSeconds:             result.VideoProviderBillingSeconds,
 			VideoCount:                         result.VideoCount, VideoResolution: result.VideoResolution,
 			ResponseStatus: result.ResponseStatusCode, ResponseContentType: result.ResponseContentType,
 			ResponseBody: string(result.ResponseBody),

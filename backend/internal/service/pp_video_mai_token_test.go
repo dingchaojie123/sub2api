@@ -67,6 +67,36 @@ func TestMaiTokenSeedanceResponseStatesAndPublicURLs(t *testing.T) {
 	}
 }
 
+func TestMaiTokenSeedanceParsesProviderBillingSecondsAsIndependentInteger(t *testing.T) {
+	t.Parallel()
+
+	parsed, err := ParsePPVideoResponse(PlatformMaiTokenSeedance, []byte(`{
+		"id":"task-billing",
+		"status":"completed",
+		"usage":{
+			"output_video_duration":5,
+			"reference_video_duration":5.06195,
+			"billing_seconds":11
+		}
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, int64(5000), parsed.GeneratedDurationMilliseconds)
+	require.Equal(t, int64(5062), parsed.InputVideoDurationMilliseconds)
+	require.Equal(t, int64(11), parsed.ProviderBillingSeconds)
+
+	for _, raw := range []string{
+		`{"id":"missing","status":"completed","usage":{}}`,
+		`{"id":"negative","status":"completed","usage":{"billing_seconds":-1}}`,
+		`{"id":"fractional","status":"completed","usage":{"billing_seconds":11.5}}`,
+		`{"id":"string","status":"completed","usage":{"billing_seconds":"11"}}`,
+		`{"id":"overflow","status":"completed","usage":{"billing_seconds":9223372036854775808}}`,
+	} {
+		invalid, parseErr := ParsePPVideoResponse(PlatformMaiTokenSeedance, []byte(raw))
+		require.NoError(t, parseErr)
+		require.Zero(t, invalid.ProviderBillingSeconds, raw)
+	}
+}
+
 func TestMaiTokenSeedanceModelSyncDefaultsToDocumentedBaseURL(t *testing.T) {
 	t.Parallel()
 	svc := &AccountTestService{cfg: upstreamModelSyncTestConfig()}

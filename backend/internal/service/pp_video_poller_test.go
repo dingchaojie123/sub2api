@@ -72,9 +72,11 @@ func TestPPVideoPollerSuccessSettlesWithProviderDuration(t *testing.T) {
 	repo := &ppVideoPollerRepoStub{task: task}
 	gateway := &ppVideoPollerGatewayStub{
 		result: &OpenAIForwardResult{
-			TaskStatus:                PPVideoTaskStatusSucceeded,
-			VideoDurationMilliseconds: 5041,
-			ResponseStatusCode:        200,
+			TaskStatus:                     PPVideoTaskStatusSucceeded,
+			VideoDurationMilliseconds:      5000,
+			VideoInputDurationMilliseconds: 5062,
+			VideoProviderBillingSeconds:    11,
+			ResponseStatusCode:             200,
 		},
 	}
 	poller := newPPVideoPollerTestService(repo, gateway, now)
@@ -85,7 +87,9 @@ func TestPPVideoPollerSuccessSettlesWithProviderDuration(t *testing.T) {
 	require.Equal(t, PPVideoPollerOutcomeSucceeded, result.Outcome)
 	require.Len(t, gateway.settlements, 1)
 	require.Equal(t, PPVideoTaskStatusSucceeded, gateway.settlements[0].FinalStatus)
-	require.Equal(t, int64(5041), gateway.settlements[0].Task.GeneratedVideoDurationMilliseconds)
+	require.Equal(t, int64(5000), gateway.settlements[0].Task.GeneratedVideoDurationMilliseconds)
+	require.Equal(t, int64(5062), gateway.settlements[0].Task.InputVideoDurationMilliseconds)
+	require.Equal(t, int64(11), gateway.settlements[0].Task.ProviderBillingSeconds)
 }
 
 func TestPPVideoPollerUpstreamErrorLeavesTaskForRetry(t *testing.T) {
@@ -199,6 +203,12 @@ func (r *ppVideoPollerRepoStub) MarkPPVideoTaskStatus(_ context.Context, params 
 	r.task.Status = params.Status
 	if params.GeneratedVideoDurationMilliseconds > 0 {
 		r.task.GeneratedVideoDurationMilliseconds = params.GeneratedVideoDurationMilliseconds
+	}
+	if params.InputVideoDurationMilliseconds > 0 {
+		r.task.InputVideoDurationMilliseconds = params.InputVideoDurationMilliseconds
+	}
+	if params.ProviderBillingSeconds > 0 {
+		r.task.ProviderBillingSeconds = params.ProviderBillingSeconds
 	}
 	return r.task, nil
 }

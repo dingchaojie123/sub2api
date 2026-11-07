@@ -442,7 +442,8 @@ func validateMaiTokenHTTPURL(field, raw string) error {
 func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 	status := strings.ToLower(strings.TrimSpace(extractPPVideoText(body, "status", "state")))
 	result := PPVideoResponse{
-		TaskID: extractPPVideoText(body, "id", "task_id"),
+		TaskID:                 extractPPVideoText(body, "id", "task_id"),
+		ProviderBillingSeconds: maiTokenProviderBillingSeconds(body),
 		GeneratedDurationMilliseconds: extractPPVideoDurationMilliseconds(body,
 			"usage.output_video_duration", "usage.seconds"),
 		InputVideoDurationMilliseconds: extractPPVideoDurationMilliseconds(body,
@@ -470,4 +471,16 @@ func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 		result.VideoCount = 1
 	}
 	return result, nil
+}
+
+func maiTokenProviderBillingSeconds(body []byte) int64 {
+	value := gjson.GetBytes(body, "usage.billing_seconds")
+	if !value.Exists() || value.Type != gjson.Number {
+		return 0
+	}
+	integer, ok := new(big.Int).SetString(value.Raw, 10)
+	if !ok || integer.Sign() < 0 || !integer.IsInt64() {
+		return 0
+	}
+	return integer.Int64()
 }

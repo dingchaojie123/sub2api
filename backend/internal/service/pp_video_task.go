@@ -56,6 +56,7 @@ type PPVideoTask struct {
 	RequestedVideoDurationMilliseconds int64
 	InputVideoDurationMilliseconds     int64
 	GeneratedVideoDurationMilliseconds int64
+	ProviderBillingSeconds             int64
 	VideoCount                         int
 	VideoResolution                    string
 	OutputWidth                        int
@@ -110,6 +111,7 @@ type CreatePPVideoTaskParams struct {
 	RequestedVideoDurationSeconds      int
 	RequestedVideoDurationMilliseconds int64
 	InputVideoDurationMilliseconds     int64
+	ProviderBillingSeconds             int64
 	VideoCount                         int
 	VideoResolution                    string
 	OutputWidth                        int
@@ -142,6 +144,7 @@ type MarkPPVideoTaskStatusParams struct {
 	TaskID                             string
 	Status                             string
 	GeneratedVideoDurationMilliseconds int64
+	ProviderBillingSeconds             int64
 	VideoCount                         int
 	VideoResolution                    string
 	OutputWidth                        int

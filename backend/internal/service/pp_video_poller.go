@@ -305,6 +305,7 @@ func (s *PPVideoPollerService) ProcessTask(ctx context.Context, task *PPVideoTas
 		TaskID:                             task.TaskID,
 		Status:                             upstreamStatus,
 		GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
+		ProviderBillingSeconds:             result.VideoProviderBillingSeconds,
 		VideoCount:                         result.VideoCount,
 		VideoResolution:                    result.VideoResolution,
 		OutputWidth:                        result.VideoOutputWidth,

@@ -357,6 +357,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 		VideoResolution:                parsed.VideoResolution,
 		VideoDurationMilliseconds:      parsed.GeneratedDurationMilliseconds,
 		VideoInputDurationMilliseconds: parsed.InputVideoDurationMilliseconds,
+		VideoProviderBillingSeconds:    parsed.ProviderBillingSeconds,
 		VideoOutputWidth:               parsed.OutputWidth,
 		VideoOutputHeight:              parsed.OutputHeight,
 		VideoFrameRate:                 parsed.FrameRate,

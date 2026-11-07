@@ -262,6 +262,7 @@ type OpenAIForwardResult struct {
 	// output duration for settlement. Legacy video paths continue to use seconds.
 	VideoDurationMilliseconds      int64
 	VideoInputDurationMilliseconds int64
+	VideoProviderBillingSeconds    int64
 	VideoOutputWidth               int
 	VideoOutputHeight              int
 	VideoFrameRate                 float64

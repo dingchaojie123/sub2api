@@ -27,7 +27,7 @@ func TestClaimPPVideoTasksForPollingLeasesHeldTasks(t *testing.T) {
 			service.PlatformHappyHourse, service.PPVideoOperationGeneric, "happyhorse-1.0-t2v",
 			service.PPVideoTaskStatusProcessing, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
-			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), 1, "720p",
+			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), int64(0), 1, "720p",
 			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5.041, 0.86162, 0.0,
 			200, "application/json", `{"status":"processing"}`,
 			"", "", "lease-token", "worker-a", leaseUntil, 1, now, now, now, now, nil, nil,
@@ -89,7 +89,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAccountAndBillingSnapshot(t *
 			"ppvidtask_1", int64(10), int64(20), nil, int64(30), service.PlatformKling,
 			string(service.PPVideoOperationKlingTextToVideo), "kling-v3", service.PPVideoTaskStatusSubmitting,
 			service.PPVideoBillingStatusHeld, "payload_hash", "idem", "hold", "capture", "release",
-			5.0, 5.0, "USD", 5, int64(5000), int64(0), int64(0), 1, "720p",
+			5.0, 5.0, "USD", 5, int64(5000), int64(0), int64(0), int64(0), 1, "720p",
 			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
 			service.APIKeyBillingSourceOrganization, organizationID, memberUserID,
 		).
@@ -98,7 +98,7 @@ func TestCreatePPVideoTaskPersistsPlatformOperationAccountAndBillingSnapshot(t *
 			service.PlatformKling, service.PPVideoOperationKlingTextToVideo, "kling-v3",
 			service.PPVideoTaskStatusSubmitting, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
-			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(0), 1, "720p",
+			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(0), int64(0), 1, "720p",
 			0, 0, 0.0, false, "", "", 0.0, 0.0, 0.0,
 			200, "application/json", "{}",
 			"", "", "", "", nil, 0, nil, now, now, nil, nil, nil,
@@ -229,14 +229,14 @@ func TestMarkPPVideoTaskStatusPersistsMillisecondDuration(t *testing.T) {
 	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*generated_video_duration_milliseconds = CASE.*\$5 > 0.*video_count = CASE.*\$6 > 0.*video_resolution = CASE.*NULLIF\(\$7, ''\).*RETURNING`).
 		WithArgs(
 			"task_1", service.PPVideoTaskStatusSucceeded, "", "", int64(5041), 1, "720p",
-			0, 0, 0.0, 0, 200, "application/json", `{"status":"SUCCESS"}`,
+			0, 0, 0.0, 0, int64(11), 200, "application/json", `{"status":"SUCCESS"}`,
 		).
 		WillReturnRows(newPPVideoTaskRows(now).AddRow(
 			int64(1), "ppvidtask_1", "task_1", int64(10), int64(20), nil, int64(30),
 			service.PlatformKling, service.PPVideoOperationKlingTextToVideo, "kling-v3",
 			service.PPVideoTaskStatusSucceeded, service.PPVideoBillingStatusHeld,
 			"payload_hash", "idem", "hold", "capture", "release",
-			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), 1, "720p",
+			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5041), int64(11), 1, "720p",
 			1280, 720, 24.0, false, "std", service.PPVideoBillingFormulaPerSecond, 5.041, 0.57419, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
@@ -248,6 +248,7 @@ func TestMarkPPVideoTaskStatusPersistsMillisecondDuration(t *testing.T) {
 		TaskID:                             "task_1",
 		Status:                             service.PPVideoTaskStatusSucceeded,
 		GeneratedVideoDurationMilliseconds: 5041,
+		ProviderBillingSeconds:             11,
 		VideoCount:                         1,
 		VideoResolution:                    "720p",
 		ResponseStatus:                     200,
@@ -257,6 +258,7 @@ func TestMarkPPVideoTaskStatusPersistsMillisecondDuration(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, int64(5041), task.GeneratedVideoDurationMilliseconds)
+	require.Equal(t, int64(11), task.ProviderBillingSeconds)
 	require.Equal(t, 1, task.VideoCount)
 	require.Equal(t, "720p", task.VideoResolution)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -276,7 +278,7 @@ func TestClaimPPVideoTaskSettlementUsesCompareAndSet(t *testing.T) {
 			service.PlatformSeedance, service.PPVideoOperationGeneric, "doubao-seedance-2-0",
 			service.PPVideoTaskStatusSucceeded, service.PPVideoBillingStatusSettling,
 			"payload_hash", "idem", "hold", "capture", "release",
-			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5000), 1, "720p",
+			5.0, 5.0, nil, "USD", 5, int64(5000), int64(0), int64(5000), int64(0), 1, "720p",
 			1280, 720, 24.0, false, "", service.PPVideoBillingFormulaPerSecond, 5, 0.4, 0.0,
 			200, "application/json", `{"status":"SUCCESS"}`,
 			"", "", "", "", nil, 0, nil, now, now, now, now, nil,
@@ -333,6 +335,7 @@ func newPPVideoTaskRows(_ time.Time) *sqlmock.Rows {
 		"requested_video_duration_milliseconds",
 		"input_video_duration_milliseconds",
 		"generated_video_duration_milliseconds",
+		"provider_billing_seconds",
 		"video_count",
 		"video_resolution",
 		"output_width",
