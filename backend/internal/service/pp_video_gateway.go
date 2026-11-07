@@ -153,6 +153,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformXingAPISeedance {
 		baseURLRaw = XingAPISeedanceDefaultBaseURL
 	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMaiTokenSeedance {
+		baseURLRaw = MaiTokenSeedanceDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformGuangying {
 		baseURLRaw = GuangyingDefaultBaseURL
 	}
@@ -238,7 +241,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if isSubmission && requestContentType != "" {
 		req.Header.Set("Content-Type", requestContentType)
 	}
-	if isSubmission && account.Platform == PlatformGuangying {
+	if isSubmission && (account.Platform == PlatformGuangying || account.Platform == PlatformMaiTokenSeedance) {
 		idempotencyKey := strings.TrimSpace(publicRequest.UpstreamIdempotencyKey)
 		if idempotencyKey == "" {
 			idempotencyKey, err = NewPPVideoLocalTaskID()
@@ -296,6 +299,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if account.Platform == PlatformMiniMaxH3CompShare && parsed.Status != PPVideoTaskStatusSucceeded {
+		respBody = ppVideoWithoutPublicVideoURL(respBody)
+	}
+	if account.Platform == PlatformMaiTokenSeedance && parsed.Status != PPVideoTaskStatusSucceeded {
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if isStatus && account.Platform == PlatformPixverseV6 && parsed.Status == PPVideoTaskStatusSucceeded {
@@ -522,11 +528,18 @@ func (s *OpenAIGatewayService) tryOPONEDelivery(ctx context.Context, account *Ac
 // ForwardPPVideoContent streams an authenticated upstream video through the
 // original account. Some providers intentionally do not expose public URLs.
 func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, account *Account, taskID, rangeHeader, ifRangeHeader string, fallbackURLs ...string) (*http.Response, error) {
+	return s.forwardPPVideoContentWithMethod(ctx, http.MethodGet, account, taskID, rangeHeader, ifRangeHeader, fallbackURLs...)
+}
+
+func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Context, method string, account *Account, taskID, rangeHeader, ifRangeHeader string, fallbackURLs ...string) (*http.Response, error) {
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
-	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformOPONE) {
+	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformMaiTokenSeedance && account.Platform != PlatformOPONE) {
 		return nil, fmt.Errorf("authenticated-content PP video account is required")
+	}
+	if method != http.MethodGet && method != http.MethodHead {
+		return nil, fmt.Errorf("PP video content method must be GET or HEAD")
 	}
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
@@ -543,6 +556,8 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 			baseURLRaw = CTMOSeedanceDefaultBaseURL
 		case PlatformXingAPISeedance:
 			baseURLRaw = XingAPISeedanceDefaultBaseURL
+		case PlatformMaiTokenSeedance:
+			baseURLRaw = MaiTokenSeedanceDefaultBaseURL
 		case PlatformOPONE:
 			baseURLRaw = OPONEDefaultBaseURL
 		}
@@ -552,7 +567,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoContent(ctx context.Context, accoun
 		return nil, err
 	}
 	contentPath := "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(baseURL, "/")+contentPath, nil)
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(baseURL, "/")+contentPath, nil)
 	if err != nil {
 		return nil, err
 	}

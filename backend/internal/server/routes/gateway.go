@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformMaiTokenSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -103,7 +103,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformMaiTokenSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -120,7 +120,7 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.GrokVideoContent(c)
 			return
 		}
-		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformOPONE {
+		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformMaiTokenSeedance || getGroupPlatform(c) == service.PlatformOPONE {
 			h.OpenAIGateway.PPVideoContent(c)
 			return
 		}

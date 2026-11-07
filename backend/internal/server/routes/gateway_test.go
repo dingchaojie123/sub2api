@@ -165,6 +165,27 @@ func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesMaiTokenSeedanceVideoLifecycleIsDispatched(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformMaiTokenSeedance)
+	tests := []struct {
+		method string
+		path   string
+		body   string
+	}{
+		{method: http.MethodPost, path: "/v1/videos/generations", body: `{"model":"sdtj-2.5-480p","prompt":"lake"}`},
+		{method: http.MethodGet, path: "/v1/videos/task-1"},
+		{method: http.MethodGet, path: "/v1/videos/task-1/content"},
+		{method: http.MethodHead, path: "/v1/videos/task-1/content"},
+	}
+	for _, tt := range tests {
+		req := httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "%s %s", tt.method, tt.path)
+	}
+}
+
 func TestGatewayRoutesDoubaoImagesPathsAreNotLocallyRejected(t *testing.T) {
 	router := newGatewayRoutesTestRouter(service.PlatformDoubao)
 

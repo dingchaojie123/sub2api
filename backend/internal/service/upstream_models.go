@@ -321,6 +321,9 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 	if baseURL == "" && account.Platform == PlatformXingAPISeedance {
 		baseURL = XingAPISeedanceDefaultBaseURL
 	}
+	if baseURL == "" && account.Platform == PlatformMaiTokenSeedance {
+		baseURL = MaiTokenSeedanceDefaultBaseURL
+	}
 	if baseURL == "" && account.Platform == PlatformGuangying {
 		baseURL = GuangyingDefaultBaseURL
 	}

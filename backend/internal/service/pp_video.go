@@ -2133,7 +2133,7 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
-	case Platform88APIVideo, PlatformCTMOSeedance, PlatformOPONE:
+	case Platform88APIVideo, PlatformCTMOSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
@@ -2247,6 +2247,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 	}
 	if platform == PlatformMiniMaxH3CompShare {
 		return parseCompShareVideoResponse(body)
+	}
+	if platform == PlatformMaiTokenSeedance {
+		return parseMaiTokenSeedanceResponse(body)
 	}
 
 	result := PPVideoResponse{
@@ -2481,6 +2484,9 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if platform == PlatformCTMOSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
 		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
+	if platform == PlatformMaiTokenSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
+		raw = ppVideoWithoutPublicVideoURL(raw)
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
 		return raw
@@ -2519,11 +2525,17 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 			}
 		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance || platform == PlatformMaiTokenSeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	}
 	if videoURL != "" {
+		if platform == PlatformMaiTokenSeedance {
+			ppVideoRemoveVideoURLFields(payload)
+		}
 		ppVideoSetPublicVideoURL(payload, videoURL)
+		if platform == PlatformMaiTokenSeedance {
+			ppVideoSetResultVideoURL(payload, videoURL)
+		}
 	}
 	usage := ppVideoPublicUsage(raw, public, parsed)
 	if platform == Platform88APIVideo && public.Resolution != "" {
@@ -2540,6 +2552,18 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 		return raw
 	}
 	return normalized
+}
+
+func ppVideoSetResultVideoURL(payload map[string]any, videoURL string) {
+	if payload == nil || strings.TrimSpace(videoURL) == "" {
+		return
+	}
+	result, ok := payload["result"].(map[string]any)
+	if !ok {
+		result = make(map[string]any)
+		payload["result"] = result
+	}
+	result["url"] = videoURL
 }
 
 func ppVideoSetPublicVideoURL(payload map[string]any, videoURL string) {

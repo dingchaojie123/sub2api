@@ -1,11 +1,112 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
+
+func TestMaiTokenSeedanceProtocol(t *testing.T) {
+	t.Parallel()
+
+	createPath, err := PPVideoUpstreamPath(PlatformMaiTokenSeedance, PPVideoOperationGeneric, "")
+	require.NoError(t, err)
+	require.Equal(t, "/v1/videos", createPath)
+	statusPath, err := PPVideoStatusUpstreamPath(PlatformMaiTokenSeedance, PPVideoOperationGeneric, "task/one")
+	require.NoError(t, err)
+	require.Equal(t, "/v1/videos/task%2Fone", statusPath)
+	headers, err := PPVideoRequestHeaders(PlatformMaiTokenSeedance, "mai-key")
+	require.NoError(t, err)
+	require.Equal(t, "Bearer mai-key", headers.Get("Authorization"))
+	require.Equal(t, "application/json", headers.Get("Content-Type"))
+}
+
+func TestMaiTokenSeedanceResponseStatesAndPublicURLs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		body       string
+		wantStatus string
+	}{
+		{name: "queued", body: `{"id":"task-1","status":"queued","result":{"url":"https://api.mai-token.com/v1/videos/task-1/content"}}`, wantStatus: PPVideoTaskStatusProcessing},
+		{name: "in progress", body: `{"task_id":"task-2","status":"in_progress"}`, wantStatus: PPVideoTaskStatusProcessing},
+		{name: "completed", body: `{"id":"task-3","status":"completed","usage":{"output_video_duration":5,"reference_video_duration":5.06195,"video_count":1},"result":{"url":"https://api.mai-token.com/v1/videos/task-3/content"}}`, wantStatus: PPVideoTaskStatusSucceeded},
+		{name: "completed without URL", body: `{"id":"task-4","status":"completed","usage":{"output_video_duration":5}}`, wantStatus: PPVideoTaskStatusSucceeded},
+		{name: "failed", body: `{"id":"task-5","status":"failed","error":{"message":"rejected"}}`, wantStatus: PPVideoTaskStatusFailed},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			parsed, err := ParsePPVideoResponse(PlatformMaiTokenSeedance, []byte(tt.body))
+			require.NoError(t, err)
+			require.Equal(t, tt.wantStatus, parsed.Status)
+			require.NotEmpty(t, parsed.TaskID)
+			public := NormalizePPVideoPublicResponse(
+				PlatformMaiTokenSeedance,
+				[]byte(tt.body),
+				PPVideoPublicRequest{Model: MaiTokenSeedanceModel},
+				parsed,
+			)
+			if tt.wantStatus == PPVideoTaskStatusSucceeded {
+				require.Equal(t, "/v1/videos/"+parsed.TaskID+"/content", gjson.GetBytes(public, "result.url").String())
+				require.NotContains(t, string(public), "api.mai-token.com")
+			} else {
+				require.False(t, gjson.GetBytes(public, "result.url").Exists())
+				require.False(t, gjson.GetBytes(public, "video_url").Exists())
+			}
+		})
+	}
+}
+
+func TestMaiTokenSeedanceModelSyncDefaultsToDocumentedBaseURL(t *testing.T) {
+	t.Parallel()
+	svc := &AccountTestService{cfg: upstreamModelSyncTestConfig()}
+	req, err := svc.buildPPVideoUpstreamModelsRequest(context.Background(), &Account{
+		Platform: PlatformMaiTokenSeedance,
+		Type:     AccountTypeAPIKey,
+		Credentials: map[string]any{
+			"api_key": "mai-key",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "https://api.mai-token.com/v1/models", req.URL.String())
+	require.Equal(t, "Bearer mai-key", req.Header.Get("Authorization"))
+}
+
+func TestForwardMaiTokenSeedanceSubmissionUsesMultipartAndStableIdempotency(t *testing.T) {
+	req := newMaiTokenMultipartTestRequest(t, "client-boundary", map[string][]string{
+		"model": {MaiTokenSeedanceModel}, "prompt": {"lake"}, "duration": {"4"},
+	}, []maiTokenMultipartTestUpload{{Field: "first_image", Name: "first.jpg", ContentType: "image/jpeg", Body: "jpeg-bytes"}})
+	submission, err := PrepareMaiTokenMultipartSubmission(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = submission.Cleanup() })
+	upstream := &httpUpstreamRecorder{responses: []*http.Response{{
+		StatusCode: http.StatusAccepted,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(bytes.NewBufferString(`{"id":"mai-task-1","status":"queued"}`)),
+	}}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{ID: 77, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "mai-key"}}
+	public := PPVideoPublicRequest{Model: MaiTokenSeedanceModel, UpstreamModel: MaiTokenSeedanceModel, DurationMilliseconds: 4000, VideoCount: 1, Resolution: "480p", UpstreamIdempotencyKey: "video-local-1"}
+
+	result, err := svc.ForwardPPVideoSubmissionBuffered(context.Background(), nil, account, PPVideoOperationGeneric, "", submission, public)
+	require.NoError(t, err)
+	require.Equal(t, "mai-task-1", result.ResponseID)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://api.mai-token.com/v1/videos", upstream.requests[0].URL.String())
+	require.Equal(t, "video-local-1", upstream.requests[0].Header.Get("Idempotency-Key"))
+	require.Contains(t, upstream.requests[0].Header.Get("Content-Type"), "multipart/form-data; boundary=")
+	require.Contains(t, string(upstream.bodies[0]), "jpeg-bytes")
+}
 
 func TestMaiTokenSeedancePlatformRegistration(t *testing.T) {
 	t.Parallel()

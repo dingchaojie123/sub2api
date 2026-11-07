@@ -130,7 +130,29 @@ func TestForwardPPVideoTaskUserContent_AuthenticatedPlatformsKeepUsingTheContent
 func TestPPVideoTaskUsesAuthenticatedContent(t *testing.T) {
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformCTMOSeedance))
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformXingAPISeedance))
+	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformMaiTokenSeedance))
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformOPONE))
 	require.False(t, ppVideoTaskUsesAuthenticatedContent(PlatformGuangying))
 	require.False(t, ppVideoTaskUsesAuthenticatedContent(PlatformKling))
+}
+
+func TestForwardMaiTokenSeedanceTaskContentUsesOriginalAccountAndHEAD(t *testing.T) {
+	upstream := &oponeUpstreamRecorder{responses: []*http.Response{videoResponse(http.StatusPartialContent, "")}}
+	svc := &OpenAIGatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID: 19, Platform: PlatformMaiTokenSeedance, Type: AccountTypeAPIKey, Concurrency: 1,
+		Credentials: map[string]any{"api_key": "mai-key"},
+	}
+	task := &PPVideoTask{TaskID: "task/one", Platform: PlatformMaiTokenSeedance, AccountID: 19, Status: PPVideoTaskStatusSucceeded}
+
+	resp, err := svc.ForwardPPVideoTaskContentWithMethod(context.Background(), http.MethodHead, account, task, "bytes=0-99", `"etag"`)
+
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, http.MethodHead, upstream.requests[0].Method)
+	require.Equal(t, "https://api.mai-token.com/v1/videos/task%2Fone/content", upstream.requests[0].URL.String())
+	require.Equal(t, "Bearer mai-key", upstream.requests[0].Header.Get("Authorization"))
+	require.Equal(t, "bytes=0-99", upstream.requests[0].Header.Get("Range"))
+	require.Equal(t, `"etag"`, upstream.requests[0].Header.Get("If-Range"))
 }

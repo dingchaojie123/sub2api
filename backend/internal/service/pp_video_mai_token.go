@@ -438,3 +438,36 @@ func validateMaiTokenHTTPURL(field, raw string) error {
 	}
 	return nil
 }
+
+func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
+	status := strings.ToLower(strings.TrimSpace(extractPPVideoText(body, "status", "state")))
+	result := PPVideoResponse{
+		TaskID: extractPPVideoText(body, "id", "task_id"),
+		GeneratedDurationMilliseconds: extractPPVideoDurationMilliseconds(body,
+			"usage.output_video_duration", "usage.seconds"),
+		InputVideoDurationMilliseconds: extractPPVideoDurationMilliseconds(body,
+			"usage.reference_video_duration"),
+		VideoCount: extractPPVideoPositiveInt(body, "usage.video_count"),
+		VideoResolution: normalizePPVideoResolution(extractPPVideoText(body,
+			"usage.resolution", "resolution")),
+		ErrorMessage: extractPPVideoText(body, "error.message", "error_message", "message"),
+		RawBody:      append([]byte(nil), body...),
+	}
+	switch status {
+	case "queued", "in_progress":
+		result.Status = PPVideoTaskStatusProcessing
+	case "completed":
+		result.Status = PPVideoTaskStatusSucceeded
+	case "failed":
+		result.Status = PPVideoTaskStatusFailed
+	default:
+		result.Status = NormalizePPVideoTaskStatus(status)
+	}
+	if result.TaskID == "" {
+		return PPVideoResponse{}, fmt.Errorf("Mai Token Seedance response missing task id")
+	}
+	if result.VideoCount <= 0 {
+		result.VideoCount = 1
+	}
+	return result, nil
+}

@@ -11,7 +11,7 @@ import (
 // （上游不提供公开直链），其余平台的结果以直链形式保存在任务的最新响应里。
 func ppVideoTaskUsesAuthenticatedContent(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformOPONE:
+	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		return true
 	default:
 		return false
@@ -41,4 +41,11 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskUserContent(ctx context.Context
 		return resp, nil
 	}
 	return nil, fmt.Errorf("video download failed")
+}
+
+func (s *OpenAIGatewayService) ForwardPPVideoTaskContentWithMethod(ctx context.Context, method string, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
+	if s == nil || s.httpUpstream == nil || task == nil || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
+		return nil, fmt.Errorf("original video task account is required")
+	}
+	return s.forwardPPVideoContentWithMethod(ctx, method, account, task.TaskID, rangeHeader, ifRangeHeader)
 }

@@ -37,7 +37,7 @@ func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil || apiKey.Group == nil ||
-		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformOPONE) {
+		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformMaiTokenSeedance && apiKey.Group.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not supported for this platform")
 		return
 	}
@@ -52,8 +52,8 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 		return
 	}
 	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
-	if err != nil || task == nil ||
-		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformOPONE) {
+	if err != nil || task == nil || task.Platform != apiKey.Group.Platform ||
+		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformMaiTokenSeedance && task.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
@@ -65,7 +65,7 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	if selection.ReleaseFunc != nil {
 		defer selection.ReleaseFunc()
 	}
-	resp, err := h.gatewayService.ForwardPPVideoTaskContent(c.Request.Context(), selection.Account, task, c.GetHeader("Range"), c.GetHeader("If-Range"))
+	resp, err := h.gatewayService.ForwardPPVideoTaskContentWithMethod(c.Request.Context(), c.Request.Method, selection.Account, task, c.GetHeader("Range"), c.GetHeader("If-Range"))
 	if err != nil {
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video download failed")
 		return
@@ -522,7 +522,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 		}
 	}
-	if task != nil && task.TaskID == "" && account.Platform == service.PlatformGuangying {
+	if task != nil && task.TaskID == "" && (account.Platform == service.PlatformGuangying || account.Platform == service.PlatformMaiTokenSeedance) {
 		publicRequest.UpstreamIdempotencyKey = task.LocalTaskID
 	}
 
