@@ -1,6 +1,6 @@
-# 站点媒体生成接口
+# 站点视频生成接口
 
-本文档是本站对下游客户提供的媒体生成接口文档，覆盖视频生成和 Qwen TTS 语音合成。下游使用已开通对应平台的本站 API Key 调用本站接口，无需直接对接上游地址或持有上游凭据。
+本文档是本站对下游客户提供的视频生成接口文档。下游使用已开通对应平台的本站 API Key 调用本站接口，无需直接对接上游地址或持有上游凭据。语音合成见 [Qwen TTS 语音合成接口](QWEN_TTS_API.md)。
 
 ## 基础信息
 
@@ -20,66 +20,7 @@ Idempotency-Key: YOUR_UNIQUE_REQUEST_KEY
 
 同一个 `Idempotency-Key` 重试同一个请求会返回同一个任务结果；同一个 key 不能用于不同请求。该请求头是可选的：不传时每次调用都会创建独立的视频任务，即使请求正文完全相同。
 
-## 音频语音合成（Qwen TTS）
-
-Qwen TTS 使用同步接口生成音频。API Key 必须属于平台为 `qwen-tts` 的分组；管理员配置的 ModelVerse 凭据不会返回给调用方。
-
-### 创建语音
-
-`POST /v1/audio/speech`
-
-```bash
-curl https://YOUR_SITE/v1/audio/speech \
-  -H "Authorization: Bearer YOUR_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3-tts-flash",
-    "input": "今天天气真好，我们去公园散步吧。",
-    "voice": "Cherry",
-    "metadata": {"language_type": "Chinese"}
-  }'
-```
-
-| 字段 | 必填 | 说明 |
-| --- | --- | --- |
-| `model` | 是 | 从该 Qwen TTS 账号同步到的上游支持模型中选择；可通过 `GET /v1/models` 查询。 |
-| `input` | 是 | 要合成的文本，最长 600 个字符。 |
-| `voice` | 是 | 上游音色名称，例如 `Cherry`、`Ethan`、`Serena`、`Chelsie`。 |
-| `metadata.language_type` | 否 | `Auto`（默认）、`Chinese`、`English`、`German`、`Italian`、`Portuguese`、`Spanish`、`Japanese`、`Korean`、`French` 或 `Russian`。 |
-
-成功时会原样返回 Qwen TTS 的响应，其中包含临时音频地址：
-
-```json
-{
-  "request_id": "5c63c65c-cad8-4bf4-959d-example",
-  "code": "",
-  "message": "",
-  "output": {
-    "finish_reason": "stop",
-    "audio": {
-      "data": "",
-      "url": "https://example.com/audio.wav",
-      "id": "audio_5c63c65c-cad8-4bf4-959d-example",
-      "expires_at": 1766113409
-    }
-  },
-  "usage": {
-    "input_tokens": 0,
-    "output_tokens": 0,
-    "characters": 195
-  }
-}
-```
-
-### 音频计费
-
-Qwen TTS 使用渠道配置的 Token 计费方式。网关以响应中的 `usage.characters` 作为本次请求的输入 Token 数量；上游文档中的 `input_tokens` 与 `output_tokens` 均为 `0`，不会参与计费。上游请求失败或业务返回失败时不会生成用量扣费。
-
-上游返回的音频 URL 有有效期，请在过期前下载或持久化音频。
-
-## 视频生成
-
-### 查询可用模型
+## 1. 选择模型
 
 推荐先通过模型列表查询当前 API Key 可用的视频模型：
 
@@ -91,95 +32,24 @@ curl https://YOUR_SITE/v1/models \
 从响应 `data[].id` 中选择一个模型填入生成请求的 `model`。模型列表只返回当前
 API Key 所属视频平台同步到的模型，不同平台的模型不能混用。
 
-如果请求未传 `model`，本站会根据 API Key 所属的视频平台和可用账号模型映射，
-自动选择该平台的实际模型。下游不应把即梦模型
-`by-seedance2.0-933` 作为 Kling、Happy Horse 或 PP Seedance 的模型使用。
+如果请求未传 `model`，本站会根据 API Key 所属的视频平台自动选择该平台的实际模型。不同平台的模型不能混用。
 
-`video-v1` 仍作为历史文档兼容模型名接受，但推荐始终使用 `/v1/models` 返回的
-精确模型 ID。本站会按 API Key 所属分组和后台账号配置，把对外模型名转换为对应
-上游请求。
+### 模型总览
 
-#### 新增视频模型
+以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID。
 
-以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID，不要使用 `video-v1` 作为新接入的模型名。
+| 模型系列 | 模型 ID | 输入能力 | 时长 | 输出分辨率 | 调用说明 |
+| --- | --- | --- | --- | --- | --- |
+| Seedance（doubao 系列） | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` | [查看](video-api/doubao-seedance.md) |
+| Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` | [查看](video-api/wan.md) |
+| 综合视频模型 | `gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0`、`seedance-2.0`、`seedance-2.0-fast`、`seedance-2.0-mini`、`seedance-2.5`、`veo-3.1`、`veo-3.1-fast`、`wan3.0-video` | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4K`，按模型限制 | [查看](video-api/general-models.md) |
+| Seedance（其他型号） | `seedance-2.0-930`、`seedance-2.0-903`、`seedance-933`、`seedance2.0-933-C`、`seedance2.5-V`、`Seedance 2.5-全参720P`、`限时限量-Seedance 2.5 满参`、`Seedance 2.5-无视频`、`限时限量-Seedance 2.5 满参-备选`、`Seedance 2.0按次计费`、`Seedance 2.5-无参考视频 按秒计费`、`Seedance 2.0-无参考视频 按秒计费`、`竖屏-Seedance 2.0按次计费`、`竖屏-Seedance 2.0 Fast 按次计费`、`竖屏-Seedance 2.0 Mini 按次计费` | 文生、参考图片/视频/音频，部分模型支持首尾帧，按模型能力 | 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`，按模型限制 | [查看](video-api/seedance-series.md) |
+| MiniMax-H3 | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` | [查看](video-api/minimax-h3.md) |
+| Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` | [查看](video-api/pixverse.md) |
 
-| 平台 | 模型 ID | 输入能力 | 时长 | 输出分辨率 |
-| --- | --- | --- | --- | --- |
-| ByteDance | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` |
-| Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` |
-| 88API Video | `SD2.0`、`SD2.5`、`gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0-turbo`、Seedance 2.0/2.5 官方版、Veo 3.1、Wan 3.0 Video 系列 | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`2K`、`4K`，按模型限制 |
-| 浙创 OPC Seedance | 下表列出的 9 个精确模型 ID | 文生、参考图片/视频/音频及首尾帧，按模型能力 | 按模型 `durations_seconds` | 模型固定档位，以模型 ID 为准 |
-| 光影 AI Seedance | `gy-model-13`、`gy-model-19`、`gy-model-20`、`gy-model-21`、`gy-model-22`、`gy-model-30`、`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40`、`gy-model-50`、`gy-model-58`、`gy-model-59` | 文生、参考图片/视频/音频，按模型能力 | 4-30 秒，按模型目录限制 | `480p`、`720p`、`1080p`，按模型目录限制 |
-| OPONE Seedance | `seedance-2.5-b1`、`seedance-2.5-b2`、`seedance-2.5-s1`、`seedance-2.5-s5`、`seedance-2.5-s6`、`seedance-2.5-s7`、`seedance-2.5-s8`、`seedance-2.5-SS`、`seedance-2.0-Q`、`seedance-2.0fast-Q`、`seedance-2.0mini-Q`、`seedance-2.5-Q`、`seedance-2.5-Qs` | 文生、参考图片/视频/音频及首尾帧，按模型能力 | B 系列固定 30 秒；其余 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4k`，按模型限制 |
-| MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-H3` | 文生、首尾帧、参考图片/视频/音频 | 4-15 秒整数 | `768P`、`2K` |
-| MiniMax-H3（原平台，`minimax-h3`） | `MiniMax-Hailuo-2.3` | 文生、图生（首帧图片） | 6 或 10 秒整数 | `768P`、`1080P`（仅 6 秒） |
-| MiniMax-H3（优云智算，`minimax-h3-compshare`） | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` |
-| Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` |
-| Grok Imagine Video | `grok-imagine-video` | 图生、参考生 | 1-15 秒整数 | `480p`、`720p` |
+所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。各模型调用说明中的 JSON 结构是新增视频模型推荐使用的请求体格式。
 
-#### 浙创 OPC Seedance 上游
-
-后台平台标识为 `ctmo-seedance`，默认上游地址为 `https://video.ctmoai.com`。账号使用 Bearer API Key；同步上游模型时，本站只保留下表 9 个受支持的精确模型 ID。账户映射的键和值都应使用相同的完整模型 ID，不要改写为 `SD2.5-30-10-10` 等上游内部名称。管理员应保存需要开放的模型映射，并在该分组关联的渠道中为每个完整模型 ID 单独配置价格；CTMO 不使用分组中的 480p/720p/1080p 统一每秒价。上游模型列表中的 `pricing` 是上游实时成本信息，不会直接替代本站渠道售价。
-
-当前 9 个模型应按下表建立 9 条精确模型定价。按次收费的模型选择渠道计费模式 `per_request`（后台显示“按请求”），按秒收费的模型选择 `video`（后台显示“视频”）。不要使用 `seedance-*` 等通配符合并配置，因为同一前缀下存在不同计费模式和价格。
-
-| 完整模型 ID | 计费模式 | 积分基础价 | 扣分公式 |
-| --- | --- | ---: | --- |
-| `seedance-2.0-930` | `per_request` | 5.6 积分/次 | 5.6 × 视频数 |
-| `seedance-2.0-903` | `per_request` | 5.6 积分/次 | 5.6 × 视频数 |
-| `seedance2.0-pro-720p` | `per_request` | 7.8 积分/次 | 7.8 × 视频数 |
-| `seedance2.5-pro-720p` | `video` | 1.4 积分/秒 | 1.4 × 请求秒数 × 视频数 |
-| `seedance2.5-one-720p` | `per_request` | 22.4 积分/次 | 22.4 × 视频数 |
-| `seedance2.5-one-1080p` | `per_request` | 26.88 积分/次 | 26.88 × 视频数 |
-| `seedance-2.0-max` | `video` | 1.4 积分/秒 | 1.4 × 请求秒数 × 视频数 |
-| `doubao-seedance-2.5` | `video` | 1.9 积分/秒 | 1.9 × 请求秒数 × 视频数 |
-| `seedance-2.5-720-max` | `video` | 2.2 积分/秒 | 2.2 × 请求秒数 × 视频数 |
-
-CTMO 渠道的默认价格字段直接填写上表积分值，不做人民币或美元换算。面向下游的最终扣分为模型积分基础价再乘分组有效倍率；开启“视频倍率独立”后使用视频独立倍率。若希望严格按表中数值扣分，应把有效视频倍率设为 `1`。按次模型完成结算时不会因实际视频时长变化而改变单次积分。
-
-下游仍调用本站统一创建和查询接口。网关把 `duration` 转换为上游整数 `seconds`，把 `ratio` / `aspect_ratio` 统一为 `aspect_ratio`，并透传 `images`、`videos`、`audios`。单图字段 `image` / `image_url` 转换为 `images`；`start_frame_url` / `end_frame_url` 转换为上游 `input_reference` / `image_end`。上游 `completed` 状态转换为本站 `succeeded`，完成响应中的 `video_url` 指向本站 `GET /v1/videos/{task_id}/content` 下载代理；代理校验任务归属并使用原上游账号拉取视频。
-
-#### 光影 AI Seedance 上游
-
-后台平台标识为 `guangying`，默认上游地址为 `https://api.guangying.store`，账号使用 Bearer API Key。本站从上游 `/v1/models` 动态同步，只接受下表列出的 Seedance 模型，排除同目录中的 MiniMax H3（`gy-model-18`）及未知模型，避免该分组混入其他模型族。`gy-model-31`、`gy-model-35` 作为已有兼容映射继续保留；上游当前目录未返回时不会出现在动态同步结果中。上游已下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不再同步，也不再接受新建任务；已创建任务仍可按原任务 ID 查询。模型同步会生成下述公开名称，管理员也可使用预设映射将公开名称关联到上游 ID，并在该分组关联的渠道中按精确公开名称配置 `per_request`（按次）或 `video`（按秒）价格。不同模型的时长、比例、分辨率和参考素材数量以上游目录为准。
-
-下游模型列表使用清晰名称，网关在请求上游前自动映射回原始 ID：
-
-| 下游公开名称 | 上游模型 ID | 渠道计费模式 | 上游目录积分参考 |
-| --- | --- | --- | --- |
-| `Seedance 2.5-全参720P` | `gy-model-31` | `video` | 720p：5 积分/秒 |
-| `特惠-Seedance 2.5-超分掺水版` | `gy-model-39` | `per_request` | 1080p：60 积分/次 |
-| `特价-Seedance 2.5-图文` | `gy-model-35` | `per_request` | 720p：80 积分/次；1080p：100 积分/次 |
-| `Seedance 2.5-全参1080超分` | `gy-model-40` | `video` | 1080p：5 积分/秒 |
-| `限时限量-Seedance 2.5 满参` | `gy-model-50` | `per_request` | 720p：85 积分/次 |
-| `Seedance 2.5-无视频` | `gy-model-58` | `per_request` | 1080p：60 积分/次 |
-| `限时限量-Seedance 2.5 满参-备选` | `gy-model-59` | `per_request` | 720p：85 积分/次 |
-| `Seedance 2.0按次计费` | `gy-model-30` | `per_request` | 720p：30 积分/次 |
-| `Seedance 2.5-无参考视频 按秒计费` | `gy-model-22` | `video` | 480p：5；720p：7 积分/秒 |
-| `Seedance 2.0-无参考视频 按秒计费` | `gy-model-21` | `video` | 480p：4；720p：5；1080p：8 积分/秒 |
-| `竖屏-Seedance 2.0按次计费` | `gy-model-13` | `per_request` | 720p：18 积分/次 |
-| `竖屏-Seedance 2.0 Fast 按次计费` | `gy-model-20` | `per_request` | 720p：14 积分/次 |
-| `竖屏-Seedance 2.0 Mini 按次计费` | `gy-model-19` | `per_request` | 720p：10 积分/次 |
-
-上表积分来自上游当前目录，仅用于配置参考，不会自动覆盖本站渠道售价。`gy-model-31`、`gy-model-35`、`gy-model-39`、`gy-model-40` 之前带“按次计费”或“按秒计费”后缀的公开名称仍作为兼容别名接受，但模型同步和预设映射只展示上表中的新名称。旧 ID 请求仅对仍在上表中的模型兼容；已经下架的 `gy-model-24`、`gy-model-25`、`gy-model-27` 不属于兼容范围。
-
-下游仍调用本站统一创建和查询接口。网关只在 `guangying` 平台内把创建请求转为上游 `/v1/video/generations`，把状态查询转为 `/v1/tasks/{id}`，并用本站本地任务 ID 生成上游 `Idempotency-Key`。`images`、`image`、`image_url`、`videos`、`audios` 或 `assets[].url` 中的公网 HTTP(S) URL 会先按上游协议上传到 `/v1/media/uploads`，再作为 `assets[].fileId` 提交；该转换不会用于其他视频平台。下游不能直接传上游 `fileId`，以免共享上游账号时跨用户引用素材。完成响应优先读取 `data.downloadUrl`，其次读取 `data.results[0].url`。
-
-#### OPONE Seedance 上游
-
-后台平台标识为 `opone`，默认上游地址为 `https://api.opone.cc`，账号使用 Bearer API Key。模型从上游 `GET /v1/models` 同步，本站不对 OPONE 返回的模型 ID 做本地白名单过滤，因此同步结果以该 Key 的实时上游响应为准。上表 13 个模型已经配置本地参数规格；同步到其他新模型只代表上游将其列为可见模型，不代表本站已经掌握其参数和计费规格。
-
-下游仍调用本站统一的 `POST /v1/videos/generations`、`GET /v1/videos/{task_id}` 和 `GET /v1/videos/{task_id}/content`。网关向 OPONE 转发为 `POST /v1/videos`、`GET /v1/videos/{id}` 和带鉴权的内容请求，并把 `queued` / `in_progress` / `completed` / `failed` 归一为本站状态。`media_store_pending` 保持为处理中，客户端不应重复创建任务；B、S、Q 系列轮询间隔建议不少于 20 秒，`seedance-2.5-SS` 不少于 15 秒。
-
-B、S、Q 系列沿用 OPONE 原生的 `duration`、`resolution`、`aspect_ratio` 和素材字段。`seedance-2.5-SS` 沿用其 `seconds` 与 `metadata` 结构；为便于统一调用，本站也接受顶层 `duration`、`resolution`、`aspect_ratio`，并在转发前转换为 `seconds`、`metadata.resolution`、`metadata.ratio`。各模型的时长、分辨率和比例会在请求上游前校验。
-
-OPONE 当前公开文档没有列出 `seedance-2.5-s7` / `seedance-2.5-s8` 的独立参数规格；本站仅按上游模型列表开放这两个 ID，不再推断它们必须显式传 `duration`。下游未传时使用 S/Q 系列通用默认值 `5` 秒，显式传入时仍限制为 `4`-`30` 秒整数。
-
-管理员应按精确模型名配置渠道价格，计费模式可选 `per_request`（按次）或 `video`（按秒），并可按 `480p`、`720p`、`1080p`、`4k` 配置分辨率价档。`seedance-2.5-s5` 的按秒计费单位为输出时长加所有带 `durationSeconds` 的参考视频时长；其他 OPONE 模型仅按输出时长计费。
-
-两个 MiniMax-H3 平台使用相同的本站创建和查询地址，但由 **API Key 所属分组的平台** 决定调用哪一套接口。使用优云智算时，请获取绑定 `minimax-h3-compshare` 分组的本站 API Key，`model` 仍填写 `MiniMax-H3` 或 `minimax-h3-lite`。不要把平台标识 `minimax-h3-compshare` 填入 `model`，也无需增加 `platform` 请求字段。原平台客户可以继续使用原 Key 和原请求格式。
-
-### 创建视频任务
+## 2. 创建视频任务
 
 推荐接口：
 
@@ -187,413 +57,32 @@ OPONE 当前公开文档没有列出 `seedance-2.5-s7` / `seedance-2.5-s8` 的�
 POST /v1/videos/generations
 ```
 
-兼容旧接口：
-
-```http
-POST /v1/video/generations
-```
-
 请求提交后立即返回任务 ID。视频任务固定异步执行，随后请按“查询任务状态”章节轮询结果。
 
-#### 请求字段
+### 请求字段
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
 | `model` | string | 否 | 对外视频模型名，建议从 `/v1/models` 获取。未传时按该 API Key 所属平台和账号模型映射自动选择。 |
 | `prompt` | string | 条件必填 | 视频描述。`prompt`、参考图字段或首尾帧字段至少提供一项。 |
-| `duration` | integer/number/string | 否 | 视频时长，单位秒。建议传 `5`、`10` 或 `15`；未传默认 `5`。不同模型的最小/最大时长以“新增视频模型参数”章节为准。 |
+| `duration` | integer/number/string | 否 | 视频时长，单位秒。建议传 `5`、`10` 或 `15`；未传默认 `5`。不同模型的最小/最大时长以各模型的调用说明为准。 |
 | `images` | string[] | 否 | 推荐的参考图片 URL 列表。多张图片必须是同一人物、同一角色或同一视觉风格的补充参考；不要混入不同人物或不同次元/画风的图片。 |
-| `image` | string | 否 | 单张参考图片的兼容写法。不能与 `images`、`image_url` 同时传；Seedance 会将其标准化为 `images`。 |
-| `image_url` | string | 否 | 单张参考图片 URL 的兼容写法。不能与 `images`、`image` 同时传；Seedance 会将其标准化为 `images`。 |
 | `videos` | string[] | 否 | 参考视频 URL 列表，会透传给支持该能力的上游。 |
 | `audios` | string[] | 否 | 参考音频 URL 列表，会透传给支持该能力的上游。 |
 | `aspect_ratio` | string | 否 | 画幅比例，例如 `16:9`、`9:16`、`1:1`。 |
-| `ratio` | string | 否 | 模型专用的画幅比例字段。88API Video 新接入推荐使用该字段，不要与 `aspect_ratio` 或 `size` 重复传入不同值。 |
 | `resolution` | string | 否 | 分辨率，例如 `480p`、`720p`、`1080p`；未传默认 `720p`。 |
-| `mode` | string | 否 | 视频模式。K-Ling 可传 `std`、`pro`、`4k`，也兼容 `2x`、`2x-pro`；未传时本站按 `resolution` 自动映射。 |
-| `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际上游能力为准。`kuaishou` 平台的 `kling-v3` 文生、图生视频默认开启；传 `false` 可关闭。 |
-| `input_video_duration` | number | 否 | 参考视频时长，单位秒。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
-| `output_width` | integer | 否 | 输出宽度，单位像素。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
-| `output_height` | integer | 否 | 输出高度，单位像素。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
-| `fps` | number | 否 | 输出帧率。会随请求透传给支持该能力的上游；不参与本站视频费用计算。 |
-| `start_frame_url` | string | 否 | 首帧图片 URL，适用于支持首尾帧控制的模型。Seedance 中不能与 `images`、`image`、`image_url` 同时传。 |
-| `end_frame_url` | string | 否 | 尾帧图片 URL，适用于支持首尾帧控制的模型。Seedance 中不能与 `images`、`image`、`image_url` 同时传。 |
-| `seed` | integer | 否 | 随机种子。 |
+| `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际能力为准；传 `false` 可关闭。 |
 | `n` | integer | 否 | 生成视频数量，默认 `1`。 |
 
-不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。K-Ling 的 `duration` 仅支持 `3` 到 `15` 秒的整数值；本站会把统一字段自动转换为 K-Ling 上游需要的 `model_name`、`image`、`image_tail`、`sound` 等字段。
+不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。
 
-`kuaishou` 平台的 `kling-v3` 文生视频（`t2v`）和图生视频（`i2v`）在未传音频开关时，本站默认向上游发送 `parameters.sound: "on"`。也可显式传 `generate_audio: true` 开启，或通过 `generate_audio: false`、`sound: "off"`、`parameters.sound: "off"` 关闭。动作控制（`motion_control`）保留参考视频声音使用 `parameters.keep_original_sound: "yes"`，不套用此声音生成默认值。
+模型总览中列出的 Seedance（doubao 系列）、Wan3.0、综合视频模型、MiniMax-H3 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用各模型调用说明中的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
 
-本文档开头列出的 ByteDance、Wan3.0、88API Video、MiniMax-H3/Hailuo 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用下一章节的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
+MiniMax-H3 以其 [调用说明](video-api/minimax-h3.md) 为准：默认分辨率为 `768P`，`duration` 使用 JSON 整数，媒体通过 `content` 传入。不要直接套用上表中的 `images`、`videos`、`audios` 或 `generate_audio` 字段。
 
-优云智算平台以“MiniMax-H3（优云智算）”章节为准：默认分辨率为 `768P`，`duration` 使用 JSON 整数，媒体通过 `content` 传入。不要直接套用上表中的 `images`、`videos`、`audios` 或 `generate_audio` 字段。
+首尾帧、种子、兼容写法等更多字段见 [进阶说明](video-api/advanced.md)。
 
-### 新增视频模型参数
-
-所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。以下 JSON 结构是新增视频模型推荐使用的请求体格式。
-
-#### ByteDance
-
-模型 ID 可为 `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628` 或 `doubao-seedance-2-5-260628-global`。`input.content` 至少包含一个内容项，可使用 `text`、`image_url`、`video_url`、`audio_url` 四种类型：
-
-- `text`：`{"type":"text","text":"提示词"}`。
-- `image_url`：`{"type":"image_url","image_url":{"url":"https://..."}, "role":"first_frame|last_frame|reference_image"}`；`role` 为 `reference_image` 的公开图片 URL 会在提交前自动登记到火山方舟 `AIGC` 私域素材组，等 `Image` 素材状态为 `Active` 后再用 `asset://Asset-...` 提交给上游，避免真人/仿真人图片被当普通公开图片触发隐私检测。简化写法可使用 `reference_image_url`；高级调用方也可直接传 `{"image_url":{"asset_id":"Asset-..."}, "role":"reference_image"}`。
-- `video_url`：`{"type":"video_url","video_url":{"url":"https://..."}, "role":"reference_video"}`。
-- `audio_url`：`{"type":"audio_url","audio_url":{"url":"https://..."}, "role":"reference_audio"}`。
-
-`parameters.duration` 必须是整数：`doubao-seedance-2-0-260128` 支持 `4` 到 `15` 秒，`doubao-seedance-2-5-260628` 和 `doubao-seedance-2-5-260628-global` 支持 `4` 到 `30` 秒。`parameters.resolution` 可为 `480p`、`720p` 或 `1080p`；旧版 `doubao-seedance-2-0-260128` 还兼容 `4K`。`parameters.ratio` 可省略，省略时为 `adaptive`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`21:9` 或 `adaptive`。可选参数包括 `generate_audio`（boolean，默认 `true`，传 `false` 可关闭音频）、`seed`、`camera_fixed`、`watermark`、`callback_url`、`execution_expires_after`、`seedance_tools` 和 2.5 系列的 `omni_reference_task_type`。
-
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
-  "input": {
-    "content": [
-      {"type": "text", "text": "清晨的海边，一艘小船穿过薄雾，电影感镜头"},
-      {
-        "type": "image_url",
-        "image_url": {"url": "https://example.com/first-frame.jpg"},
-        "role": "first_frame"
-      }
-    ]
-  },
-  "parameters": {
-    "duration": 5,
-    "resolution": "720p",
-    "ratio": "16:9",
-    "generate_audio": true
-  }
-}
-```
-
-真人/仿真人参考图可用简化字段提交，本站会自动创建并等待火山私域素材可用：
-
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
-  "prompt": "让素材中的人物微笑挥手",
-  "reference_image_url": "https://example.com/person.jpg",
-  "parameters": {
-    "duration": 5,
-    "resolution": "720p"
-  }
-}
-```
-
-如果调用方已经有可用的火山私域素材 ID，也可以直接传 `image_asset_id`：
-
-```json
-{
-  "model": "doubao-seedance-2-0-260128",
-  "prompt": "让素材中的人物微笑挥手",
-  "image_asset_id": "Asset-20260331150000-xxxxx",
-  "parameters": {
-    "duration": 5,
-    "resolution": "720p"
-  }
-}
-```
-
-#### Wan3.0
-
-模型为 `wan3.0-video` 或 `wan3.0-video-prime`。`input.prompt` 必填；`input.media` 可省略，或传入以下对象组成的数组：
-
-```json
-{"type": "first_frame|last_frame|reference_image|reference_video|reference_audio|file|link", "url": "https://..."}
-```
-
-首帧和尾帧各最多一张；参考图最多 10 张，参考视频和参考音频各最多 5 个；`file` 和 `link` 最多二选一。`first_frame`/`last_frame` 不能与参考媒体、`file` 或 `link` 混用。图片类媒体支持公开 URL 或 `data:image/...;base64,...`，其余媒体使用可访问的 URL。
-
-`parameters.duration` 必须是 `2` 到 `30` 的整数；`parameters.resolution` 可为 `480P`、`720P` 或 `1080P`，默认 `1080P`；`parameters.ratio` 可为 `adaptive`、`16:9`、`9:16`、`1:1`、`4:3` 或 `3:4`。可选参数包括 `audio`（boolean，默认 `true`，传 `false` 可关闭音频）、`prompt_extend`、`watermark` 和 `seed`（`0` 至 `2147483647` 的整数）。
-
-```json
-{
-  "model": "wan3.0-video",
-  "input": {
-    "prompt": "猫咪从草地左边跑到右边，阳光明媚，镜头跟拍",
-    "media": [
-      {"type": "first_frame", "url": "https://example.com/start.jpg"},
-      {"type": "last_frame", "url": "https://example.com/end.jpg"}
-    ]
-  },
-  "parameters": {
-    "duration": 8,
-    "resolution": "720P",
-    "ratio": "16:9",
-    "audio": true,
-    "prompt_extend": true
-  }
-}
-```
-
-#### 88API Video
-
-本节适用于绑定 `88api-video` 分组的本站 API Key。模型必须从该 Key 的 `GET /v1/models` 响应中选择；上游可能增减模型，以下表格描述当前已适配型号。创建和查询仍使用本站统一的 `POST /v1/videos/generations` 与 `GET /v1/videos/{task_id}`，下游不直接访问 88API 上游地址。
-
-新接入统一使用顶层 `resolution` 和 `ratio`。本站兼容接收 `aspect_ratio`、`size` 及 `metadata.resolution`，但会在转发前归一为单一的顶层字段。调用方不要同时发送互相矛盾的 `ratio`、`aspect_ratio` 或 `size`，否则返回 HTTP 400。
-
-| 模型 | 时长 | 分辨率 | 比例 |
-| --- | --- | --- | --- |
-| `SD2.0` | 4-15 秒 | `480p`、`720p`、`1080p`、`4K` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`21:9`；默认 `1:1` |
-| `SD2.5` | 4-30 秒 | `480p`、`720p`、`1080p` | 同上，必须显式填写比例 |
-| `gemini-omni-flash` | 3-10 秒 | 固定 `720p` | `16:9`、`9:16` |
-| `gemini-omni-flash-1.1` | 3-10 秒 | `720p`、`1080p`、`4K` | `16:9`、`9:16` |
-| `grok-imagine-video` | 1-15 秒 | `480p`、`720p` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`3:2`、`2:3` |
-| `grok-imagine-video-1.5` | 1-15 秒 | `480p`、`720p`、`1080p` | 同上 |
-| `kling-3.0-turbo` | 4-15 秒 | `720p`、`1080p`、`2K`、`4K` | `16:9`、`9:16`、`1:1` |
-| `seedance-2.0官方版`、`seedance-2.0-fast官方版` | 4-15 秒 | 固定 `720p` | `16:9`、`9:16`、`1:1`、`4:3`、`3:4`、`21:9` |
-| `seedance-2.0-mini官方版` | 4-15 秒 | `480p`、`720p` | 同上；不支持首尾帧 |
-| `seedance-2.5官方版` | 4-30 秒 | 固定 `720p` | 同上 |
-| `veo-3.1`、`veo-3.1-fast` | 仅 `4`、`6`、`8` 秒 | `720p`、`1080p`、`4K` | `16:9`、`9:16` |
-| `wan3.0-video`、`wan3.0-video-prime` | 2-30 秒 | `480p`、`720p`、`1080p`；默认 `1080p` | 上述六种常用比例及 `adaptive`；默认 `adaptive` |
-
-Gemini Omni Flash 的最小请求示例：
-
-```json
-{
-  "model": "gemini-omni-flash",
-  "prompt": "海边日落，一只柯基在沙滩上奔跑，镜头缓慢推进",
-  "duration": 5,
-  "resolution": "720p",
-  "ratio": "9:16"
-}
-```
-
-参考图片使用顶层 `images`。Google 视频模型的图片可使用公网 HTTPS 地址或 Base64；Veo 内联图片限 JPEG/PNG，Gemini 另支持 WebP。Google 模型的参考视频使用顶层 `video` 或 `videos`。其他支持参考视频的模型也可使用顶层 `video`/`videos`，本站会转换为对应上游字段。参考音频使用 `metadata.referenceAudios`。首尾帧可使用顶层或 `metadata` 内的 `firstFrame`、`lastFrame`，尾帧不能脱离首帧单独提交。
-
-Wan 3.0 Video 还支持顶层 `media` 数组：
-
-```json
-{
-  "model": "wan3.0-video",
-  "duration": 5,
-  "media": [
-    {"type": "reference_image", "url": "https://example.com/reference.jpg"}
-  ]
-}
-```
-
-`media[].type` 可为 `first_frame`、`last_frame`、`reference_image`、`reference_video` 或 `reference_audio`。首尾帧不能与其他参考媒体混用。每个 88API 任务只生成一条视频，`n` 请省略或设为 `1`；本站使用轮询查询任务，不接受非空 `callback_url`。`generate_audio` 仅可用于上表中实际上游支持音频开关的型号。
-
-#### MiniMax-H3（原平台）
-
-本节适用于平台标识为 `minimax-h3` 的原平台，不适用于优云智算。模型 ID 固定为 `MiniMax-H3`。`input.content` 必填，长度为 1 到 16 项，且必须且只能包含一个非空 `text` 项。其余媒体项使用与 ByteDance 相同的对象形式：
-
-- 图片：`image_url`，`role` 为 `first_frame`、`last_frame` 或 `reference_image`。
-- 视频：`video_url`，`role` 固定为 `reference_video`。
-- 音频：`audio_url`，`role` 固定为 `reference_audio`。
-
-首帧和尾帧各最多一张，参考图最多 9 张，参考视频和参考音频各最多 3 个。首尾帧模式不能与参考媒体混用；只传参考音频无效，必须同时有参考图或参考视频。媒体仅支持可公开访问的 HTTP/HTTPS URL，不支持 Base64。
-
-图片宽、高均须在 `256`～`5760` 像素范围内；例如 `384×216` 的图片会因高度不足被拒绝。请优先上传原图，不要提交素材库缩略图；必要时先等比缩放，例如将 `384×216` 放大到 `512×288` 后重新上传。放大不能恢复原图细节。本站在提交原平台 MiniMax-H3 任务前有限度读取图片头，能确认尺寸不合规时直接返回 HTTP 400，错误中注明 `input.content` 索引和实际尺寸，且不创建任务、不预占费用。探测超时、链接暂不可访问或格式无法识别时，仍由上游完成校验。
-
-`parameters.duration` 必须是 `4` 到 `15` 的整数；`parameters.resolution` 为 `768P` 或 `2K`。`parameters.ratio` 可为 `adaptive`、`21:9`、`16:9`、`4:3`、`1:1`、`3:4` 或 `9:16`：文生视频不能使用 `adaptive`，首尾帧模式按 `adaptive` 处理。可选参数 `aigc_watermark` 为 boolean，默认 `false`。
-
-```json
-{
-  "model": "MiniMax-H3",
-  "input": {
-    "content": [
-      {"type": "text", "text": "水墨画从静止的山水渐变为云雾流动的动态场景"},
-      {
-        "type": "image_url",
-        "image_url": {"url": "https://example.com/first-frame.png"},
-        "role": "first_frame"
-      },
-      {
-        "type": "image_url",
-        "image_url": {"url": "https://example.com/last-frame.png"},
-        "role": "last_frame"
-      }
-    ]
-  },
-  "parameters": {
-    "duration": 10,
-    "resolution": "2K",
-    "ratio": "adaptive",
-    "aigc_watermark": false
-  }
-}
-```
-
-#### MiniMax-H3（优云智算）
-
-本节适用于 `minimax-h3-compshare` 分组的本站 API Key。支持模型 `MiniMax-H3` 和兼容别名 `minimax-h3-lite`，不支持 `MiniMax-Hailuo-2.3`。`minimax-h3-lite` 仅作为本站兼容别名接收，网关提交优云智算上游时会归一为 `MiniMax-H3`，避免上游 lite 能力集不一致导致 `Duration/UseContextIR not available`。
-
-创建任务仍使用 `POST /v1/videos/generations`。新接入推荐使用以下顶层字段：
-
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `model` | string | 建议填写 | `MiniMax-H3` 或 `minimax-h3-lite`；省略时默认使用 `MiniMax-H3`。`minimax-h3-lite` 会按兼容别名处理并归一提交为 `MiniMax-H3`。 |
-| `content` | object[] | 是 | 非空内容数组，元素结构见下表。纯文生视频必须有非空文本；有首尾帧或参考素材时允许不传文本。 |
-| `duration` | integer | 否 | `4`～`30` 秒，默认 `5`。不要传字符串或小数。 |
-| `resolution` | string | 否 | `480P`、`768P`、`1080P`、`2K`、`4K`，默认 `768P`，区分大小写。 |
-| `ratio` | string | 否 | `adaptive`、`21:9`、`16:9`、`4:3`、`1:1`、`3:4`、`9:16`，默认 `16:9`。没有图片时，`adaptive` 按 `16:9` 处理。 |
-| `use_context_ir` | boolean | 否 | 提示词优化开关，默认 `false`；需要优化时显式传 `true`。 |
-| `skill_id` | string | 否 | 已有且当前上游账号可用的 Skill ID，必须同时设置 `use_context_ir=true`。请向本站管理员确认可用 ID。 |
-| `mute_audio` | boolean | 否 | 默认 `false`；传 `true` 移除最终视频的音轨。 |
-| `aigc_watermark` | boolean | 否 | 是否添加 AIGC 水印，默认 `false`。 |
-| `callback_url` | string | 否 | 可从公网访问的绝对 HTTP/HTTPS 回调地址，最多 1024 个字符。 |
-| `callback_token` | string | 否 | 自定义回调校验 Token，最多 512 个字符；使用时必须同时提供 `callback_url`。 |
-
-每个任务仅生成一个视频；`n` 请省略或设为 `1`。`resolution` 传入 `480p`、`720P`、`1080p`、`2k`、`4k` 等非标准值时，按 `768P` 处理。`1080P`、`2K`、`4K` 是三个独立输出档位，不能互相代替。
-
-内容元素：
-
-| `type` | 内容字段 | `role` |
-| --- | --- | --- |
-| `text` | `text` 字符串；允许多段文本，按顺序合并后最多 7000 个字符 | 不传 |
-| `image_url` | `image_url: {"url": "..."}` | `first_frame`（省略时默认）、`last_frame` 或 `reference_image` |
-| `video_url` | `video_url: {"url": "..."}` | `reference_video`（省略时默认） |
-| `audio_url` | `audio_url: {"url": "..."}` | `reference_audio`（省略时默认） |
-
-- 首帧和尾帧各最多 1 张，允许只传尾帧。参考图片最多 9 张，参考视频、参考音频各最多 3 个，参考素材合计最多 12 个。
-- 首尾帧不能与参考素材混用；参考音频不能单独使用，必须同时提供参考图片或参考视频。
-- 媒体支持公网 HTTP/HTTPS URL 和 Data URL。单个图片、视频、音频的上游文件上限分别为 30、50、15 MiB；实际格式和可访问性由上游进一步校验。JSON 请求体最大为 72 MiB，站点部署可能配置更小的请求体限制。
-
-创建请求示例（其中 Key 为本站分组 Key）：
-
-```bash
-curl https://YOUR_SITE/v1/videos/generations \
-  -H "Authorization: Bearer YOUR_COMPSHARE_GROUP_API_KEY" \
-  -H "Content-Type: application/json" \
-  -H "Idempotency-Key: h3-compshare-request-001" \
-  -d '{
-    "model": "MiniMax-H3",
-    "content": [
-      {"type": "text", "text": "晨光照亮湖面，镜头缓慢向前推进"},
-      {"type": "text", "text": "保留自然环境声音，画面平稳"}
-    ],
-    "duration": 10,
-    "resolution": "1080P",
-    "ratio": "16:9",
-    "use_context_ir": false,
-    "mute_audio": false
-  }'
-```
-
-首帧生视频时，将 `content` 换成以下内容即可：
-
-```json
-[
-  {"type": "text", "text": "画面中的人物缓慢转头，背景树叶随风摆动"},
-  {
-    "type": "image_url",
-    "image_url": {"url": "https://example.com/first-frame.png"},
-    "role": "first_frame"
-  }
-]
-```
-
-兼容旧调用时，可以使用 `input.content`，以及 `parameters.duration`、`parameters.resolution`、`parameters.ratio` 等对应参数；纯文生视频也可只传 `prompt`。新旧位置不要重复传入相同参数。此兼容不代表所有旧平台字段都能透传，尤其是媒体数组和音频开关应按本节填写。
-
-回调参数会转交上游处理。回调正文采用 `{"task": {...}}` 结构，原始状态为 `queued`、`running`、`succeeded`、`failed` 或 `cancelled`；设置 `callback_token` 后，接收端应校验 `X-Callback-Token`，不要把本站 API Key 当作回调 Token。回调可能重复，接收端应按任务 ID 和状态做幂等处理。收到回调后仍可查询本站任务接口；本站的轮询与账单结算独立进行，回调不代表本站已经结算完成。
-
-本站当前未对下游开放此平台的 Skill 创建/修改/删除、公司任务列表、积分余额和积分套餐管理接口。下游无需也不应改为直接调用服务商接口。
-
-#### MiniMax-Hailuo-2.3
-
-模型 ID 固定为 `MiniMax-Hailuo-2.3`，与原平台的 `MiniMax-H3` 共用后台 `minimax-h3` 平台账号，但请求参数和输入结构相互独立。优云智算平台不支持此模型。
-
-- 文生视频：`input.prompt` 必填。
-- 图生视频：在 `input` 中增加 `first_frame_image`，支持公开 HTTP/HTTPS 图片 URL 或 `data:image/...;base64,...`。
-- `input.prompt` 最长 2000 个字符；源图片格式、大小、尺寸和宽高比由上游进一步校验。
-- `parameters.duration` 只能是 `6` 或 `10`；`6` 秒支持 `768P`、`1080P`，`10` 秒仅支持 `768P`。
-- `parameters.resolution` 可为 `768P` 或 `1080P`。可选参数 `prompt_optimizer` 默认 `true`、`fast_pretreatment` 默认 `false`、`aigc_watermark` 默认 `false`。
-
-文生视频请求：
-
-```json
-{
-  "model": "MiniMax-Hailuo-2.3",
-  "input": {
-    "prompt": "A beautiful sunset over the ocean with waves gently crashing on the shore. [推进, 跟随]"
-  },
-  "parameters": {
-    "duration": 6,
-    "resolution": "1080P",
-    "prompt_optimizer": true,
-    "fast_pretreatment": false,
-    "aigc_watermark": false
-  }
-}
-```
-
-图生视频请求：
-
-```json
-{
-  "model": "MiniMax-Hailuo-2.3",
-  "input": {
-    "first_frame_image": "https://example.com/first-frame.jpg",
-    "prompt": "A mouse runs toward the camera, smiling and blinking. [推进, 跟随]"
-  },
-  "parameters": {
-    "duration": 10,
-    "resolution": "768P"
-  }
-}
-```
-
-#### Pixverse-V6
-
-模型 ID 固定为 `pixverse-v6`，`input.prompt` 必填。可选输入为：
-
-- `input.first_frame_url` 和 `input.last_frame_url`：首尾帧必须同时提供，支持公开图片 URL 或 `data:image/...;base64,...`。
-- `input.img_url`：参考图，支持公开图片 URL 或 `data:image/...;base64,...`。
-- `input.video_url`：视频延长输入，仅支持公开 HTTP/HTTPS URL。
-
-`parameters.duration` 必须是 `1` 到 `15` 的整数；`parameters.resolution` 可为 `360p`、`540p`、`720p` 或 `1080p`，默认 `720p`。纯文生视频可传 `parameters.aspect_ratio`，可选 `16:9`、`4:3`、`1:1`、`3:4`、`9:16`、`2:3`、`3:2` 或 `21:9`；带任一图片或视频输入时，该字段不会生效。`generate_audio` 为 boolean 音频开关，默认 `true`（with_audio，有声音），传 `false` 可关闭声音；`seed` 可选，取值范围为 `0` 至 `2147483647`。
-
-```json
-{
-  "model": "pixverse-v6",
-  "input": {
-    "prompt": "一只纸鹤从书桌上起飞，穿过窗外的晚霞",
-    "img_url": "https://example.com/reference.jpg"
-  },
-  "parameters": {
-    "duration": 5,
-    "resolution": "720p",
-    "generate_audio": true
-  }
-}
-```
-
-#### Grok Imagine Video
-
-模型 ID 固定为 `grok-imagine-video`，仅支持图生和参考生视频，不支持纯文生视频。`input.prompt` 必填，并且必须在以下两种输入中二选一：
-
-- `input.img_url`：单张参考图片的 HTTP/HTTPS URL。
-- `input.reference_urls`：一张或多张参考图片的 HTTP/HTTPS URL 数组。
-
-二者不能同时传。`parameters.duration` 为 `1` 至 `15` 的整秒；`parameters.resolution` 仅支持 `480p`、`720p`；`parameters.aspect_ratio` 支持 `1:1`、`16:9`、`9:16`、`4:3`、`3:4`、`3:2`、`2:3`。
-
-```json
-{
-  "model": "grok-imagine-video",
-  "input": {
-    "prompt": "让画面中的纸鹤振翅飞过晚霞",
-    "img_url": "https://example.com/reference.png"
-  },
-  "parameters": {
-    "duration": 5,
-    "resolution": "720p",
-    "aspect_ratio": "9:16"
-  }
-}
-```
-
-#### 图片输入规则
-
-Seedance 请求必须在下面两种模式中二选一：
-
-- **参考图模式**：使用 `images`（推荐）或兼容字段 `image`、`image_url` 之一。三个字段不能混传。`images` 中的多张图应是同一角色的不同角度或细节补充；图片顺序不代表人物身份或画风的优先级，也不保证锁定人物身份。
-- **首尾帧模式**：使用 `start_frame_url` 和可选的 `end_frame_url` 控制视频首尾画面。该模式不能同时传任何参考图字段。
-
-这项限制用于避免上游在“人物参考”和“首帧/尾帧控制”之间自行选择主输入，从而造成角色身份或 3D/真人画风漂移。若目标是保持人物一致性，请只传同一角色的参考图，并在 `prompt` 中明确要求保持角色身份、材质和画风。
-
-#### 文生视频示例
+### 文生视频示例
 
 ```bash
 curl -X POST https://YOUR_SITE/v1/videos/generations \
@@ -609,7 +98,7 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
   }'
 ```
 
-#### 带参考素材示例
+### 带参考素材示例
 
 ```bash
 curl -X POST https://YOUR_SITE/v1/videos/generations \
@@ -626,7 +115,7 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
   }'
 ```
 
-#### 创建响应
+### 创建响应
 
 ```json
 {
@@ -641,18 +130,12 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
 
 `id` 和 `task_id` 含义相同，都是后续查询任务使用的任务 ID。创建响应也可能返回 `submitted` 或上游原始状态，客户端应继续轮询直到成功或失败。
 
-### 查询任务状态
+## 3. 查询任务状态
 
 推荐接口：
 
 ```http
 GET /v1/videos/{task_id}
-```
-
-兼容旧接口：
-
-```http
-GET /v1/video/generations/{task_id}
 ```
 
 示例：
@@ -698,76 +181,13 @@ curl https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
 
 响应中可能包含额外上游字段，客户应只依赖本文档列出的稳定字段。
 
-优云智算也使用顶层 `task_id`、`status` 和 `video_url`。创建成功先返回 `processing`；查询成功且拿到最终视频 URL 后才返回 `succeeded`。上游的 `queued`、`running` 统一映射为 `processing`，`cancelled` 映射为 `failed`。不要仅凭保留的上游状态判定本站任务成功。
-
-优云智算查询响应还保留原始 `task` 对象，可从 `task.content.url` 获取成功视频地址，从 `task.error.message` 查看失败原因。`task.resolution` 是实际交付分辨率；若请求 `1080P`、`2K` 或 `4K` 后超分失败，可能返回 `768P`。本站统一 `usage.resolution` 使用小写，如 `768p`、`2k`；请求时仍应使用本节规定的大写值。
-
-### 取消优云智算视频任务
-
-```bash
-curl -X DELETE https://YOUR_SITE/v1/videos/task_xxxxxxxxxxxx \
-  -H "Authorization: Bearer YOUR_COMPSHARE_GROUP_API_KEY"
-```
-
-使用创建任务时的本站 API Key 和任务 ID。已结束任务不能再次取消。本节取消能力适用于 `minimax-h3-compshare`，原 `minimax-h3` 平台不支持此操作。
-
-取消接口直接返回任务 ID、操作和上游当前状态，例如：
-
-```json
-{"task_id": "task_xxxxxxxxxxxx", "action": "delete", "status": "cancelled"}
-```
-
-若返回 `"status": "running"`，仅表示取消请求已提交，任务尚未停止。继续调用 `GET /v1/videos/{task_id}`，等待本站返回终态；此时预占余额仍保留，不能提前视为已退款。后续查询中的已取消任务使用统一状态 `failed`。
-
-### 下载或播放视频
+## 4. 下载或播放视频
 
 任务成功后返回的 `video_url` 是本站或上游媒体代理地址，可能不会以 `.mp4` 结尾。客户端应根据 HTTP `Content-Type` 或播放器的媒体探测能力处理视频，不要通过文件扩展名判断格式。
 
-部分上游（尤其是 Wan3.0）返回的是带 OSS 签名参数的临时 URL。签名参数中的
-`Signature` 可能包含标准 Base64 字符 `+`、`/` 和 `=`，客户端或媒体代理必须保留
-URL 的完整内容：
+签名 URL 的注意事项见 [进阶说明](video-api/advanced.md)。
 
-- 如果把视频 URL 放入代理接口的查询参数，必须对完整 URL 进行一次 URL 编码，例如
-  JavaScript 使用 `encodeURIComponent(videoURL)`；不要直接拼接
-  `?url=`。
-- 服务端只解码外层参数一次，不要对已经解码的完整 URL 再次 `QueryEscape` 或重新
-  拼接其签名查询参数。
-- 更推荐使用 POST JSON 传递 `{ "url": "..." }`，避免嵌套查询参数解析时把
-  `+` 误解为空格。
-- 该 URL 具有有效期，过期后应重新查询任务状态获取新的 `video_url`，不要缓存旧的
-  OSS 签名 URL。
-
-### 计费与退款
-
-视频生成按本站配置的价格计费，下游无需使用上游积分计价。本站创建和查询接口保持统一；切换平台分组时，仍需核对对应平台的模型、参数和价格规则。
-
-本站当前处理规则：
-
-- 创建任务时按预计用量预占余额；任务成功后按实际生成结果结算。
-- 任务失败、取消或超时会释放预占金额，失败请求不产生视频费用。
-- 任务成功但上游没有返回实际输出时长时，按提交时的输出时长结算。
-- 具体计费模型如下：
-
-| 平台 | 计费规则 |
-| --- | --- |
-| Seedance | 按输出视频秒数计费，单价取本站该 API Key 所属分组的原有视频价格配置。`480p`、`720p`、`1080p` 分别使用对应价格，`4K` 使用 `1080p` 价格。 |
-| K-Ling | 按输出视频秒数计费，单价取本站该 API Key 所属分组的原有视频价格配置。2x 使用 `720p` 价格，2x Pro 和 4K 使用 `1080p` 价格。 |
-| Happy Horse | 按输出视频秒数计费，720p/1080p 分别取本站该 API Key 所属分组的 `720p`/`1080p` 视频价格。 |
-| ByteDance | 按输出视频秒数计费。`480p`、`720p`、`1080p` 分别使用分组对应价档，`4K` 使用 `1080p` 价档。 |
-| Wan3.0 | 按输出视频秒数计费。`480P`、`720P`、`1080P` 分别使用分组对应价档。 |
-| OPONE Seedance | 使用渠道中精确模型的 `per_request`（按次）或 `video`（按秒）价格，可按分辨率配置价档。`seedance-2.5-s5` 按秒时额外计入参考视频时长。 |
-| MiniMax-H3（原平台） | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`2K` 使用分组 `1080p` 价档。 |
-| MiniMax-H3（优云智算） | 按输出视频秒数及五档分辨率分别计费，使用当前分组配置的美元/秒售价。请求 1080P/2K/4K 后实际降级为 768P 时，按创建任务时保存的 768P 单价结算。 |
-| MiniMax-Hailuo-2.3 | 按输出视频秒数计费。`768P` 使用分组 `720p` 价档，`1080P` 使用分组 `1080p` 价档。 |
-| Pixverse-V6 | 按输出视频秒数计费。`360p` 使用分组 `480p` 价档；`540p` 和 `720p` 使用分组 `720p` 价档；`1080p` 使用分组 `1080p` 价档。 |
-
-- K-Ling 的价格档位由请求中的 `mode` 决定；音频参数不改变本站的站内单价。
-- 上述基础费用还会叠加本站分组倍率、视频独立倍率（如果启用）和账号倍率。
-- `videos`、`audios`、`input_video_duration`、输出宽高和帧率等字段会按上游能力透传，但不会改变本站的按秒计费结果。
-
-优云智算没有预设的对外售价。所选分辨率和 768P 的分组价格未配置时，创建请求会被拒绝，请联系本站管理员配置。创建任务时保存所选档位和 768P 的单价，后续修改价格不会改变进行中任务的这两项单价；无需由下游传入价格。取消请求返回 `running` 时不会立即释放预占金额，最终取消或失败后才释放。
-
-### Python 轮询示例
+## 5. 完整示例（Python）
 
 ```python
 import time
@@ -813,7 +233,23 @@ while True:
     time.sleep(5)
 ```
 
-### 常见错误
+## 6. 计费与退款
+
+视频生成按本站公布的价格计费，价格以积分计，具体单价请在控制台「模型与价格」页面查看；下游无需使用上游计价。本站创建和查询接口保持统一；切换平台分组时，仍需核对对应平台的模型、参数和价格。
+
+本站当前处理规则：
+
+- 创建任务时按预计用量预占余额；任务成功后按实际生成结果结算。
+- 任务失败、取消或超时会释放预占金额，失败请求不产生视频费用。
+- 任务成功但上游没有返回实际输出时长时，按提交时的输出时长结算。
+- 不同模型按输出视频秒数计费（按秒）或按次计费（按次），采用哪种方式以及各分辨率档位的单价，以「模型与价格」页面为准。
+- MiniMax-H3 请求 `1080P`、`2K` 或 `4K` 后若实际降级为 `768P`，按 `768P` 的价格结算。创建任务时会锁定所选档位的价格，之后的价格调整不影响进行中的任务；无需由下游传入价格。
+- 取消请求返回 `running` 时不会立即释放预占金额，最终取消或失败后才释放。
+- `videos`、`audios`、`input_video_duration`、输出宽高和帧率等字段会按上游能力透传，但不会改变本站的按秒计费结果。
+- 若所选模型或分辨率档位暂未开通价格，创建请求会被拒绝，请联系本站。
+- 实际扣费以任务创建时的报价和使用记录为准。
+
+## 7. 常见错误
 
 | HTTP 状态 | 场景 | 处理方式 |
 | --- | --- | --- |
@@ -823,3 +259,14 @@ while True:
 | `404` | 当前 API Key 分组不支持视频接口，或任务不存在 | 检查 API Key 分组和任务 ID。 |
 | `409` | `Idempotency-Key` 被不同请求复用 | 使用新的唯一 key。 |
 | `502` | 上游服务调用失败 | 稍后重试或调整模型能力范围内的参数。 |
+
+## 8. 更多文档
+
+- [Seedance（doubao 系列）](video-api/doubao-seedance.md)
+- [Seedance（其他型号）](video-api/seedance-series.md)
+- [Wan3.0](video-api/wan.md)
+- [综合视频模型](video-api/general-models.md)
+- [MiniMax-H3](video-api/minimax-h3.md)（含取消任务）
+- [Pixverse-V6](video-api/pixverse.md)
+- [进阶说明](video-api/advanced.md)（兼容旧接口、更多请求字段、图片输入规则、签名 URL）
+- [Qwen TTS 语音合成接口](QWEN_TTS_API.md)

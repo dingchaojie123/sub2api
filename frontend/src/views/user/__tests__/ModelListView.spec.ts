@@ -74,15 +74,49 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain(`显示 ${modelSquareCatalog.length} / ${modelSquareCatalog.length}`)
   })
 
-  it('keeps legacy CNY-priced models alongside the credit-priced ones', () => {
+  it('shows the previously CNY-quoted models in credits with the numbers unchanged', () => {
     const wrapper = renderView()
+    const price = (id: string, label: string) =>
+      modelSquareCatalog.find((item) => item.id === id)?.prices.find((tier) => tier.label === label)?.amount
 
     expect(wrapper.text()).toContain('Pixverse-V6')
-    expect(wrapper.text()).toContain('¥0.72')
+    expect(wrapper.text()).toContain('0.72')
     expect(wrapper.text()).toContain('7 折')
+    expect(price('tiktok-seedance-2.0-9-3-0', '720P')).toBe('3.36')
+    expect(price('tiktok-seedance-2.5-face', '1080P')).toBe('17.00')
+    expect(price('tiktok-seedance-2.5-full', '720P')).toBe('0.80')
+    expect(price('legacy-kling-3.0-turbo', '720P')).toBe('1.30')
   })
 
-  it('prices image models in credits (¥1 = 1.62 credits)', () => {
+  it('prices MiniMax per second at 480P 0.30, 768P 0.40, 1080P 0.60, 2K 1.00, 4K 2.00 credits', () => {
+    const minimax = modelSquareCatalog.find((item) => item.id === 'legacy-minimax')
+
+    expect(minimax?.prices.map((tier) => [tier.label, tier.amount, tier.suffix])).toEqual([
+      ['480P', '0.30', '积分 / 秒'],
+      ['768P', '0.40', '积分 / 秒'],
+      ['1080P', '0.60', '积分 / 秒'],
+      ['2K', '1.00', '积分 / 秒'],
+      ['4K', '2.00', '积分 / 秒'],
+    ])
+    expect(minimax?.specs.find((row) => row.label === '分辨率')?.value).toBe('480P / 768P / 1080P / 2K / 4K')
+  })
+
+  it('uses a single unit: no card or spec mentions yuan any more', () => {
+    const wrapper = renderView()
+    expect(wrapper.text()).not.toContain('¥')
+
+    modelSquareCatalog
+      .filter((item) => item.category !== 'text')
+      .forEach((item) => {
+        item.prices.forEach((tier) => {
+          expect(tier.suffix, `${item.name} ${tier.label}`).toMatch(/^积分 \/ (次|秒|张)$/)
+          expect(tier.amount, `${item.name} ${tier.label}`).toMatch(/^\d+(\.\d{1,2})?$/)
+        })
+        item.specs.forEach((row) => expect(row.value, `${item.name} ${row.label}`).not.toContain('¥'))
+      })
+  })
+
+  it('prices image models in credits', () => {
     const wrapper = renderView()
     const imageCards = modelSquareCatalog.filter((item) => item.category === 'image')
 
@@ -109,6 +143,21 @@ describe('ModelListView', () => {
 
     await wrapper.get('[data-testid="model-filter-clear"]').trigger('click')
     expect(wrapper.findAll('[data-testid="model-card"]')).toHaveLength(modelSquareCatalog.length)
+  })
+
+  it('merges the former TikTok subsidy channel into the 特价 channel', async () => {
+    const wrapper = renderView()
+    const tiktokItems = modelSquareCatalog.filter((item) => item.id.startsWith('tiktok-'))
+
+    expect(tiktokItems).toHaveLength(6)
+    tiktokItems.forEach((item) => expect(item.channel, item.name).toBe('特价'))
+    expect(modelSquareCatalog.some((item) => item.channel.includes('补贴'))).toBe(false)
+    expect(wrapper.find('[data-testid="filter-channel-TikTok 补贴"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="filter-channel-特价"]').setValue(true)
+    const special = modelSquareCatalog.filter((item) => item.channel === '特价')
+    expect(special.length).toBeGreaterThanOrEqual(15)
+    expect(wrapper.findAll('[data-testid="model-card"]')).toHaveLength(special.length)
   })
 
   it('opens the detail dialog with all price tiers and specs', async () => {

@@ -92,18 +92,18 @@
       <!-- 列表 -->
       <section class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[960px] border-collapse text-sm">
+          <table class="w-full min-w-[1180px] border-collapse text-sm">
             <thead>
               <tr class="bg-gray-50 text-left text-xs font-semibold text-gray-500 dark:bg-gray-900/40 dark:text-gray-400">
-                <th class="px-5 py-3.5">{{ t('videoTasks.columns.taskId') }}</th>
-                <th class="px-4 py-3.5">{{ t('videoTasks.columns.model') }}</th>
-                <th class="px-4 py-3.5">{{ t('videoTasks.columns.status') }}</th>
-                <th class="px-4 py-3.5">{{ t('videoTasks.columns.prompt') }}</th>
-                <th class="px-4 py-3.5 text-center">{{ t('videoTasks.columns.outputCount') }}</th>
-                <th class="px-4 py-3.5">{{ t('videoTasks.columns.createdAt') }}</th>
-                <th class="px-4 py-3.5">{{ t('videoTasks.columns.totalTime') }}</th>
-                <th class="px-4 py-3.5 text-right">{{ t('videoTasks.columns.charged') }}</th>
-                <th class="px-5 py-3.5 text-right">{{ t('videoTasks.columns.actions') }}</th>
+                <th class="min-w-[220px] whitespace-nowrap px-5 py-3.5">{{ t('videoTasks.columns.taskId') }}</th>
+                <th class="min-w-[170px] whitespace-nowrap px-4 py-3.5">{{ t('videoTasks.columns.model') }}</th>
+                <th class="whitespace-nowrap px-4 py-3.5">{{ t('videoTasks.columns.status') }}</th>
+                <th class="min-w-[240px] whitespace-nowrap px-4 py-3.5">{{ t('videoTasks.columns.prompt') }}</th>
+                <th class="whitespace-nowrap px-4 py-3.5 text-center">{{ t('videoTasks.columns.outputCount') }}</th>
+                <th class="whitespace-nowrap px-4 py-3.5">{{ t('videoTasks.columns.createdAt') }}</th>
+                <th class="whitespace-nowrap px-4 py-3.5">{{ t('videoTasks.columns.totalTime') }}</th>
+                <th class="whitespace-nowrap px-4 py-3.5 text-right">{{ t('videoTasks.columns.charged') }}</th>
+                <th class="whitespace-nowrap px-5 py-3.5 text-right">{{ t('videoTasks.columns.actions') }}</th>
               </tr>
             </thead>
             <tbody v-if="tasks.length">
@@ -131,18 +131,18 @@
                     </button>
                   </div>
                 </td>
-                <td class="px-4 py-4 font-medium text-gray-900 dark:text-gray-100">{{ task.model }}</td>
-                <td class="px-4 py-4">
+                <td class="min-w-[170px] max-w-[260px] break-words px-4 py-4 font-medium text-gray-900 dark:text-gray-100">{{ task.model }}</td>
+                <td class="whitespace-nowrap px-4 py-4">
                   <span
-                    class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold"
+                    class="inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold"
                     :class="toneClass(task.status)"
                     data-testid="video-task-status"
                   >{{ statusLabel(task.status) }}</span>
                 </td>
-                <td class="px-4 py-4 text-gray-600 dark:text-gray-300">
+                <td class="min-w-[240px] px-4 py-4 text-gray-600 dark:text-gray-300">
                   <span class="block max-w-[320px] truncate" :title="task.prompt">{{ task.prompt || '-' }}</span>
                 </td>
-                <td class="px-4 py-4 text-center tabular-nums text-gray-800 dark:text-gray-100">{{ task.output_count }}</td>
+                <td class="whitespace-nowrap px-4 py-4 text-center tabular-nums text-gray-800 dark:text-gray-100">{{ task.output_count }}</td>
                 <td class="whitespace-nowrap px-4 py-4 tabular-nums text-gray-500 dark:text-gray-400">
                   {{ formatDateTime(task.created_at) }}
                 </td>
@@ -159,10 +159,10 @@
                   </span>
                   <span v-else class="text-gray-300 dark:text-gray-600">-</span>
                 </td>
-                <td class="px-5 py-4 text-right">
+                <td class="whitespace-nowrap px-5 py-4 text-right">
                   <button
                     type="button"
-                    class="inline-flex h-9 items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                    class="inline-flex h-9 items-center whitespace-nowrap rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                     data-testid="video-task-detail-button"
                     @click="openDetail(task)"
                   >
@@ -273,11 +273,15 @@
               </div>
 
               <div
-                v-if="selected.status === 'failed' && selected.error_message"
+                v-if="selected.status === 'failed'"
                 class="rounded-xl border border-red-100 bg-red-50/70 p-4 dark:border-red-900/40 dark:bg-red-900/10"
+                data-testid="drawer-failure"
               >
                 <p class="text-xs text-red-500">{{ t('videoTasks.detail.error') }}</p>
-                <p class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-red-700 dark:text-red-300">{{ selected.error_message }}</p>
+                <p
+                  class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-red-700 dark:text-red-300"
+                  data-testid="drawer-failure-reason"
+                >{{ selected.error_message || t('videoTasks.detail.errorUnknown') }}</p>
               </div>
 
               <div

@@ -160,6 +160,7 @@ export default {
     batchImage: 'Batch Images',
     usage: 'Usage',
     videoTasks: 'Video Tasks',
+    apiDocs: 'API Docs',
     modelList: 'Model List',
     redeem: 'Redeem',
     lottery: 'Lucky Wheel',

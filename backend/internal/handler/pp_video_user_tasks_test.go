@@ -76,6 +76,32 @@ func TestUserVideoTaskFromRecord_FailedTaskHasNoOutputAndIsRefunded(t *testing.T
 	require.Equal(t, "boom", got.ErrorMessage)
 }
 
+func TestUserVideoTaskFromRecord_RecoversTheFailureReasonFromTheStoredResponse(t *testing.T) {
+	got := userVideoTaskFromRecord(&service.PPVideoTaskRecord{
+		LocalTaskID:         "ppvidtask_6",
+		Platform:            service.PlatformGuangying,
+		Status:              "failed",
+		BillingStatus:       service.PPVideoBillingStatusReleased,
+		HoldAmount:          2.24,
+		FailureResponseBody: `{"data":{"status":"failed","message":"generation failed"}}`,
+		CreatedAt:           time.Now(),
+	})
+
+	require.Equal(t, service.PPVideoTaskStatusFailed, got.Status)
+	require.Equal(t, "generation failed", got.ErrorMessage)
+}
+
+func TestUserVideoTaskFromRecord_NoReasonAnywhereLeavesTheMessageEmpty(t *testing.T) {
+	got := userVideoTaskFromRecord(&service.PPVideoTaskRecord{
+		LocalTaskID:         "ppvidtask_7",
+		Status:              "failed",
+		FailureResponseBody: `{"status":"failed"}`,
+		CreatedAt:           time.Now(),
+	})
+
+	require.Equal(t, "", got.ErrorMessage)
+}
+
 func TestUserVideoTaskFromRecord_SubmittingCountsAsProcessingAndCannotPlay(t *testing.T) {
 	got := userVideoTaskFromRecord(&service.PPVideoTaskRecord{
 		LocalTaskID: "ppvidtask_3",

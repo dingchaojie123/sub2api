@@ -16,6 +16,11 @@ docs/
 # Docker build context even though docs/ is otherwise excluded.
 !docs/legal/
 !docs/legal/*.md
+# ApiDocsView (接入文档) build-time imports these customer-facing API docs. docs/internal/ stays excluded.
+!docs/PP_VIDEO_GENERATION_API.md
+!docs/QWEN_TTS_API.md
+!docs/video-api/
+!docs/video-api/*.md
 
 # IDE
 .idea/

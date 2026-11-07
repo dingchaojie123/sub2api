@@ -71,9 +71,13 @@ type PPVideoTaskRecord struct {
 	ActualCost                         *float64
 	LastErrorCode                      string
 	LastErrorMessage                   string
-	CreatedAt                          time.Time
-	FinishedAt                         *time.Time
-	SettledAt                          *time.Time
+
+	// FailureResponseBody 只在任务失败且没有记录错误信息时才有值：保存的上游响应前 8KB，
+	// 仅用于从中提取失败原因，不会原样对外返回。
+	FailureResponseBody string
+	CreatedAt           time.Time
+	FinishedAt          *time.Time
+	SettledAt           *time.Time
 }
 
 // PPVideoTaskQueryRepository 是任务记录页需要的可选仓储能力。

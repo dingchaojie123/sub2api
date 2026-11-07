@@ -544,7 +544,7 @@ export default {
     searchPlaceholder: '搜索模型、分辨率或计费方式',
     emptyTitle: '未找到匹配模型',
     emptyDescription: '请调整搜索关键词或筛选条件。',
-    availabilityNote: '价格单位以各报价所示为准（积分或人民币）；展示价格仅供估算，实际扣费以任务创建时的报价和使用记录为准。',
+    availabilityNote: '所有价格均以积分计价；展示价格仅供估算，实际扣费以任务创建时的报价和使用记录为准。',
     filters: {
       title: '筛选模型',
       showing: '显示 {shown} / {total}',
@@ -564,6 +564,19 @@ export default {
       prices: '用户价格',
       pricesHint: '以下为展示价格，实际扣款可在使用记录中查看。'
     }
+  },
+
+  apiDocs: {
+    title: '接入文档',
+    description: '本站视频生成与语音合成接口的调用说明。',
+    languageNote: '接入文档以中文撰写。',
+    docs: '文档',
+    toc: '本页目录',
+    copy: '复制',
+    copied: '已复制代码',
+    notFoundTitle: '没有找到这篇文档',
+    notFoundDescription: '链接可能已过期，请从左侧文档列表重新选择。',
+    backToStart: '回到快速开始'
   },
 
   videoTasks: {
@@ -620,6 +633,7 @@ export default {
       prompt: '提示词摘要',
       noPrompt: '未记录提示词',
       error: '失败原因',
+      errorUnknown: '上游没有返回具体的失败原因。',
       result: '生成结果',
       resultIndex: '第 {index} 个结果',
       loadingVideo: '正在加载视频…',

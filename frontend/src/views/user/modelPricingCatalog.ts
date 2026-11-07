@@ -33,7 +33,7 @@ export const categoryLabels: Record<ModelCategoryId, string> = {
   text: '文本',
 }
 
-export const channelOrder = ['官方', '官key', '官转', '特价', '常规', 'TikTok 补贴']
+export const channelOrder = ['官方', '官key', '官转', '特价', '常规']
 
 export const billingOrder = ['按次', '按秒', '按分辨率', '按张', '按 Token']
 
@@ -41,12 +41,6 @@ const credit = (label: string, amount: string, unit: '次' | '秒' | '张'): Mod
   label,
   amount,
   suffix: `积分 / ${unit}`,
-})
-
-const yuan = (label: string, amount: string, unit: '次' | '秒'): ModelPriceTier => ({
-  label,
-  amount: `¥${amount}`,
-  suffix: `/ ${unit}`,
 })
 
 const spec = (label: string, value: string): ModelSpec => ({ label, value })
@@ -528,7 +522,7 @@ const legacyVideoModels: ModelSquareItem[] = [
     billing: '按秒',
     iconModel: 'grok',
     description: 'Grok Imagine 视频生成（官 key 渠道），按生成时长和分辨率计费。',
-    prices: [yuan('480P', '0.18', '秒'), yuan('720P', '0.24', '秒')],
+    prices: [credit('480P', '0.18', '秒'), credit('720P', '0.24', '秒')],
     specs: [spec('分辨率', '480P / 720P')],
   },
   {
@@ -539,7 +533,7 @@ const legacyVideoModels: ModelSquareItem[] = [
     billing: '按秒',
     iconModel: 'kling',
     description: 'Kling 3.0 Turbo 视频生成，按生成时长计费。',
-    prices: [yuan('720P', '1.30', '秒')],
+    prices: [credit('720P', '1.30', '秒')],
     specs: [spec('分辨率', '720P')],
   },
   {
@@ -551,13 +545,13 @@ const legacyVideoModels: ModelSquareItem[] = [
     iconModel: 'minimax',
     description: 'MiniMax 视频生成，按生成时长和分辨率计费。',
     prices: [
-      yuan('480P', '0.10', '秒'),
-      yuan('720P', '0.24', '秒'),
-      yuan('1080P', '0.36', '秒'),
-      yuan('2K', '0.60', '秒'),
-      yuan('4K', '1.20', '秒'),
+      credit('480P', '0.30', '秒'),
+      credit('768P', '0.40', '秒'),
+      credit('1080P', '0.60', '秒'),
+      credit('2K', '1.00', '秒'),
+      credit('4K', '2.00', '秒'),
     ],
-    specs: [spec('分辨率', '480P / 720P / 1080P / 2K / 4K')],
+    specs: [spec('分辨率', '480P / 768P / 1080P / 2K / 4K')],
   },
   {
     id: 'legacy-pixverse-v6',
@@ -567,7 +561,7 @@ const legacyVideoModels: ModelSquareItem[] = [
     billing: '按秒',
     iconModel: 'pixverse',
     description: 'Pixverse V6 视频生成，按生成时长和分辨率计费。',
-    prices: [yuan('480P', '0.30', '秒'), yuan('720P', '0.48', '秒'), yuan('1080P', '0.72', '秒')],
+    prices: [credit('480P', '0.30', '秒'), credit('720P', '0.48', '秒'), credit('1080P', '0.72', '秒')],
     specs: [spec('分辨率', '480P / 720P / 1080P')],
   },
 ]
@@ -577,70 +571,70 @@ const subsidizedVideoModels: ModelSquareItem[] = [
     id: 'tiktok-seedance-2.0-9-3-0',
     name: 'seedance-2.0 · 9图 / 3视频 / 0音频',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按次',
     iconModel: 'doubao',
-    description: 'Seedance 2.0 补贴模型，参考 9 图 / 3 视频 / 0 音频，按次计费。',
-    prices: [yuan('720P', '3.36', '次')],
-    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 ¥0.22 / 秒')],
+    description: 'Seedance 2.0 特价模型，参考 9 图 / 3 视频 / 0 音频，按次计费。',
+    prices: [credit('720P', '3.36', '次')],
+    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 0.22 积分 / 秒')],
   },
   {
     id: 'tiktok-seedance-2.0-9-0-3',
     name: 'seedance-2.0 · 9图 / 0视频 / 3音频',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按次',
     iconModel: 'doubao',
-    description: 'Seedance 2.0 补贴模型，参考 9 图 / 0 视频 / 3 音频，按次计费。',
-    prices: [yuan('720P', '3.36', '次')],
-    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 ¥0.22 / 秒')],
+    description: 'Seedance 2.0 特价模型，参考 9 图 / 0 视频 / 3 音频，按次计费。',
+    prices: [credit('720P', '3.36', '次')],
+    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 0.22 积分 / 秒')],
   },
   {
     id: 'tiktok-seedance-2.0-9-0-3-real',
     name: 'seedance-2.0 · 9图 / 0视频 / 3音频 · 原生过真人',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按次',
     iconModel: 'doubao',
-    description: 'Seedance 2.0 补贴模型，参考 9 图 / 0 视频 / 3 音频，原生过真人，按次计费。',
-    prices: [yuan('720P', '4.70', '次')],
-    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 ¥0.31 / 秒')],
+    description: 'Seedance 2.0 特价模型，参考 9 图 / 0 视频 / 3 音频，原生过真人，按次计费。',
+    prices: [credit('720P', '4.70', '次')],
+    specs: [spec('分辨率', '720P'), spec('时长', '15 秒'), spec('折合价格', '约 0.31 积分 / 秒')],
   },
   {
     id: 'tiktok-seedance-2.5-face',
     name: 'seedance-2.5 · 满参过人脸（参考视频不能真人）',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按次',
     iconModel: 'doubao',
-    description: 'Seedance 2.5 补贴模型，满参过人脸（参考视频不能真人），按次计费。',
-    prices: [yuan('720P', '14.00', '次'), yuan('1080P', '17.00', '次')],
+    description: 'Seedance 2.5 特价模型，满参过人脸（参考视频不能真人），按次计费。',
+    prices: [credit('720P', '14.00', '次'), credit('1080P', '17.00', '次')],
     specs: [
       spec('分辨率', '720P / 1080P'),
       spec('时长', '30 秒'),
-      spec('折合价格', '720P 约 ¥0.46 / 秒；1080P 约 ¥0.56 / 秒'),
+      spec('折合价格', '720P 约 0.46 积分 / 秒；1080P 约 0.56 积分 / 秒'),
     ],
   },
   {
     id: 'tiktok-seedance-2.5-full',
     name: 'seedance-2.5 · 满参 30图 / 10视频 / 10音频',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按秒',
     iconModel: 'doubao',
-    description: 'Seedance 2.5 补贴模型，满参考 30 图 / 10 视频 / 10 音频，按生成秒数计费。',
-    prices: [yuan('720P', '0.80', '秒')],
+    description: 'Seedance 2.5 特价模型，满参考 30 图 / 10 视频 / 10 音频，按生成秒数计费。',
+    prices: [credit('720P', '0.80', '秒')],
     specs: [spec('分辨率', '720P'), spec('时长', '5–30 秒')],
   },
   {
     id: 'tiktok-seedance-2.0-full',
     name: 'seedance-2.0 · 满参 9图 / 3视频 / 3音频',
     category: 'video',
-    channel: 'TikTok 补贴',
+    channel: '特价',
     billing: '按秒',
     iconModel: 'doubao',
-    description: 'Seedance 2.0 补贴模型，满参考 9 图 / 3 视频 / 3 音频，按生成秒数计费。',
-    prices: [yuan('720P', '0.80', '秒')],
+    description: 'Seedance 2.0 特价模型，满参考 9 图 / 3 视频 / 3 音频，按生成秒数计费。',
+    prices: [credit('720P', '0.80', '秒')],
     specs: [spec('分辨率', '720P'), spec('时长', '5–15 秒')],
   },
 ]

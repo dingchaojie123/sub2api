@@ -41,6 +41,10 @@ RUN --mount=type=cache,id=sub2api-pnpm-store,target=/root/.local/share/pnpm/stor
 # Copy only that subtree to keep the build dependency minimal.
 COPY frontend/ ./
 COPY docs/legal/ /app/docs/legal/
+# ApiDocsView (接入文档) build-time imports the customer-facing API docs the same way. Copy exactly those files:
+# docs/internal/ (admin manual) must never enter the image or the frontend bundle.
+COPY docs/PP_VIDEO_GENERATION_API.md docs/QWEN_TTS_API.md /app/docs/
+COPY docs/video-api/ /app/docs/video-api/
 RUN pnpm run build
 
 # -----------------------------------------------------------------------------

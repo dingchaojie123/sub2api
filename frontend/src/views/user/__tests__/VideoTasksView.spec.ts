@@ -236,6 +236,31 @@ describe('VideoTasksView', () => {
     expect(wrapper.find('[data-testid="drawer-video-retry"]').exists()).toBe(false)
   })
 
+  it('shows the failure reason of a failed task, or a fallback when the upstream gave none', async () => {
+    listMock.mockResolvedValue(
+      page([
+        makeTask({
+          id: 'ppvidtask_f1', request_id: 'req_f1', status: 'failed', can_play: false,
+          credits_charged: 0, credits_refunded: 2.24, error_message: 'generation failed',
+        }),
+        makeTask({
+          id: 'ppvidtask_f2', request_id: 'req_f2', status: 'failed', can_play: false,
+          credits_charged: 0, credits_refunded: 2.24, error_message: '',
+        }),
+      ])
+    )
+    const wrapper = await renderView()
+    const buttons = wrapper.findAll('[data-testid="video-task-detail-button"]')
+
+    await buttons[0].trigger('click')
+    expect(wrapper.get('[data-testid="drawer-failure-reason"]').text()).toBe('generation failed')
+
+    await wrapper.get('[data-testid="drawer-close"]').trigger('click')
+    await buttons[1].trigger('click')
+    expect(wrapper.get('[data-testid="drawer-failure-reason"]').text()).toBe('videoTasks.detail.errorUnknown')
+    expect(fetchContentMock).not.toHaveBeenCalled()
+  })
+
   it('does not request the video for tasks that cannot be played here', async () => {
     listMock.mockResolvedValue(page([makeTask({ can_play: false })]))
     const wrapper = await renderView()

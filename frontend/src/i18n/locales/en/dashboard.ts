@@ -539,7 +539,7 @@ export default {
     searchPlaceholder: 'Search model, resolution, or billing method',
     emptyTitle: 'No matching models',
     emptyDescription: 'Try another search term or adjust the filters.',
-    availabilityNote: 'Prices use the unit shown on each quote (credits or CNY). Displayed prices are estimates; the final charge follows the quote at task creation and your usage records.',
+    availabilityNote: 'All prices are in credits. Displayed prices are estimates; the final charge follows the quote at task creation and your usage records.',
     filters: {
       title: 'Filter models',
       showing: 'Showing {shown} / {total}',
@@ -559,6 +559,19 @@ export default {
       prices: 'Your prices',
       pricesHint: 'Displayed prices are shown below. Actual charges are listed in your usage records.'
     }
+  },
+
+  apiDocs: {
+    title: 'API Docs',
+    description: 'How to call the video generation and speech synthesis APIs on this site.',
+    languageNote: 'The API documentation is written in Chinese.',
+    docs: 'Documents',
+    toc: 'On this page',
+    copy: 'Copy',
+    copied: 'Code copied',
+    notFoundTitle: 'Document not found',
+    notFoundDescription: 'The link may be outdated. Pick a document from the list instead.',
+    backToStart: 'Back to Quick start'
   },
 
   videoTasks: {
@@ -615,6 +628,7 @@ export default {
       prompt: 'Prompt',
       noPrompt: 'No prompt recorded',
       error: 'Failure reason',
+      errorUnknown: 'The upstream did not return a specific reason.',
       result: 'Result',
       resultIndex: 'Result {index}',
       loadingVideo: 'Loading video…',

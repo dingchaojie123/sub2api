@@ -18,7 +18,7 @@ func newPPVideoTaskRecordRows() *sqlmock.Rows {
 		"status", "billing_status", "prompt", "video_count", "video_resolution",
 		"requested_video_duration_seconds", "requested_video_duration_milliseconds",
 		"generated_video_duration_milliseconds", "hold_amount", "actual_cost",
-		"last_error_code", "last_error_message", "created_at", "finished_at", "settled_at",
+		"last_error_code", "last_error_message", "created_at", "finished_at", "settled_at", "failure_response_body",
 	})
 }
 
@@ -85,10 +85,14 @@ func TestListPPVideoTasksForUser_ReturnsPageAndTotal(t *testing.T) {
 		WillReturnRows(newPPVideoTaskRecordRows().
 			AddRow("ppvidtask_1", "upstream_1", "prod-key", service.PlatformCTMOSeedance, service.PPVideoOperationGeneric,
 				"seedance2.0-933-C", "succeeded", service.PPVideoBillingStatusCaptured, "a cat", 1, "720p",
-				15, int64(15000), int64(15000), 6.5, 6.5, "", "", created, finished, finished).
+				15, int64(15000), int64(15000), 6.5, 6.5, "", "", created, finished, finished, "").
 			AddRow("ppvidtask_2", "", "", service.PlatformKling, service.PPVideoOperationKlingTextToVideo,
 				"kling-v3", "failed", service.PPVideoBillingStatusReleased, "", 1, "",
-				5, int64(0), int64(0), 3.0, nil, "upstream_error", "boom", created, nil, nil))
+				5, int64(0), int64(0), 3.0, nil, "upstream_error", "boom", created, nil, nil, "").
+			AddRow("ppvidtask_3", "job_3", "", service.PlatformGuangying, service.PPVideoOperationGeneric,
+				"seedance", "failed", service.PPVideoBillingStatusReleased, "", 1, "720p",
+				15, int64(15000), int64(0), 2.24, nil, "", "", created, created, created,
+				`{"data":{"status":"failed","message":"generation failed"}}`))
 
 	repo := &usageBillingRepository{db: db}
 	records, total, err := repo.ListPPVideoTasksForUser(ctx, 42, service.PPVideoTaskListFilter{
@@ -97,7 +101,7 @@ func TestListPPVideoTasksForUser_ReturnsPageAndTotal(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, int64(41), total)
-	require.Len(t, records, 2)
+	require.Len(t, records, 3)
 	require.Equal(t, "ppvidtask_1", records[0].LocalTaskID)
 	require.Equal(t, "prod-key", records[0].APIKeyName)
 	require.NotNil(t, records[0].ActualCost)
@@ -106,6 +110,8 @@ func TestListPPVideoTasksForUser_ReturnsPageAndTotal(t *testing.T) {
 	require.Nil(t, records[1].ActualCost)
 	require.Nil(t, records[1].FinishedAt)
 	require.Equal(t, "boom", records[1].LastErrorMessage)
+	require.Equal(t, "boom", records[1].FailureReason())
+	require.Equal(t, "generation failed", records[2].FailureReason(), "the reason is recovered from the stored upstream response")
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

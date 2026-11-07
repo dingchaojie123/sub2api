@@ -75,7 +75,7 @@ func userVideoTaskFromRecord(record *service.PPVideoTaskRecord) userVideoTask {
 		CreditsRefunded: record.CreditsRefunded(),
 		TotalSeconds:    record.TotalSeconds(),
 		ErrorCode:       record.LastErrorCode,
-		ErrorMessage:    truncateRunes(record.LastErrorMessage, userVideoTaskErrorMessageMaxRunes),
+		ErrorMessage:    truncateRunes(record.FailureReason(), userVideoTaskErrorMessageMaxRunes),
 		CanPlay: status == service.PPVideoTaskStatusSucceeded &&
 			service.PPVideoTaskCanStreamContent(record.Platform),
 		CreatedAt:  record.CreatedAt,

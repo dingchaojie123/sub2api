@@ -12,13 +12,30 @@ import (
 // 视频任务记录页（用户端）的只读查询。所有查询都强制带 user_id 条件，
 // 即使任务 ID 被猜中，也无法读到其他用户的任务。
 
-const ppVideoTaskRecordColumns = `
+const ppVideoTaskRecordBaseColumns = `
 		t.local_task_id, COALESCE(t.task_id, ''), COALESCE(ak.name, ''), t.platform, t.operation, t.model,
 		t.status, t.billing_status, COALESCE(t.prompt, ''), t.video_count, t.video_resolution,
 		t.requested_video_duration_seconds, t.requested_video_duration_milliseconds,
 		t.generated_video_duration_milliseconds, t.hold_amount, t.actual_cost,
 		COALESCE(t.last_error_code, ''), COALESCE(t.last_error_message, ''),
 		t.created_at, t.finished_at, t.settled_at`
+
+// ppVideoTaskRecordColumns 在基础列之后追加 failure_response_body：
+// 仅当任务失败且没有记录错误信息时才读取保存的上游响应（截取前 8KB），
+// 供记录页从中提取失败原因；其余任务返回空串，避免在列表里搬运大字段。
+var ppVideoTaskRecordColumns = ppVideoTaskRecordBaseColumns + `,
+		` + ppVideoTaskFailureBodyExpr()
+
+func ppVideoTaskFailureBodyExpr() string {
+	statuses := service.PPVideoTaskStatusValues(service.PPVideoTaskStatusFailed)
+	quoted := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		// 状态值来自服务层写死的常量，不含用户输入。
+		quoted = append(quoted, "'"+status+"'")
+	}
+	return "CASE WHEN COALESCE(t.last_error_message, '') = '' AND LOWER(t.status) IN (" + strings.Join(quoted, ", ") +
+		") THEN LEFT(t.response_body, " + strconv.Itoa(service.PPVideoFailureBodyMaxChars) + ") ELSE '' END"
+}
 
 const ppVideoTaskRecordFrom = `
 		FROM pp_video_tasks t
@@ -177,6 +194,7 @@ func scanPPVideoTaskRecord(row ppVideoTaskScanner) (*service.PPVideoTaskRecord, 
 		&record.CreatedAt,
 		&finishedAt,
 		&settledAt,
+		&record.FailureResponseBody,
 	); err != nil {
 		return nil, err
 	}
