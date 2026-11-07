@@ -2509,6 +2509,9 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if status != "" {
 		payload["status"] = status
 	}
+	if platform == PlatformMaiTokenSeedance && status == PPVideoTaskStatusSucceeded {
+		payload["status"] = "completed"
+	}
 	if maiTokenBillingPending {
 		payload["status"] = "in_progress"
 		payload["billing_pending"] = true

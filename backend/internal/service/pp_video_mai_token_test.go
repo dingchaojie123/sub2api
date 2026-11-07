@@ -57,6 +57,7 @@ func TestMaiTokenSeedanceResponseStatesAndPublicURLs(t *testing.T) {
 				parsed,
 			)
 			if tt.wantStatus == PPVideoTaskStatusSucceeded {
+				require.Equal(t, "completed", gjson.GetBytes(public, "status").String())
 				require.Equal(t, "/v1/videos/"+parsed.TaskID+"/content", gjson.GetBytes(public, "result.url").String())
 				require.NotContains(t, string(public), "api.mai-token.com")
 			} else {
