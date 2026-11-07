@@ -83,11 +83,37 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	body []byte,
 	publicRequests ...PPVideoPublicRequest,
 ) (*OpenAIForwardResult, error) {
+	return s.ForwardPPVideoSubmissionBuffered(
+		ctx,
+		c,
+		account,
+		operation,
+		taskID,
+		&PPVideoSubmissionBody{JSON: body},
+		publicRequests...,
+	)
+}
+
+// ForwardPPVideoSubmissionBuffered accepts either normalized JSON or a
+// request-scoped multipart submission and keeps the response buffered for
+// task persistence before it is returned to the client.
+func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
+	ctx context.Context,
+	c *gin.Context,
+	account *Account,
+	operation PPVideoOperation,
+	taskID string,
+	submission *PPVideoSubmissionBody,
+	publicRequests ...PPVideoPublicRequest,
+) (*OpenAIForwardResult, error) {
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
 	if account == nil || !IsPPVideoPlatform(account.Platform) {
 		return nil, fmt.Errorf("PP video account is required")
+	}
+	if submission != nil && submission.Multipart != nil && account.Platform != PlatformMaiTokenSeedance {
+		return nil, fmt.Errorf("PP video multipart submission is only supported for %s", PlatformMaiTokenSeedance)
 	}
 
 	isCancel := operation == PPVideoOperationCancel
@@ -97,7 +123,10 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 	if len(publicRequests) > 0 {
 		publicRequest = publicRequests[0]
 	}
-	upstreamBody := body
+	var upstreamBody []byte
+	if submission != nil {
+		upstreamBody = submission.JSON
+	}
 	var path string
 	var err error
 	if isStatus {
@@ -147,6 +176,8 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 
 	method := http.MethodPost
 	var reader io.Reader
+	var requestBody io.ReadCloser
+	var requestContentType string
 	if isStatus || isCancel {
 		method = http.MethodGet
 		if isCancel && account.Platform == PlatformMiniMaxH3CompShare {
@@ -177,7 +208,17 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 				return nil, err
 			}
 		}
-		reader = bytes.NewReader(upstreamBody)
+		if submission == nil || submission.Multipart == nil {
+			reader = bytes.NewReader(upstreamBody)
+		} else {
+			effectiveSubmission := &PPVideoSubmissionBody{JSON: upstreamBody, Multipart: submission.Multipart}
+			requestBody, requestContentType, err = effectiveSubmission.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer func() { _ = requestBody.Close() }()
+			reader = requestBody
+		}
 	}
 	req, err := http.NewRequestWithContext(upstreamCtx, method, strings.TrimRight(baseURL, "/")+path, reader)
 	if err != nil {
@@ -194,6 +235,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoBuffered(
 		}
 	}
 	req.Header = headers
+	if isSubmission && requestContentType != "" {
+		req.Header.Set("Content-Type", requestContentType)
+	}
 	if isSubmission && account.Platform == PlatformGuangying {
 		idempotencyKey := strings.TrimSpace(publicRequest.UpstreamIdempotencyKey)
 		if idempotencyKey == "" {

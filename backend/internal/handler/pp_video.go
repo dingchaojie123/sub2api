@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -196,6 +197,26 @@ func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
 	h.gatewayService.WritePPVideoForwardResult(c, result)
 }
 
+func preparePPVideoMultipartRequest(platform string, req *http.Request) (*service.PPVideoSubmissionBody, service.PPVideoPublicRequest, error) {
+	if platform != service.PlatformMaiTokenSeedance {
+		return nil, service.PPVideoPublicRequest{}, errors.New("multipart video requests are only supported for Mai Token Seedance")
+	}
+	submission, err := service.PrepareMaiTokenMultipartSubmission(req)
+	if err != nil {
+		return nil, service.PPVideoPublicRequest{}, err
+	}
+	prepared, public, err := service.PreparePPVideoRequestBody(platform, service.PPVideoOperationGeneric, submission.JSON)
+	if err != nil {
+		_ = submission.Cleanup()
+		return nil, service.PPVideoPublicRequest{}, err
+	}
+	submission.JSON = prepared
+	if submission.Multipart != nil && len(submission.Multipart.Uploads) > 0 {
+		public.HasImage = true
+	}
+	return submission, public, nil
+}
+
 func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.PPVideoOperation, requestID string) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
@@ -240,35 +261,56 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	var body []byte
 	var originalBody []byte
+	var submission *service.PPVideoSubmissionBody
+	isMultipartSubmission := false
 	publicRequest := service.PPVideoPublicRequest{}
 	var payloadHash, rawPayloadHash, idempotencyKey string
 	if !isStatus {
-		var err error
-		body, err = pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
-		if err != nil {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
-			return
-		}
-		if len(body) == 0 {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
-			return
-		}
-		originalBody = append([]byte(nil), body...)
-		rawPayloadHash = service.HashUsageRequestPayload(originalBody)
-		if operation == "" {
-			if apiKey.Group.Platform == service.PlatformKling {
-				operation = ppVideoOperationFromRequest(body)
-			} else {
+		mediaType, _, contentTypeErr := mime.ParseMediaType(c.GetHeader("Content-Type"))
+		isMultipartSubmission = contentTypeErr == nil && strings.EqualFold(mediaType, "multipart/form-data")
+		if isMultipartSubmission {
+			if operation == "" {
 				operation = service.PPVideoOperationGeneric
 			}
+			var prepareErr error
+			submission, publicRequest, prepareErr = preparePPVideoMultipartRequest(apiKey.Group.Platform, c.Request)
+			if prepareErr != nil {
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
+				return
+			}
+			defer func() { _ = submission.Cleanup() }()
+			body = submission.JSON
+			originalBody = append([]byte(nil), body...)
+			rawPayloadHash = submission.PayloadHash()
+		} else {
+			var err error
+			body, err = pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+			if err != nil {
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to read request body")
+				return
+			}
+			if len(body) == 0 {
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Request body is empty")
+				return
+			}
+			originalBody = append([]byte(nil), body...)
+			rawPayloadHash = service.HashUsageRequestPayload(originalBody)
+			if operation == "" {
+				if apiKey.Group.Platform == service.PlatformKling {
+					operation = ppVideoOperationFromRequest(body)
+				} else {
+					operation = service.PPVideoOperationGeneric
+				}
+			}
+			preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(apiKey.Group.Platform, operation, body)
+			if prepareErr != nil {
+				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
+				return
+			}
+			body = preparedBody
+			publicRequest = preparedPublicRequest
+			submission = &service.PPVideoSubmissionBody{JSON: body}
 		}
-		preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(apiKey.Group.Platform, operation, body)
-		if prepareErr != nil {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
-			return
-		}
-		body = preparedBody
-		publicRequest = preparedPublicRequest
 		model := strings.TrimSpace(publicRequest.Model)
 		if model == "" {
 			model = strings.TrimSpace(publicRequest.UpstreamModel)
@@ -282,7 +324,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			h.openAISecurityAuditError(c, decision)
 			return
 		}
-		payloadHash = service.HashUsageRequestPayload(body)
+		payloadHash = submission.PayloadHash()
 		idempotencyKey = resolvePPVideoIdempotencyKey(c.GetHeader("Idempotency-Key"))
 		if len(idempotencyKey) > service.PPVideoIdempotencyKeyMaxLength {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Idempotency-Key must be at most 255 characters")
@@ -392,11 +434,19 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	if task == nil {
 		var prepareErr error
-		body, publicRequest, prepareErr = service.PreparePPVideoRequestBodyForAccount(account, operation, originalBody)
+		requestToPrepare := originalBody
+		if isMultipartSubmission {
+			requestToPrepare = submission.JSON
+		}
+		body, publicRequest, prepareErr = service.PreparePPVideoRequestBodyForAccount(account, operation, requestToPrepare)
 		if prepareErr != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
 			return
 		}
+		if isMultipartSubmission && submission.Multipart != nil && len(submission.Multipart.Uploads) > 0 {
+			publicRequest.HasImage = true
+		}
+		submission.JSON = body
 		if mediaErr := service.ValidatePPVideoInputMedia(c.Request.Context(), account.Platform, body); mediaErr != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", mediaErr.Error())
 			return
@@ -476,7 +526,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		publicRequest.UpstreamIdempotencyKey = task.LocalTaskID
 	}
 
-	result, err := h.gatewayService.ForwardPPVideoBuffered(c.Request.Context(), c, account, operation, requestID, body, publicRequest)
+	result, err := h.gatewayService.ForwardPPVideoSubmissionBuffered(c.Request.Context(), c, account, operation, requestID, submission, publicRequest)
 	if err != nil {
 		if isStatus && !service.IsResponseCommitted(c) && canFallbackToStoredPPVideoStatus(task) {
 			reqLog.Info("pp_video.status_stored_fallback",

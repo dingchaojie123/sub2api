@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"mime"
+	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
+	"net/textproto"
 	"testing"
 	"time"
 
@@ -12,6 +17,44 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+func newMaiTokenHandlerMultipartRequest(t *testing.T) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", service.MaiTokenSeedanceModel))
+	require.NoError(t, writer.WriteField("prompt", "lake"))
+	require.NoError(t, writer.WriteField("duration", "4"))
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{
+		"name": "first_image", "filename": "first.jpg",
+	}))
+	header.Set("Content-Type", "image/jpeg")
+	part, err := writer.CreatePart(header)
+	require.NoError(t, err)
+	_, err = part.Write([]byte("jpeg-bytes"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, "/v1/videos/generations", bytes.NewReader(body.Bytes()))
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	return req
+}
+
+func TestPreparePPVideoMultipartRequestDispatchesOnlyMaiToken(t *testing.T) {
+	req := newMaiTokenHandlerMultipartRequest(t)
+	submission, public, err := preparePPVideoMultipartRequest(service.PlatformMaiTokenSeedance, req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = submission.Cleanup() })
+	require.Equal(t, service.MaiTokenSeedanceModel, public.Model)
+	require.True(t, public.HasImage)
+	require.NotContains(t, string(submission.JSON), "jpeg-bytes")
+	require.Contains(t, string(submission.JSON), `"prompt":"lake"`)
+	require.NotEmpty(t, submission.PayloadHash())
+
+	foreign := newMaiTokenHandlerMultipartRequest(t)
+	_, _, err = preparePPVideoMultipartRequest(service.PlatformKling, foreign)
+	require.ErrorContains(t, err, "only supported")
+}
 
 type ppVideoBillingCacheStub struct {
 	service.BillingCache
