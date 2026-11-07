@@ -221,16 +221,6 @@ func preparePPVideoMultipartRequest(platform string, req *http.Request) (*servic
 	return submission, public, nil
 }
 
-// isPPVideoUnifiedRequest reports whether the request was sent to the unified
-// (v2) video generation endpoint, whose body must be translated before the
-// platform normalizers see it.
-func isPPVideoUnifiedRequest(c *gin.Context) bool {
-	if c == nil || c.Request == nil || c.Request.URL == nil {
-		return false
-	}
-	return strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/v2/videos/generations")
-}
-
 func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.PPVideoOperation, requestID string) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
@@ -282,10 +272,6 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 	if !isStatus {
 		mediaType, _, contentTypeErr := mime.ParseMediaType(c.GetHeader("Content-Type"))
 		isMultipartSubmission = contentTypeErr == nil && strings.EqualFold(mediaType, "multipart/form-data")
-		if isMultipartSubmission && isPPVideoUnifiedRequest(c) {
-			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "The unified video API (v2) only accepts application/json requests")
-			return
-		}
 		if isMultipartSubmission {
 			if operation == "" {
 				operation = service.PPVideoOperationGeneric
@@ -319,16 +305,6 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				} else {
 					operation = service.PPVideoOperationGeneric
 				}
-			}
-			if isPPVideoUnifiedRequest(c) {
-				// originalBody keeps the client's v2 request for security audit and
-				// idempotency hashing; only the body handed to the pipeline is translated.
-				translatedBody, translateErr := service.TranslatePPVideoUnifiedRequest(apiKey.Group.Platform, body)
-				if translateErr != nil {
-					h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", translateErr.Error())
-					return
-				}
-				body = translatedBody
 			}
 			preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(apiKey.Group.Platform, operation, body)
 			if prepareErr != nil {
