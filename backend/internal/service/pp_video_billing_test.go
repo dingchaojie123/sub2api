@@ -173,6 +173,46 @@ func TestCalculatePPVideoCostUsesCTMOModelPricing(t *testing.T) {
 	}
 }
 
+func TestCalculatePPVideoCostUsesMaiTokenChannelModelPricing(t *testing.T) {
+	t.Parallel()
+
+	groupID := int64(105)
+	channelPrice := 1.2
+	groupFallbackPrice := 9.9
+	apiKey := &APIKey{
+		GroupID: &groupID,
+		Group: &Group{
+			ID:             groupID,
+			Platform:       PlatformMaiTokenSeedance,
+			RateMultiplier: 1,
+			VideoPrice480P: &groupFallbackPrice,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		billingService: newTestBillingService(),
+		resolver: newPPVideoResolverWithChannel(t, groupID, PlatformMaiTokenSeedance, []ChannelModelPricing{{
+			Platform:        PlatformMaiTokenSeedance,
+			Models:          []string{MaiTokenSeedanceModel},
+			BillingMode:     BillingModeVideo,
+			PerRequestPrice: &channelPrice,
+		}}),
+	}
+
+	cost, err := svc.CalculatePPVideoCost(context.Background(), apiKey, nil, &Account{}, PPVideoBillingMetadata{
+		Platform:                      PlatformMaiTokenSeedance,
+		Model:                         MaiTokenSeedanceModel,
+		RequestedDurationMilliseconds: 5000,
+		VideoResolution:               VideoBillingResolution480P,
+		VideoCount:                    1,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, PPVideoBillingFormulaPerSecond, cost.BillingFormula)
+	require.InDelta(t, 5, cost.BillingUnits, 1e-12)
+	require.InDelta(t, channelPrice, cost.BillingUnitPrice, 1e-12)
+	require.InDelta(t, 6, cost.TotalCost, 1e-12)
+}
+
 func TestCalculatePPVideoCostRejectsInvalidCTMOModelPricing(t *testing.T) {
 	t.Parallel()
 
