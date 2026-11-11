@@ -204,6 +204,7 @@ export default {
     securityAudit: 'Security Audit',
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
+    enterpriseReview: 'Enterprise Review',
     auditLogs: 'Audit Logs',
   },
 
@@ -440,6 +441,123 @@ export default {
   teams: {
     title: 'Team Workspace',
     description: 'Manage shared quota, members, and usage'
+  },
+
+  // Enterprise accounts
+  enterprise: {
+    accountType: {
+      personal: 'Personal',
+      enterprise: 'Enterprise'
+    },
+    sectionTitle: 'Company information',
+    sectionHint: 'You can start using the service right away. Your company information is submitted for verification and shows a "Verified" badge once approved.',
+    fields: {
+      companyName: 'Company name',
+      creditCode: 'Unified social credit code',
+      address: 'Company address',
+      contactName: 'Contact person',
+      contactPhone: 'Contact phone'
+    },
+    placeholders: {
+      companyName: 'Full registered company name',
+      creditCode: '18-character unified social credit code',
+      address: 'Company address',
+      contactName: 'Contact person name',
+      contactPhone: 'Mobile or landline number'
+    },
+    errors: {
+      companyName: 'Company name must be 2-100 characters',
+      creditCode: 'Invalid unified social credit code, please check the 18-character code',
+      address: 'Address must be 5-200 characters',
+      contactName: 'Contact name must be 2-50 characters',
+      contactPhone: 'Enter a valid mobile or landline number'
+    },
+    serverErrors: {
+      ENTERPRISE_CREDIT_CODE_EXISTS: 'This credit code is already registered. Please contact support if you need access.',
+      ENTERPRISE_ALREADY_REGISTERED: 'This account is already an enterprise account',
+      ENTERPRISE_IDENTITY_LOCKED: 'Company name and credit code are locked after verification. Contact support to change them.',
+      ENTERPRISE_ACCOUNT_REQUIRED: 'Only enterprise accounts can create teams',
+      ORGANIZATION_INVITATION_INVALID: 'The invitation is invalid or expired. Please ask the admin for a new one.',
+      ORGANIZATION_EMAIL_MISMATCH: 'This invitation is for a different email address. Sign in with the invited email to join.',
+      ORGANIZATION_SEAT_LIMIT: 'The team has no free seats. Please contact the team admin.',
+      INVALID_ENTERPRISE_COMPANY_NAME: 'Company name must be 2-100 characters',
+      INVALID_ENTERPRISE_CREDIT_CODE: 'Invalid unified social credit code, please check the 18-character code',
+      INVALID_ENTERPRISE_ADDRESS: 'Address must be 5-200 characters',
+      INVALID_ENTERPRISE_CONTACT_NAME: 'Contact name must be 2-50 characters',
+      INVALID_ENTERPRISE_CONTACT_PHONE: 'Enter a valid mobile or landline number'
+    },
+    status: {
+      pending: 'Pending',
+      approved: 'Verified',
+      rejected: 'Rejected',
+      incomplete: 'Incomplete'
+    },
+    registerFailed: 'Company information check failed',
+    profile: {
+      cardTitle: 'Company information',
+      cardDescription: 'Verification details for your enterprise account. A "Verified" badge appears once approved.',
+      rejectReason: 'Rejection reason',
+      incompleteHint: 'You have already created a team. Please complete your company information and submit it for verification.',
+      rejectedHint: 'Verification was rejected. Please update the information per the reason and resubmit.',
+      lockedHint: 'Verified. Company name and credit code are locked; contact support to change them.',
+      edit: 'Edit',
+      save: 'Save',
+      saveAndSubmit: 'Save and submit',
+      saved: 'Company information saved',
+      cancel: 'Cancel',
+      upgradeTitle: 'Upgrade to an enterprise account',
+      upgradeDescription: 'Enterprise accounts can create team workspaces and share quota with members. Takes effect immediately; your company information is then submitted for verification.',
+      upgradeButton: 'Upgrade to enterprise',
+      upgradeSubmit: 'Submit and upgrade',
+      upgraded: 'Upgraded to an enterprise account'
+    },
+    join: {
+      title: 'Join a team',
+      description: 'Got an invitation from a team admin? Paste the invitation link or token to join. You can then use the shared team quota when creating API keys.',
+      placeholder: 'Paste invitation link or token',
+      hint: 'Invitations are created by team admins under Team Workspace → Invitations.',
+      submit: 'Join team',
+      joining: 'Joining...',
+      success: 'Joined the team',
+      failed: 'Could not join the team. Please check that the invitation is valid.'
+    },
+    team: {
+      banner: 'Company',
+      incompleteBanner: 'Company information is incomplete. Please complete it in your profile and submit for verification.',
+      goComplete: 'Complete now',
+      createRestricted: 'Only enterprise accounts can create teams',
+      emptyMember: 'You have not joined a team yet. Paste an invitation token to join one.'
+    },
+    admin: {
+      title: 'Enterprise Review',
+      description: 'Review company information submitted by enterprise accounts',
+      searchPlaceholder: 'Search company / credit code / contact / account email',
+      allStatus: 'All statuses',
+      columns: {
+        company: 'Company',
+        creditCode: 'Credit code',
+        contact: 'Contact',
+        account: 'Account',
+        status: 'Status',
+        submittedAt: 'Submitted',
+        actions: 'Actions'
+      },
+      approve: 'Approve',
+      reject: 'Reject',
+      view: 'View',
+      approveConfirm: 'Approve enterprise verification for "{name}"?',
+      rejectTitle: 'Reject enterprise verification',
+      rejectReasonLabel: 'Reason',
+      rejectReasonPlaceholder: 'Reason shown to the user (max 200 characters)',
+      rejectReasonRequired: 'Please enter a reason',
+      approved: 'Approved',
+      rejected: 'Rejected',
+      empty: 'No enterprise accounts',
+      loadFailed: 'Failed to load enterprises',
+      address: 'Address',
+      phone: 'Phone',
+      cannotApproveIncomplete: 'Information incomplete; cannot approve yet'
+    }
   },
 
   // Dashboard

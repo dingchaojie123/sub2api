@@ -56,8 +56,10 @@ func TestMaiTokenSeedanceResponseStatesAndPublicURLs(t *testing.T) {
 				PPVideoPublicRequest{Model: MaiTokenSeedanceModel},
 				parsed,
 			)
+			// The public response uses the same object and status vocabulary as every other model.
+			require.Equal(t, ppVideoPublicResponseObject, gjson.GetBytes(public, "object").String())
+			require.Equal(t, tt.wantStatus, gjson.GetBytes(public, "status").String())
 			if tt.wantStatus == PPVideoTaskStatusSucceeded {
-				require.Equal(t, "completed", gjson.GetBytes(public, "status").String())
 				require.Equal(t, "/v1/videos/"+parsed.TaskID+"/content", gjson.GetBytes(public, "result.url").String())
 				require.NotContains(t, string(public), "api.mai-token.com")
 			} else {
@@ -115,7 +117,7 @@ func TestMaiTokenSeedanceCompletedWaitsForAuthoritativeBillingSeconds(t *testing
 			PPVideoPublicRequest{Model: MaiTokenSeedanceModel},
 			parsed,
 		)
-		require.Equal(t, "in_progress", gjson.GetBytes(public, "status").String(), raw)
+		require.Equal(t, PPVideoTaskStatusProcessing, gjson.GetBytes(public, "status").String(), raw)
 		require.True(t, gjson.GetBytes(public, "billing_pending").Bool(), raw)
 		require.False(t, gjson.GetBytes(public, "result.url").Exists(), raw)
 		require.False(t, gjson.GetBytes(public, "video_url").Exists(), raw)
@@ -182,7 +184,7 @@ func TestMaiTokenSeedanceFiltersExactModel(t *testing.T) {
 		"seedance-2.5",
 		"gpt-image-2",
 	}
-	want := []string{"sdtj-2.5-480p"}
+	want := []string{MaiTokenSeedancePublicModel}
 	require.Equal(t, want, filterUpstreamModelsForPlatform(PlatformMaiTokenSeedance, models))
 	require.Equal(t, want, filterPPVideoPublicModelsForPlatform(PlatformMaiTokenSeedance, models))
 }
@@ -205,7 +207,7 @@ func TestPrepareMaiTokenSeedanceVideoV1Request(t *testing.T) {
 
 	prepared, public, err := PreparePPVideoRequestBody(PlatformMaiTokenSeedance, PPVideoOperationGeneric, body)
 	require.NoError(t, err)
-	require.Equal(t, MaiTokenSeedanceModel, public.Model)
+	require.Equal(t, MaiTokenSeedancePublicModel, public.Model)
 	require.Equal(t, MaiTokenSeedanceModel, public.UpstreamModel)
 	require.Equal(t, int64(4000), public.DurationMilliseconds)
 	require.Equal(t, "480p", public.Resolution)

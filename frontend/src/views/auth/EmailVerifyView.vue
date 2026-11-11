@@ -163,6 +163,8 @@ import {
 } from '@/api/auth'
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import type { EnterpriseInput } from '@/api/enterprise'
+import { redirectQuery, safeRedirectPath } from '@/utils/postAuthRedirect'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -216,6 +218,9 @@ const initialTurnstileToken = ref<string>('')
 const promoCode = ref<string>('')
 const invitationCode = ref<string>('')
 const affCode = ref<string>('')
+const postRegisterRedirect = ref<string>('')
+// 企业注册：注册页暂存的账号类型与企业信息，验证邮箱后随注册请求一并提交
+const enterpriseRegistration = ref<{ account_type: 'enterprise'; enterprise: EnterpriseInput } | null>(null)
 const pendingAuthToken = ref<string>('')
 const pendingAuthTokenField = ref<PendingAuthTokenField>('pending_auth_token')
 const pendingProvider = ref<string>('')
@@ -268,6 +273,11 @@ onMounted(async () => {
       promoCode.value = registerData.promo_code || ''
       invitationCode.value = registerData.invitation_code || ''
       affCode.value = registerData.aff_code || loadAffiliateReferralCode()
+      postRegisterRedirect.value = safeRedirectPath(registerData.post_register_redirect, '')
+      enterpriseRegistration.value =
+        registerData.account_type === 'enterprise' && registerData.enterprise
+          ? { account_type: 'enterprise', enterprise: registerData.enterprise as EnterpriseInput }
+          : null
       pendingAuthToken.value = registerData.pending_auth_token || activePendingSession?.token || ''
       pendingAuthTokenField.value = registerData.pending_auth_token_field || activePendingSession?.token_field || 'pending_auth_token'
       pendingProvider.value = registerData.pending_provider || activePendingSession?.provider || ''
@@ -542,6 +552,7 @@ async function handleVerify(): Promise<void> {
         turnstile_token: initialTurnstileToken.value || undefined,
         promo_code: promoCode.value || undefined,
         invitation_code: invitationCode.value || undefined,
+        ...(enterpriseRegistration.value ?? {}),
         ...(affCode.value ? { aff_code: affCode.value } : {})
       })
     }
@@ -554,7 +565,7 @@ async function handleVerify(): Promise<void> {
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
     // Redirect to dashboard
-    await router.push(pendingRedirect.value || '/dashboard')
+    await router.push(pendingRedirect.value || postRegisterRedirect.value || '/dashboard')
   } catch (error: unknown) {
     errorMessage.value = buildAuthErrorMessage(error, {
       fallback: t('auth.verifyFailed')
@@ -571,7 +582,7 @@ function handleBack(): void {
   sessionStorage.removeItem('register_data')
 
   // Go back to registration
-  router.push('/register')
+  router.push({ path: '/register', query: redirectQuery(postRegisterRedirect.value) })
 }
 
 function buildEmailSuffixNotAllowedMessage(): string {

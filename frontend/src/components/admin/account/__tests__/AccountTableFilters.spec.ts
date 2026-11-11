@@ -11,6 +11,7 @@ vi.mock('vue-i18n', async () => {
     'admin.accounts.platforms.seedance': 'Seedance',
     'admin.accounts.platforms.guangying': '光影 AI Seedance',
     'admin.accounts.platforms.opone': 'OPONE Seedance',
+    'admin.accounts.platforms.mai-token-seedance': 'Mai Token Seedance',
     'admin.accounts.platforms.bytedance': 'ByteDance',
     'admin.accounts.platforms.wan3': 'Wan3.0',
     'admin.accounts.platforms.minimax-h3': 'MiniMax-H3',
@@ -52,6 +53,7 @@ describe('AccountTableFilters', () => {
     expect(wrapper.text()).toContain('Seedance')
     expect(wrapper.text()).toContain('光影 AI Seedance')
     expect(wrapper.text()).toContain('OPONE Seedance')
+    expect(wrapper.text()).toContain('Mai Token Seedance')
     expect(wrapper.text()).toContain('ByteDance')
     expect(wrapper.text()).toContain('Wan3.0')
     expect(wrapper.text()).toContain('MiniMax-H3')

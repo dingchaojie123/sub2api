@@ -16,13 +16,13 @@ function parse(html: string) {
 }
 
 describe('renderApiDoc', () => {
-	 it('renders the complete sdtj-2.5-480p public workflow', () => {
-	   const page = findApiDocPage('mai-token-seedance')
+	 it('renders the complete Seedance2.5-480全参 public workflow', () => {
+	   const page = findApiDocPage('seedance-series')
 	   expect(page).toBeDefined()
 	   const { html } = renderApiDoc(page!.markdown, { ...options, currentPath: page!.path })
 	   const text = parse(html).textContent ?? ''
 
-	   expect(text).toContain('sdtj-2.5-480p')
+	   expect(text).toContain('Seedance2.5-480全参')
 	   expect(text).toContain('4-30')
 	   expect(text).toContain('固定 480P')
 	   expect(text).toContain('JSON')

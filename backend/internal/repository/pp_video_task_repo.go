@@ -151,10 +151,12 @@ func (r *usageBillingRepository) MarkPPVideoTaskSubmitted(ctx context.Context, p
 	if r == nil || r.db == nil {
 		return nil, sql.ErrConnDone
 	}
+	// $3 同时出现在 status 赋值和 finished_at 的 IN 判断里，必须显式声明 ::text，
+	// 否则 PostgreSQL 会报 "inconsistent types deduced for parameter $3"，提交结果无法写库。
 	row := r.db.QueryRowContext(ctx, `
 		UPDATE pp_video_tasks
 		SET task_id = NULLIF($2, ''),
-			status = $3,
+			status = $3::text,
 			response_status = $4,
 			response_content_type = $5,
 			response_body = $6,
@@ -167,7 +169,7 @@ func (r *usageBillingRepository) MarkPPVideoTaskSubmitted(ctx context.Context, p
 			output_height = CASE WHEN $13 > 0 THEN $13 ELSE output_height END,
 			frame_rate = CASE WHEN $14 > 0 THEN $14 ELSE frame_rate END,
 			submitted_at = COALESCE(submitted_at, NOW()),
-			finished_at = CASE WHEN $3 IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
+			finished_at = CASE WHEN $3::text IN ('succeeded', 'failed') THEN COALESCE(finished_at, NOW()) ELSE finished_at END,
 			updated_at = NOW()
 		WHERE local_task_id = $1
 			AND status = 'submitting'

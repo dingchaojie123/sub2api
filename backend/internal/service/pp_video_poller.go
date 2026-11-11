@@ -386,6 +386,13 @@ func (s *PPVideoPollerService) settleFromTask(ctx context.Context, task *PPVideo
 	if upstream != nil && strings.TrimSpace(upstream.UpstreamEndpoint) != "" {
 		upstreamEndpoint = upstream.UpstreamEndpoint
 	}
+	// Quota is metered against the platform of the key's group, as it was when the task was
+	// submitted. For a Seedance aggregate group that is the group's platform, not the platform
+	// of the account that happened to run the task.
+	quotaPlatform := PlatformFromAPIKey(apiKey)
+	if quotaPlatform == "" {
+		quotaPlatform = task.Platform
+	}
 	if err := s.Gateway.SettlePPVideoTask(ctx, &PPVideoSettlementInput{
 		Task:               task,
 		FinalStatus:        finalStatus,
@@ -397,7 +404,7 @@ func (s *PPVideoPollerService) settleFromTask(ctx context.Context, task *PPVideo
 		UpstreamEndpoint:   upstreamEndpoint,
 		RequestPayloadHash: task.RequestHash,
 		APIKeyService:      ppVideoAPIKeyQuotaUpdater(s.APIKeys),
-		QuotaPlatform:      task.Platform,
+		QuotaPlatform:      quotaPlatform,
 	}); err != nil {
 		return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err
 	}

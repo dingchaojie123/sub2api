@@ -49,7 +49,9 @@ const (
 	PlatformSeedance           = "seedance"
 	PlatformCTMOSeedance       = "ctmo-seedance"
 	PlatformXingAPISeedance    = "xingapi-seedance"
+	PlatformJijiuSeedance      = "jijiu-seedance"
 	PlatformMaiTokenSeedance   = "mai-token-seedance"
+	PlatformSeedanceHub        = "seedance-hub"
 	PlatformGuangying          = "guangying"
 	PlatformOPONE              = "opone"
 	PlatformByteDance          = "bytedance"
@@ -83,7 +85,9 @@ func AllPlatforms() []string {
 		PlatformSeedance,
 		PlatformCTMOSeedance,
 		PlatformXingAPISeedance,
+		PlatformJijiuSeedance,
 		PlatformMaiTokenSeedance,
+		PlatformSeedanceHub,
 		PlatformGuangying,
 		PlatformOPONE,
 		PlatformByteDance,

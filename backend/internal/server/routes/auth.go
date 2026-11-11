@@ -57,6 +57,10 @@ func RegisterAuthRoutes(
 		auth.POST("/validate-invitation-code", rateLimiter.LimitWithOptions("validate-invitation", 10, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,
 		}), h.Auth.ValidateInvitationCode)
+		// 企业注册信息预检（格式 + 信用代码是否已注册），每分钟最多 10 次（Redis 故障时 fail-close）
+		auth.POST("/validate-enterprise", rateLimiter.LimitWithOptions("validate-enterprise", 10, time.Minute, middleware.RateLimitOptions{
+			FailureMode: middleware.RateLimitFailClose,
+		}), h.Auth.ValidateEnterprise)
 		// 忘记密码接口添加速率限制：每分钟最多 5 次（Redis 故障时 fail-close）
 		auth.POST("/forgot-password", rateLimiter.LimitWithOptions("forgot-password", 5, time.Minute, middleware.RateLimitOptions{
 			FailureMode: middleware.RateLimitFailClose,

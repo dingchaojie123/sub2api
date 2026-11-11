@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformMaiTokenSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -95,6 +95,22 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	// videoGenerationV2Handler serves the unified video protocol. Only platforms
+	// whose v2 translation exists are dispatched; every other platform is rejected
+	// here so a v2 body is never mistaken for a native request.
+	videoGenerationV2Handler := func(c *gin.Context) {
+		if service.IsPPVideoUnifiedPlatform(getGroupPlatform(c)) {
+			h.OpenAIGateway.PPVideoGeneration(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "The unified video API (v2) is not supported for this platform yet; use /v1/videos/generations",
+			},
+		})
+	}
 	videoStatusHandler := func(c *gin.Context) {
 		switch getGroupPlatform(c) {
 		case service.PlatformGrok:
@@ -103,7 +119,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformMaiTokenSeedance, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -120,7 +136,7 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.GrokVideoContent(c)
 			return
 		}
-		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformMaiTokenSeedance || getGroupPlatform(c) == service.PlatformOPONE {
+		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformJijiuSeedance || getGroupPlatform(c) == service.PlatformMaiTokenSeedance || getGroupPlatform(c) == service.PlatformOPONE || getGroupPlatform(c) == service.PlatformSeedanceHub {
 			h.OpenAIGateway.PPVideoContent(c)
 			return
 		}
@@ -355,6 +371,7 @@ func RegisterGatewayRoutes(
 	r.POST("/video/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
 	r.GET("/video/generations/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
+	r.POST("/v2/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationV2Handler)
 	r.POST("/videos/text2video", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPKlingTextToVideo)
 	r.GET("/videos/text2video/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPVideoStatus)
 	r.POST("/videos/image2video", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.OpenAIGateway.PPKlingImageToVideo)

@@ -50,6 +50,7 @@ type Handlers struct {
 	User             *UserHandler
 	APIKey           *APIKeyHandler
 	Organization     *OrganizationHandler
+	Enterprise       *EnterpriseHandler
 	Usage            *UsageHandler
 	Redeem           *RedeemHandler
 	Lottery          *LotteryHandler

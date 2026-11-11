@@ -256,8 +256,9 @@ describe('CreateAccountModal OpenAI long-context billing', () => {
     expect(platformSelector.classes()).toContain('flex-wrap')
     expect(platformSelector.classes()).not.toContain('flex-nowrap')
     expect(platformSelector.classes()).not.toContain('overflow-x-auto')
-    expect(platformButtons).toHaveLength(29)
+    expect(platformButtons).toHaveLength(30)
     expect(platformButtons.some(button => button.text().includes('admin.accounts.platforms.xingapi-seedance'))).toBe(true)
+    expect(platformButtons.some(button => button.text().includes('admin.accounts.platforms.jijiu-seedance'))).toBe(true)
     expect(platformButtons.some(button => button.text().includes('admin.accounts.platforms.mai-token-seedance'))).toBe(true)
     for (const button of platformButtons) {
       expect(button.classes()).toContain('shrink-0')

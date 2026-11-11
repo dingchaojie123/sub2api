@@ -18,6 +18,10 @@ const authStore = vi.hoisted(() => ({
   hasPendingAuthSession: false,
 }))
 
+const workspaceAccessStore = vi.hoisted(() => ({
+  fetch: vi.fn(),
+}))
+
 const appStore = vi.hoisted(() => ({
   siteName: 'Corgi',
   backendModeEnabled: false,
@@ -43,6 +47,10 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authStore,
+}))
+
+vi.mock('@/stores/workspaceAccess', () => ({
+  useWorkspaceAccessStore: () => workspaceAccessStore,
 }))
 
 vi.mock('@/stores/app', () => ({
@@ -85,7 +93,7 @@ function createDeferred<T>() {
   return { promise, resolve }
 }
 
-function runGuard(meta: Record<string, unknown>, path: string) {
+function runGuard(meta: Record<string, unknown>, path: string, query: Record<string, unknown> = {}) {
   if (!routerHarness.guard) {
     throw new Error('router guard was not registered')
   }
@@ -97,6 +105,7 @@ function runGuard(meta: Record<string, unknown>, path: string) {
       fullPath: path,
       name: 'FeatureRoute',
       params: {},
+      query,
       meta: { requiresAuth: true, ...meta },
     },
     {},
@@ -173,5 +182,61 @@ describe('feature route guard', () => {
     expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
     expect(next).toHaveBeenCalledOnce()
     expect(next).toHaveBeenCalledWith(target)
+  })
+})
+
+describe('team workspace route guard', () => {
+  beforeAll(async () => {
+    await import('@/router')
+  })
+
+  beforeEach(() => {
+    authStore.isAuthenticated = true
+    authStore.isAdmin = false
+    authStore.isSimpleMode = false
+    appStore.publicSettingsLoaded = true
+    appStore.cachedPublicSettings = null
+    workspaceAccessStore.fetch.mockReset()
+  })
+
+  it('redirects personal accounts that have not joined a team', async () => {
+    workspaceAccessStore.fetch.mockResolvedValue({ has_team_access: false })
+
+    const { navigation, next } = runGuard({ requiresTeamAccess: true }, '/organizations')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith('/dashboard')
+  })
+
+  it('allows enterprise accounts and team members', async () => {
+    workspaceAccessStore.fetch.mockResolvedValue({ has_team_access: true })
+
+    const { navigation, next } = runGuard({ requiresTeamAccess: true }, '/organizations')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('lets an invitation link through so an invited personal account can join', async () => {
+    workspaceAccessStore.fetch.mockResolvedValue({ has_team_access: false })
+
+    const { navigation, next } = runGuard({ requiresTeamAccess: true }, '/organizations', { invite: 'token' })
+    await navigation
+
+    expect(workspaceAccessStore.fetch).not.toHaveBeenCalled()
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
+  })
+
+  it('does not lock users out when the access lookup fails', async () => {
+    workspaceAccessStore.fetch.mockResolvedValue(null)
+
+    const { navigation, next } = runGuard({ requiresTeamAccess: true }, '/organizations')
+    await navigation
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(next).toHaveBeenCalledWith()
   })
 })

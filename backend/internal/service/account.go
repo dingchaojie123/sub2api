@@ -787,6 +787,18 @@ func requestedModelLookupAliases(platform, requestedModel string) []string {
 			aliases = addAlias(aliases, alias)
 		}
 		return aliases
+	case PlatformMaiTokenSeedance:
+		var aliases []string
+		for _, alias := range ppVideoMaiTokenModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformJijiuSeedance:
+		var aliases []string
+		for _, alias := range ppVideoJijiuModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
 	case PlatformGemini, PlatformAntigravity:
 		if trimmed == "gemini-3.1-pro-preview-customtools" {
 			return []string{"gemini-3.1-pro-preview"}

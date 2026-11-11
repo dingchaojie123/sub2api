@@ -28,6 +28,30 @@
 
       <!-- Registration Form -->
       <form v-else @submit.prevent="handleRegister" class="space-y-5">
+        <!-- Account type: personal / enterprise -->
+        <div
+          class="grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800"
+          role="tablist"
+        >
+          <button
+            v-for="type in accountTypes"
+            :key="type"
+            type="button"
+            role="tab"
+            :aria-selected="accountType === type"
+            :disabled="registrationActionDisabled"
+            class="rounded-lg px-3 py-2 text-sm font-medium transition-all"
+            :class="
+              accountType === type
+                ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-700 dark:text-primary-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+            "
+            @click="accountType = type"
+          >
+            {{ t(`enterprise.accountType.${type}`) }}
+          </button>
+        </div>
+
         <!-- Email Input -->
         <div>
           <label for="email" class="input-label">
@@ -85,6 +109,27 @@
           <p class="input-hint">
             {{ t('auth.passwordHint') }}
           </p>
+        </div>
+
+        <!-- Enterprise information (enterprise registration only) -->
+        <div
+          v-if="accountType === 'enterprise'"
+          class="space-y-4 rounded-xl border border-primary-100 bg-primary-50/40 p-4 dark:border-primary-900/40 dark:bg-primary-900/10"
+        >
+          <div>
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+              {{ t('enterprise.sectionTitle') }}
+            </h3>
+            <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+              {{ t('enterprise.sectionHint') }}
+            </p>
+          </div>
+          <EnterpriseForm
+            v-model="enterpriseForm"
+            :errors="enterpriseErrors"
+            :disabled="registrationActionDisabled"
+            id-prefix="register-enterprise"
+          />
         </div>
 
         <!-- Invitation Code Input (Optional when enabled) -->
@@ -288,7 +333,7 @@
       <p class="text-gray-500 dark:text-dark-400">
         {{ t('auth.alreadyHaveAccount') }}
         <router-link
-          to="/login"
+          :to="{ path: '/login', query: redirectQuery(route.query.redirect) }"
           class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
         >
           {{ t('auth.signIn') }}
@@ -309,6 +354,7 @@ import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import Icon from '@/components/icons/Icon.vue'
+import EnterpriseForm from '@/components/enterprise/EnterpriseForm.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
@@ -318,6 +364,15 @@ import {
   validateInvitationCode
 } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import { enterpriseAPI } from '@/api/enterprise'
+import { redirectQuery, safeRedirectPath } from '@/utils/postAuthRedirect'
+import {
+  emptyEnterpriseInput,
+  enterpriseErrorMessage,
+  normalizeEnterpriseInput,
+  validateEnterpriseInput,
+  type EnterpriseFieldErrors
+} from '@/utils/enterprise'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -330,7 +385,7 @@ import {
 } from '@/utils/oauthAffiliate'
 import type { LoginAgreementDocument } from '@/types'
 
-const { t, locale } = useI18n()
+const { t, te, locale } = useI18n()
 const LOGIN_AGREEMENT_STORAGE_KEY = 'sub2api_login_agreement_consent'
 
 // ==================== Router & Stores ====================
@@ -393,6 +448,13 @@ const invitationValidation = reactive({
 })
 let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
 
+// 账号类型：个人 / 企业。企业注册需额外填写企业信息，注册后立即可用，由后台审核认证。
+type RegisterAccountType = 'personal' | 'enterprise'
+const accountTypes: RegisterAccountType[] = ['personal', 'enterprise']
+const accountType = ref<RegisterAccountType>('personal')
+const enterpriseForm = reactive(emptyEnterpriseInput())
+const enterpriseErrors = ref<EnterpriseFieldErrors>({})
+
 const formData = reactive({
   email: '',
   password: '',
@@ -408,9 +470,15 @@ const errors = reactive({
   invitation_code: ''
 })
 
+const enterpriseToastMessage = computed(() => {
+  const first = Object.values(enterpriseErrors.value)[0]
+  return first ? t(`enterprise.errors.${first}`) : ''
+})
+
 const validationToastMessage = computed(() =>
   errors.email ||
   errors.password ||
+  enterpriseToastMessage.value ||
   (invitationValidation.invalid ? invitationValidation.message : '') ||
   errors.invitation_code ||
   (promoValidation.invalid ? promoValidation.message : '') ||
@@ -788,6 +856,16 @@ function validateForm(): boolean {
     isValid = false
   }
 
+  // Enterprise information validation (enterprise registration only)
+  enterpriseErrors.value = {}
+  if (accountType.value === 'enterprise') {
+    const fieldErrors = validateEnterpriseInput(enterpriseForm)
+    if (Object.keys(fieldErrors).length > 0) {
+      enterpriseErrors.value = fieldErrors
+      isValid = false
+    }
+  }
+
   // Turnstile validation
   if (turnstileEnabled.value && !turnstileToken.value) {
     errors.turnstile = t('auth.completeVerification')
@@ -796,6 +874,13 @@ function validateForm(): boolean {
 
   return isValid
 }
+
+// 切回个人注册时清除企业信息的校验提示
+watch(accountType, (type) => {
+  if (type === 'personal') {
+    enterpriseErrors.value = {}
+  }
+})
 
 // ==================== Form Handlers ====================
 
@@ -854,8 +939,24 @@ async function handleRegister(): Promise<void> {
       formData.aff_code = affCode
     }
 
+    const enterprisePayload =
+      accountType.value === 'enterprise'
+        ? { account_type: 'enterprise' as const, enterprise: normalizeEnterpriseInput(enterpriseForm) }
+        : {}
+
     // If email verification is enabled, redirect to verification page
     if (emailVerifyEnabled.value) {
+      // 企业注册：在发送邮箱验证码之前先预检，避免走完验证流程才发现信用代码已被注册
+      if (accountType.value === 'enterprise') {
+        try {
+          await enterpriseAPI.validateForRegistration(normalizeEnterpriseInput(enterpriseForm))
+        } catch (error: unknown) {
+          errorMessage.value = enterpriseErrorMessage(error, t, te, t('enterprise.registerFailed'))
+          appStore.showError(errorMessage.value)
+          return
+        }
+      }
+
       // Store registration data in sessionStorage
       sessionStorage.setItem(
         'register_data',
@@ -865,6 +966,9 @@ async function handleRegister(): Promise<void> {
           turnstile_token: turnstileToken.value,
           promo_code: formData.promo_code || undefined,
           invitation_code: formData.invitation_code.trim() || undefined,
+          ...enterprisePayload,
+          // 登录页带过来的跳转目标（如团队邀请链接），邮箱验证完成后继续跳转
+          post_register_redirect: redirectQuery(route.query.redirect).redirect,
           ...(affCode ? { aff_code: affCode } : {})
         })
       )
@@ -881,6 +985,7 @@ async function handleRegister(): Promise<void> {
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
       promo_code: formData.promo_code || undefined,
       invitation_code: formData.invitation_code.trim() || undefined,
+      ...enterprisePayload,
       ...(affCode ? { aff_code: affCode } : {})
     })
     clearAffiliateReferralCode()
@@ -888,8 +993,8 @@ async function handleRegister(): Promise<void> {
     // Show success toast
     appStore.showSuccess(t('auth.accountCreatedSuccess', { siteName: siteName.value }))
 
-    // Redirect to dashboard
-    await router.push('/dashboard')
+    // Redirect: 默认进入仪表盘；从邀请链接等页面过来时回到原目标
+    await router.push(safeRedirectPath(route.query.redirect))
   } catch (error: unknown) {
     // Reset Turnstile on error
     if (turnstileRef.value) {
@@ -897,10 +1002,18 @@ async function handleRegister(): Promise<void> {
       turnstileToken.value = ''
     }
 
-    // Handle registration error
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.registrationFailed')
-    })
+    // Handle registration error（企业信息相关错误按 reason 码翻译）
+    errorMessage.value =
+      accountType.value === 'enterprise'
+        ? enterpriseErrorMessage(
+            error,
+            t,
+            te,
+            buildAuthErrorMessage(error, { fallback: t('auth.registrationFailed') })
+          )
+        : buildAuthErrorMessage(error, {
+            fallback: t('auth.registrationFailed')
+          })
 
     // Also show error toast
     appStore.showError(errorMessage.value)

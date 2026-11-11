@@ -51,7 +51,8 @@ describe('useModelWhitelist', () => {
       'kling',
       'happyhourse',
 	  'seedance',
-	  'xingapi-seedance'
+	  'xingapi-seedance',
+	  'jijiu-seedance'
     ]) {
       expect(getModelsByPlatform(platform)).toEqual([])
       expect(getPresetMappingsByPlatform(platform)).toEqual([])
@@ -118,9 +119,9 @@ describe('useModelWhitelist', () => {
   })
 
   it('Mai Token Seedance exposes only its documented model', () => {
-    expect(getModelsByPlatform('mai-token-seedance')).toEqual(['sdtj-2.5-480p'])
+    expect(getModelsByPlatform('mai-token-seedance')).toEqual(['Seedance2.5-480全参'])
     expect(getPresetMappingsByPlatform('mai-token-seedance')).toEqual([
-      expect.objectContaining({ from: 'sdtj-2.5-480p', to: 'sdtj-2.5-480p' })
+      expect.objectContaining({ from: 'Seedance2.5-480全参', to: 'sdtj-2.5-480p' })
     ])
   })
 

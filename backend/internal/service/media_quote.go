@@ -241,7 +241,7 @@ func (s *MediaQuoteService) resolveChannelVideoQuote(
 		return PPVideoBillingQuote{}, false, nil
 	}
 	platform := strings.TrimSpace(apiKey.Group.Platform)
-	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformXingAPISeedance && platform != PlatformGuangying && platform != PlatformOPONE {
+	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformXingAPISeedance && platform != PlatformJijiuSeedance && platform != PlatformGuangying && platform != PlatformOPONE && platform != PlatformMaiTokenSeedance && platform != PlatformSeedanceHub {
 		return PPVideoBillingQuote{}, false, nil
 	}
 
@@ -312,7 +312,94 @@ func isSupportedVideoQuoteResolution(value string) bool {
 	}
 }
 
+// mediaQuoteChannelPricedMaxDurationSeconds only keeps absurd values out of a price estimate.
+// The platforms priced through their channel serve models of different lengths (many up to
+// 30 seconds), and the real per-model limit is enforced when the task is submitted, so the
+// 15 second rule below, which is xAI's own limit, must not be applied to them.
+const mediaQuoteChannelPricedMaxDurationSeconds = 120
+
+func mediaQuotePlatformUsesChannelDurationLimits(platform string) bool {
+	switch platform {
+	case Platform88APIVideo, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformGuangying:
+		return true
+	default:
+		return false
+	}
+}
+
 func normalizeMediaQuoteVideoSpec(platform, model, resolution string, durationSeconds int) (string, bool) {
+	if strings.TrimSpace(platform) == PlatformSeedanceHub {
+		// A line of the aggregate group is estimated with the limits of the line: its own
+		// documented ones where it has them, else those of the platform that serves it.
+		line, ok := SeedanceHubLineByName(model)
+		if !ok {
+			return "", false
+		}
+		if limits := line.Limits; limits != nil && len(limits.Resolutions) > 0 {
+			resolved := limits.Resolutions[0]
+			if strings.TrimSpace(resolution) != "" {
+				// The same spellings the other platforms accept (720, hd, ...) mean the same here.
+				value := normalizePPVideoResolution(resolution)
+				found := false
+				for _, allowed := range limits.Resolutions {
+					if allowed == value {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return "", false
+				}
+				resolved = value
+			}
+			if durationSeconds < limits.MinSeconds || durationSeconds > limits.MaxSeconds {
+				return "", false
+			}
+			return resolved, true
+		}
+		return normalizeMediaQuoteVideoSpec(line.Platform, line.Model, resolution, durationSeconds)
+	}
+	if mediaQuotePlatformUsesChannelDurationLimits(strings.TrimSpace(platform)) {
+		if !isSupportedVideoQuoteResolution(resolution) ||
+			durationSeconds < VideoBillingMinDurationSeconds ||
+			durationSeconds > mediaQuoteChannelPricedMaxDurationSeconds {
+			return "", false
+		}
+		return NormalizeVideoBillingResolutionOrDefault(resolution), true
+	}
+	if strings.TrimSpace(platform) == PlatformJijiuSeedance {
+		// Each model has its own length range and resolutions, the same ones the submission
+		// enforces, so the estimate never promises a task that cannot be created.
+		spec, ok := jijiuModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformMaiTokenSeedance {
+		// Fixed 480P and a 4-30 second range, the same limits the submission enforces.
+		// The generic range below stops at 15 seconds and would refuse longer videos.
+		if _, ok := ppVideoMaiTokenPublicModel(model); !ok {
+			return "", false
+		}
+		if strings.TrimSpace(resolution) != "" && normalizePPVideoResolution(resolution) != VideoBillingResolution480P {
+			return "", false
+		}
+		if durationSeconds < maiTokenMinDurationSeconds || durationSeconds > maiTokenMaxDurationSeconds {
+			return "", false
+		}
+		return VideoBillingResolution480P, true
+	}
 	if strings.TrimSpace(platform) == PlatformOPONE {
 		canonicalModel, ok := oponeCanonicalSeedanceModel(model)
 		if !ok {

@@ -1193,11 +1193,12 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		return nil
 	}
 
-	// Filter by platform if specified
+	// Filter by platform if specified. A Seedance aggregate group schedules the accounts of
+	// several platforms, so it keeps every member platform.
 	if platform != "" {
 		filtered := make([]Account, 0)
 		for _, acc := range accounts {
-			if acc.Platform == platform {
+			if acc.Platform == platform || (platform == PlatformSeedanceHub && IsSeedanceHubMemberPlatform(acc.Platform)) {
 				filtered = append(filtered, acc)
 			}
 		}
@@ -1213,6 +1214,14 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 		if len(mapping) > 0 {
 			hasAnyMapping = true
 			for model := range mapping {
+				if platform == PlatformSeedanceHub {
+					// Only a model that the account's own platform serves is a line of the group,
+					// and it is listed under the line's public name.
+					if line, ok := SeedanceHubLineFor(acc.Platform, model); ok {
+						modelSet[line.Name] = struct{}{}
+					}
+					continue
+				}
 				if IsPPVideoPlatform(platform) &&
 					len(filterPPVideoPublicModelsForPlatform(platform, []string{model})) == 0 {
 					continue

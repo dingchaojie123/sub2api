@@ -169,6 +169,162 @@ func TestMediaQuoteServiceVideoRejectsMissingRequiredChannelPricing(t *testing.T
 	require.ErrorIs(t, err, ErrMediaQuotePricingUnavailable)
 }
 
+func TestNormalizeMediaQuoteVideoSpecDoesNotApplyTheXAILimitToChannelPricedPlatforms(t *testing.T) {
+	for _, platform := range []string{PlatformGuangying, PlatformXingAPISeedance, PlatformCTMOSeedance, Platform88APIVideo} {
+		for _, tc := range []struct {
+			name       string
+			resolution string
+			duration   int
+			want       string
+			valid      bool
+		}{
+			{name: "16 seconds", resolution: "720p", duration: 16, want: "720p", valid: true},
+			{name: "30 seconds", resolution: "720p", duration: 30, want: "720p", valid: true},
+			{name: "the sanity cap itself", resolution: "1080p", duration: 120, want: "1080p", valid: true},
+			{name: "above the sanity cap", resolution: "720p", duration: 121, valid: false},
+			{name: "zero seconds", resolution: "720p", duration: 0, valid: false},
+			{name: "unknown resolution", resolution: "8k", duration: 5, valid: false},
+		} {
+			resolution, valid := normalizeMediaQuoteVideoSpec(platform, "any-model", tc.resolution, tc.duration)
+			require.Equal(t, tc.valid, valid, "%s %s", platform, tc.name)
+			require.Equal(t, tc.want, resolution, "%s %s", platform, tc.name)
+		}
+	}
+
+	// Every other platform keeps the xAI rule it always had.
+	for _, platform := range []string{"", PlatformGrok, PlatformSeedance} {
+		_, valid := normalizeMediaQuoteVideoSpec(platform, "any-model", "720p", 15)
+		require.True(t, valid, "platform=%q", platform)
+		_, valid = normalizeMediaQuoteVideoSpec(platform, "any-model", "720p", 16)
+		require.False(t, valid, "platform=%q", platform)
+	}
+}
+
+// The request that failed in production: a Guangying model quoted for 16 seconds.
+func TestMediaQuoteServiceQuotesGuangyingBeyondFifteenSeconds(t *testing.T) {
+	key := mediaQuoteTestKey()
+	key.Group.Platform = PlatformGuangying
+	const model = "限时限量-Seedance 2.5 满参"
+	price := 19.0
+	repo := &mediaQuoteChannelRepo{
+		channels: []Channel{{
+			ID: 15, Name: "guangying-video", Status: StatusActive, GroupIDs: []int64{*key.GroupID},
+			ModelPricing: []ChannelModelPricing{{
+				ID: 16, ChannelID: 15, Platform: PlatformGuangying, Models: []string{model},
+				BillingMode: BillingModePerRequest, PerRequestPrice: &price,
+			}},
+		}},
+		platforms: map[int64]string{*key.GroupID: PlatformGuangying},
+	}
+	billing := NewBillingService(&config.Config{}, nil)
+	resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), billing)
+	svc := NewMediaQuoteService(&mediaQuoteAPIKeyRepo{key: key}, nil, nil, billing, resolver, &config.Config{})
+
+	quote, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+		APIKeyID: 7, TaskType: "video", Model: model, Quantity: 1,
+		Resolution: "720p", DurationSeconds: 16,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, quote.Pricing.DurationSeconds)
+	require.Equal(t, 16, *quote.Pricing.DurationSeconds, "the duration is reported as asked, not clamped")
+	require.InDelta(t, price, quote.Pricing.UnitPrice, 0.0000001)
+	// Per request: 19 * quantity 1 * the test group's rate multiplier of 2.
+	require.InDelta(t, 38, quote.SettlementAmount.Value, 0.0000001)
+	require.Equal(t, PricingSourceChannel, quote.Pricing.PricingSource)
+	require.Equal(t, string(BillingModePerRequest), quote.Pricing.BillingMode)
+}
+
+func TestNormalizeMediaQuoteVideoSpecUsesMaiTokenLimits(t *testing.T) {
+	tests := []struct {
+		name       string
+		model      string
+		resolution string
+		duration   int
+		want       string
+		valid      bool
+	}{
+		{name: "public name at the minimum", model: MaiTokenSeedancePublicModel, resolution: "480p", duration: 4, want: "480p", valid: true},
+		{name: "upstream name is accepted too", model: MaiTokenSeedanceModel, resolution: "480p", duration: 10, want: "480p", valid: true},
+		{name: "longer than the generic 15 second cap", model: MaiTokenSeedancePublicModel, resolution: "480p", duration: 30, want: "480p", valid: true},
+		{name: "resolution may be omitted", model: MaiTokenSeedancePublicModel, resolution: "", duration: 5, want: "480p", valid: true},
+		{name: "resolution spelling is normalised", model: MaiTokenSeedancePublicModel, resolution: "480P", duration: 5, want: "480p", valid: true},
+		{name: "below the minimum", model: MaiTokenSeedancePublicModel, resolution: "480p", duration: 3, valid: false},
+		{name: "above the maximum", model: MaiTokenSeedancePublicModel, resolution: "480p", duration: 31, valid: false},
+		{name: "only 480p exists", model: MaiTokenSeedancePublicModel, resolution: "720p", duration: 5, valid: false},
+		{name: "unknown model", model: "seedance-2.5", resolution: "480p", duration: 5, valid: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolution, valid := normalizeMediaQuoteVideoSpec(PlatformMaiTokenSeedance, tt.model, tt.resolution, tt.duration)
+			require.Equal(t, tt.valid, valid)
+			require.Equal(t, tt.want, resolution)
+		})
+	}
+}
+
+// The quote reads the same per-second channel price as the balance hold taken when the
+// task is submitted, whichever of the two model names the price was configured under.
+func TestMediaQuoteServicePricesMaiTokenPerSecondFromChannel(t *testing.T) {
+	for _, configuredModel := range []string{MaiTokenSeedancePublicModel, MaiTokenSeedanceModel} {
+		for _, requestedModel := range []string{MaiTokenSeedancePublicModel, MaiTokenSeedanceModel} {
+			t.Run("priced as "+configuredModel+" requested as "+requestedModel, func(t *testing.T) {
+				key := mediaQuoteTestKey()
+				key.Group.Platform = PlatformMaiTokenSeedance
+				pricePerSecond := 0.9
+				repo := &mediaQuoteChannelRepo{
+					channels: []Channel{{
+						ID: 13, Name: "mai-video", Status: StatusActive, GroupIDs: []int64{*key.GroupID},
+						ModelPricing: []ChannelModelPricing{{
+							ID: 14, ChannelID: 13, Platform: PlatformMaiTokenSeedance, Models: []string{configuredModel},
+							BillingMode: BillingModeVideo, PerRequestPrice: &pricePerSecond,
+						}},
+					}},
+					platforms: map[int64]string{*key.GroupID: PlatformMaiTokenSeedance},
+				}
+				billing := NewBillingService(&config.Config{}, nil)
+				resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), billing)
+				svc := NewMediaQuoteService(&mediaQuoteAPIKeyRepo{key: key}, nil, nil, billing, resolver, &config.Config{})
+
+				// 20 seconds is beyond the generic 15 second cap on purpose.
+				quote, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+					APIKeyID: 7, TaskType: "video", Model: requestedModel, Quantity: 1,
+					Resolution: "480p", DurationSeconds: 20,
+				})
+
+				require.NoError(t, err)
+				require.InDelta(t, pricePerSecond, quote.Pricing.UnitPrice, 0.0000001)
+				// 0.9 per second * 20 seconds * the test group's rate multiplier of 2.
+				require.InDelta(t, 36, quote.SettlementAmount.Value, 0.0000001)
+				require.InDelta(t, 36, quote.EstimatedCredits, 0.0000001)
+				require.Equal(t, "unit_price_per_second * duration_seconds * quantity * rate_multiplier", quote.Pricing.Formula)
+				require.Equal(t, string(BillingModeVideo), quote.Pricing.BillingMode)
+				require.Equal(t, PricingSourceChannel, quote.Pricing.PricingSource)
+				require.Equal(t, "480p", quote.Pricing.Resolution)
+			})
+		}
+	}
+}
+
+func TestMediaQuoteServiceMaiTokenRejectsMissingChannelPricingAndBadSpec(t *testing.T) {
+	key := mediaQuoteTestKey()
+	key.Group.Platform = PlatformMaiTokenSeedance
+	svc := newMediaQuoteServiceForTest(key)
+
+	_, err := svc.Quote(context.Background(), 42, MediaQuoteRequest{
+		APIKeyID: 7, TaskType: "video", Model: MaiTokenSeedancePublicModel, Quantity: 1,
+		Resolution: "480p", DurationSeconds: 5,
+	})
+	require.ErrorIs(t, err, ErrMediaQuotePricingUnavailable)
+
+	_, err = svc.Quote(context.Background(), 42, MediaQuoteRequest{
+		APIKeyID: 7, TaskType: "video", Model: MaiTokenSeedancePublicModel, Quantity: 1,
+		Resolution: "480p", DurationSeconds: 31,
+	})
+	require.ErrorIs(t, err, ErrMediaQuoteInvalidRequest)
+}
+
 func TestNormalizeMediaQuoteVideoSpecUsesOPONEModelLimits(t *testing.T) {
 	tests := []struct {
 		name       string

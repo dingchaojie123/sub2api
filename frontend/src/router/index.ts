@@ -212,6 +212,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: false,
+      requiresTeamAccess: true,
       title: 'Team Workspace',
       titleKey: 'teams.title',
       descriptionKey: 'teams.description'
@@ -473,6 +474,18 @@ const routes: RouteRecordRaw[] = [
       title: 'Ops Monitoring',
       titleKey: 'admin.ops.title',
       descriptionKey: 'admin.ops.description'
+    }
+  },
+  {
+    path: '/admin/enterprises',
+    name: 'AdminEnterprises',
+    component: () => import('@/views/admin/EnterprisesView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Enterprise Review',
+      titleKey: 'enterprise.admin.title',
+      descriptionKey: 'enterprise.admin.description'
     }
   },
   {
@@ -949,6 +962,21 @@ router.beforeEach(async (to, _from, next) => {
   ) {
     next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
     return
+  }
+
+  // 团队空间：仅企业账号或已加入团队的账号可访问；邀请链接（?invite=）放行，用于加入团队。
+  if (to.meta.requiresTeamAccess && !to.query?.invite) {
+    try {
+      const { useWorkspaceAccessStore } = await import('@/stores/workspaceAccess')
+      const access = await useWorkspaceAccessStore().fetch()
+      // 仅在明确拿到「无权限」时拦截；获取失败（access 为空）视为未知状态，不误锁用户，后端仍会强制校验。
+      if (access && !access.has_team_access) {
+        next('/dashboard')
+        return
+      }
+    } catch (error) {
+      console.warn('Failed to resolve workspace access in route guard', error)
+    }
   }
 
   // 简易模式下限制访问某些页面

@@ -130,6 +130,7 @@ func TestForwardPPVideoTaskUserContent_AuthenticatedPlatformsKeepUsingTheContent
 func TestPPVideoTaskUsesAuthenticatedContent(t *testing.T) {
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformCTMOSeedance))
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformXingAPISeedance))
+	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformJijiuSeedance))
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformMaiTokenSeedance))
 	require.True(t, ppVideoTaskUsesAuthenticatedContent(PlatformOPONE))
 	require.False(t, ppVideoTaskUsesAuthenticatedContent(PlatformGuangying))

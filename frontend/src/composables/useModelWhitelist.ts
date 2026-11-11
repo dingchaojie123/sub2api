@@ -193,10 +193,12 @@ export const PIXVERSE_V6_FIXED_MODEL = 'pixverse-v6'
 export const GROK_IMAGINE_VIDEO_FIXED_MODEL = 'grok-imagine-video'
 export const KUAISHOU_FIXED_MODEL = 'kling-v3'
 export const MAI_TOKEN_SEEDANCE_FIXED_MODEL = 'sdtj-2.5-480p'
+// The name shown to clients; the fixed model above is only what the upstream knows.
+export const MAI_TOKEN_SEEDANCE_PUBLIC_MODEL = 'Seedance2.5-480全参'
 const klingModels: string[] = []
 const happyHourseModels: string[] = []
 const seedanceModels: string[] = []
-const maiTokenSeedanceModels = [MAI_TOKEN_SEEDANCE_FIXED_MODEL]
+const maiTokenSeedanceModels = [MAI_TOKEN_SEEDANCE_PUBLIC_MODEL]
 const bytedanceModels = [...BYTEDANCE_FIXED_MODELS]
 const wan3Models = [...WAN3_FIXED_MODELS]
 const minimaxH3Models = [MINIMAX_H3_FIXED_MODEL, MINIMAX_HAILUO_23_FIXED_MODEL]
@@ -487,6 +489,7 @@ export function getModelsByPlatform(platform: string): string[] {
       return seedanceModels
     case 'ctmo-seedance':
 	case 'xingapi-seedance':
+    case 'jijiu-seedance':
       return []
     case 'mai-token-seedance':
       return maiTokenSeedanceModels
@@ -548,7 +551,7 @@ export function getPresetMappingsByPlatform(platform: string) {
   if (platform === 'mai-token-seedance') {
     return [{
       label: 'Mai Token Seedance 2.5 480p',
-      from: MAI_TOKEN_SEEDANCE_FIXED_MODEL,
+      from: MAI_TOKEN_SEEDANCE_PUBLIC_MODEL,
       to: MAI_TOKEN_SEEDANCE_FIXED_MODEL,
       color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400'
     }]
@@ -644,6 +647,7 @@ export function getPresetMappingsByPlatform(platform: string) {
     platform === 'seedance' ||
     platform === 'ctmo-seedance' ||
 	platform === 'xingapi-seedance' ||
+    platform === 'jijiu-seedance' ||
     platform === 'opone'
   ) return []
   if (platform === 'antigravity') return antigravityPresetMappings

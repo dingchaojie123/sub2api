@@ -62,7 +62,7 @@
     <path d="M5 3.5h14A2.5 2.5 0 0 1 21.5 6v12a2.5 2.5 0 0 1-2.5 2.5H5A2.5 2.5 0 0 1 2.5 18V6A2.5 2.5 0 0 1 5 3.5zm1 3v2h2v-2H6zm10 0v2h2v-2h-2zM6 11v2h2v-2H6zm10 0v2h2v-2h-2zM6 15.5v2h2v-2H6zm10 0v2h2v-2h-2zM10 8.8v6.4l4.7-3.2L10 8.8z" />
   </svg>
   <!-- Seedance logo mark (radiating seed) -->
-	<svg v-else-if="platform === 'seedance' || platform === 'ctmo-seedance' || platform === 'xingapi-seedance' || platform === 'mai-token-seedance' || platform === 'guangying' || platform === 'opone'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
+	<svg v-else-if="platform === 'seedance' || platform === 'ctmo-seedance' || platform === 'xingapi-seedance' || platform === 'jijiu-seedance' || platform === 'mai-token-seedance' || platform === 'seedance-hub' || platform === 'guangying' || platform === 'opone'" :class="sizeClass" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2.5c1.3 2.42 2.05 4.45 2.05 6.05A2.05 2.05 0 1 1 9.95 8.55C9.95 6.95 10.7 4.92 12 2.5zm0 10.05a4.95 4.95 0 1 1 0 9.9 4.95 4.95 0 0 1 0-9.9zm0 2a2.95 2.95 0 1 0 0 5.9 2.95 2.95 0 0 0 0-5.9z" />
     <path d="M3.1 9.2c2.7-.5 4.85-.35 6.05.3l-1 1.72c-.73-.4-2.28-.52-4.68-.08L3.1 9.2zm17.8 0-.37 1.94c-2.4-.44-3.95-.32-4.68.08l-1-1.72c1.2-.65 3.35-.8 6.05-.3z" />
   </svg>

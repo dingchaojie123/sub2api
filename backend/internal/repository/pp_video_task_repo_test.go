@@ -149,7 +149,7 @@ func TestMarkPPVideoTaskSubmittedRejectsLateSubmission(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = db.Close() }()
 
-	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*WHERE local_task_id = \$1.*status = 'submitting'.*task_id IS NULL.*settled_at IS NULL.*RETURNING`).
+	mock.ExpectQuery(`(?s)UPDATE pp_video_tasks.*status = \$3::text.*\$3::text IN \('succeeded', 'failed'\).*WHERE local_task_id = \$1.*status = 'submitting'.*task_id IS NULL.*settled_at IS NULL.*RETURNING`).
 		WithArgs(
 			"ppvidtask_1", "provider-task-1", service.PPVideoTaskStatusProcessing, 200, "application/json", `{}`,
 			int64(0), int64(0), int64(0), 0, "", 0, 0, 0.0,

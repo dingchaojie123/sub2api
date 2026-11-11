@@ -422,6 +422,51 @@ func TestGatewayModels_CustomModelsListFiltersAndOrdersMappedModels(t *testing.T
 	require.Equal(t, []string{"gpt-5.5", "gpt-5.4"}, modelIDsForTest(got.Data))
 }
 
+func TestGatewayModels_CustomModelsListSavedUnderTheOldMaiTokenNameStillMatches(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	groupID := int64(24)
+	h := newGatewayModelsHandlerForTest(
+		&gatewayModelsAccountRepoStub{
+			byGroup: map[int64][]service.Account{
+				groupID: {
+					{
+						ID:       1,
+						Platform: service.PlatformMaiTokenSeedance,
+						Credentials: map[string]any{
+							"model_mapping": map[string]any{
+								service.MaiTokenSeedanceModel: service.MaiTokenSeedanceModel,
+							},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{
+		Group: &service.Group{
+			ID:       groupID,
+			Platform: service.PlatformMaiTokenSeedance,
+			ModelsListConfig: service.GroupModelsListConfig{
+				Enabled: true,
+				// The group was configured before the model was renamed.
+				Models: []string{service.MaiTokenSeedanceModel},
+			},
+		},
+	})
+
+	h.Models(c)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got gatewayModelsResponseForTest
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, []string{service.MaiTokenSeedancePublicModel}, modelIDsForTest(got.Data))
+}
+
 func TestGatewayModels_CustomModelsListKeepsConcreteModelAllowedByWildcardMapping(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

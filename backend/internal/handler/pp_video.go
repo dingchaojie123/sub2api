@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	pkghttputil "github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -37,7 +38,7 @@ func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil || apiKey.Group == nil ||
-		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformMaiTokenSeedance && apiKey.Group.Platform != service.PlatformOPONE) {
+		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformJijiuSeedance && apiKey.Group.Platform != service.PlatformMaiTokenSeedance && apiKey.Group.Platform != service.PlatformOPONE && apiKey.Group.Platform != service.PlatformSeedanceHub) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not supported for this platform")
 		return
 	}
@@ -52,8 +53,10 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 		return
 	}
 	task, err := h.gatewayService.GetPPVideoTaskForOwner(c.Request.Context(), subject.UserID, apiKey.ID, requestID)
-	if err != nil || task == nil || task.Platform != apiKey.Group.Platform ||
-		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformMaiTokenSeedance && task.Platform != service.PlatformOPONE) {
+	// A task records the platform of the account that ran it, so a Seedance aggregate group
+	// serves the tasks of every member platform.
+	if err != nil || task == nil || !service.PPVideoGroupServesPlatform(apiKey.Group.Platform, task.Platform) ||
+		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformJijiuSeedance && task.Platform != service.PlatformMaiTokenSeedance && task.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
@@ -221,11 +224,36 @@ func preparePPVideoMultipartRequest(platform string, req *http.Request) (*servic
 	return submission, public, nil
 }
 
+// isPPVideoUnifiedRequest reports whether the request was sent to the unified
+// (v2) video generation endpoint, whose body must be translated before the
+// platform normalizers see it.
+func isPPVideoUnifiedRequest(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.URL == nil {
+		return false
+	}
+	return strings.HasSuffix(strings.TrimRight(c.Request.URL.Path, "/"), "/v2/videos/generations")
+}
+
+// ppVideoSubmissionSourceBody returns the body that each selected account's request
+// preparation starts from: the JSON a multipart submission was reduced to, else the
+// translated body of a v2 request, else the client's own body. Starting from the
+// client's original body would hand a v2 request to the v1 preparation, which silently
+// drops the fields it does not know, such as assets.
+func ppVideoSubmissionSourceBody(isMultipart bool, submission *service.PPVideoSubmissionBody, pipelineSource []byte, original []byte) []byte {
+	if isMultipart && submission != nil {
+		return submission.JSON
+	}
+	if len(pipelineSource) > 0 {
+		return pipelineSource
+	}
+	return original
+}
+
 func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.PPVideoOperation, requestID string) {
 	streamStarted := false
 	defer h.recoverResponsesPanic(c, &streamStarted)
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey == nil || apiKey.Group == nil || !service.IsPPVideoPlatform(apiKey.Group.Platform) {
+	if !ok || apiKey == nil || apiKey.Group == nil || !service.IsPPVideoGroupPlatform(apiKey.Group.Platform) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Videos API is not supported for this platform")
 		return
 	}
@@ -265,13 +293,29 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	var body []byte
 	var originalBody []byte
+	// The body each selected account's request preparation starts from. For a v2 request
+	// it is the translated body; originalBody stays reserved for audit and hashing.
+	var pipelineSourceBody []byte
 	var submission *service.PPVideoSubmissionBody
 	isMultipartSubmission := false
 	publicRequest := service.PPVideoPublicRequest{}
 	var payloadHash, rawPayloadHash, idempotencyKey string
+	// requestPlatform is the platform whose request pipeline handles a submission. It is the
+	// group's platform, except in a Seedance aggregate group, where each model line belongs to
+	// one platform and the request is handled as one sent to a group of that platform.
+	requestPlatform := apiKey.Group.Platform
+	var hubLine *service.SeedanceHubLine
 	if !isStatus {
 		mediaType, _, contentTypeErr := mime.ParseMediaType(c.GetHeader("Content-Type"))
 		isMultipartSubmission = contentTypeErr == nil && strings.EqualFold(mediaType, "multipart/form-data")
+		if isMultipartSubmission && isPPVideoUnifiedRequest(c) {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "The unified video API (v2) only accepts application/json requests")
+			return
+		}
+		if isMultipartSubmission && apiKey.Group.Platform == service.PlatformSeedanceHub {
+			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "This group only accepts application/json requests")
+			return
+		}
 		if isMultipartSubmission {
 			if operation == "" {
 				operation = service.PPVideoOperationGeneric
@@ -299,6 +343,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			}
 			originalBody = append([]byte(nil), body...)
 			rawPayloadHash = service.HashUsageRequestPayload(originalBody)
+			pipelineSourceBody = originalBody
 			if operation == "" {
 				if apiKey.Group.Platform == service.PlatformKling {
 					operation = ppVideoOperationFromRequest(body)
@@ -306,7 +351,31 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 					operation = service.PPVideoOperationGeneric
 				}
 			}
-			preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(apiKey.Group.Platform, operation, body)
+			if apiKey.Group.Platform == service.PlatformSeedanceHub {
+				// Find the model line first: its `model` is rewritten to the name the line's
+				// platform accepts, and from here on the request is that platform's request.
+				line, hubBody, hubErr := service.ResolveSeedanceHubRequest(body)
+				if hubErr != nil {
+					h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", hubErr.Error())
+					return
+				}
+				hubLine = &line
+				requestPlatform = line.Platform
+				body = hubBody
+				pipelineSourceBody = hubBody
+			}
+			if isPPVideoUnifiedRequest(c) {
+				// originalBody keeps the client's v2 request for security audit and
+				// idempotency hashing; only the body handed to the pipeline is translated.
+				translatedBody, translateErr := service.TranslatePPVideoUnifiedRequest(requestPlatform, body)
+				if translateErr != nil {
+					h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", translateErr.Error())
+					return
+				}
+				body = translatedBody
+				pipelineSourceBody = translatedBody
+			}
+			preparedBody, preparedPublicRequest, prepareErr := service.PreparePPVideoRequestBody(requestPlatform, operation, body)
 			if prepareErr != nil {
 				h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
 				return
@@ -321,6 +390,9 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 		if model == "" {
 			model = apiKey.Group.Platform
+		}
+		if hubLine != nil {
+			model = hubLine.Name
 		}
 		setOpsRequestContext(c, model, false)
 		setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
@@ -416,7 +488,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		if task != nil {
 			return h.gatewayService.SelectPPVideoTaskAccountForStatus(c.Request.Context(), task.AccountID, task.Platform)
 		}
-		return h.gatewayService.SelectPPVideoAccountForRequest(c.Request.Context(), apiKey.GroupID, apiKey.Group.Platform, publicRequest)
+		return h.gatewayService.SelectPPVideoAccountForRequest(c.Request.Context(), apiKey.GroupID, requestPlatform, publicRequest)
 	}()
 	if err != nil || selection == nil || selection.Account == nil {
 		if isStatus && canFallbackToStoredPPVideoStatus(task) {
@@ -438,14 +510,16 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	if task == nil {
 		var prepareErr error
-		requestToPrepare := originalBody
-		if isMultipartSubmission {
-			requestToPrepare = submission.JSON
-		}
+		requestToPrepare := ppVideoSubmissionSourceBody(isMultipartSubmission, submission, pipelineSourceBody, originalBody)
 		body, publicRequest, prepareErr = service.PreparePPVideoRequestBodyForAccount(account, operation, requestToPrepare)
 		if prepareErr != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", prepareErr.Error())
 			return
+		}
+		if hubLine != nil {
+			// The task, the response and the usage record carry the name the client knows the
+			// line by; the request that was prepared for the platform already carries its own.
+			publicRequest.Model = hubLine.Name
 		}
 		if isMultipartSubmission && submission.Multipart != nil && len(submission.Multipart.Uploads) > 0 {
 			publicRequest.HasImage = true
@@ -459,6 +533,12 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		if meta.ValidationError != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", meta.ValidationError.Error())
 			return
+		}
+		if hubLine != nil {
+			// The prepared request carries the upstream (or account-mapped) name of the model,
+			// but the price of a hub line is configured under the line's public name, whatever
+			// the account maps it to.
+			meta.Model = hubLine.Name
 		}
 		cost, costErr := h.gatewayService.CalculatePPVideoCost(c.Request.Context(), apiKey, apiKey.User, account, meta)
 		if costErr != nil {
@@ -578,8 +658,10 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		if status == "" {
 			status = service.PPVideoTaskStatusProcessing
 		}
+		submittedLocalTaskID := task.LocalTaskID
+		pendingTask := task
 		task, err = h.gatewayService.MarkPPVideoTaskSubmitted(c.Request.Context(), service.MarkPPVideoTaskSubmittedParams{
-			LocalTaskID: task.LocalTaskID, TaskID: result.ResponseID, Status: status,
+			LocalTaskID: submittedLocalTaskID, TaskID: result.ResponseID, Status: status,
 			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
 			InputVideoDurationMilliseconds:     result.VideoInputDurationMilliseconds,
 			ProviderBillingSeconds:             result.VideoProviderBillingSeconds,
@@ -592,6 +674,17 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			ResponseBody: string(result.ResponseBody),
 		})
 		if err != nil {
+			// 上游已经接受了任务，这里写库失败时必须留下真实原因，否则只能看到泛化的 503。
+			reqLog.Error("pp_video.persist_submitted_task_failed",
+				zap.String("local_task_id", submittedLocalTaskID),
+				zap.String("upstream_task_id", result.ResponseID),
+				zap.String("upstream_status", status),
+				zap.String("platform", account.Platform),
+				zap.Int("upstream_task_id_len", len(result.ResponseID)),
+				zap.Error(err),
+			)
+			// 客户拿不到任务 ID，这笔冻结没有任何后续会结算它，必须在这里释放并把任务标记失败。
+			h.recoverPPVideoTaskAfterPersistFailure(c, reqLog, pendingTask, payloadHash, result.ResponseID)
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video task")
 			return
 		}
@@ -603,6 +696,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		if status == "" {
 			status = service.PPVideoTaskStatusProcessing
 		}
+		statusTaskID := task.TaskID
 		task, err = h.gatewayService.MarkPPVideoTaskStatus(c.Request.Context(), service.MarkPPVideoTaskStatusParams{
 			TaskID: task.TaskID, Status: status,
 			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
@@ -619,6 +713,12 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			LastErrorMessage: result.ErrorMessage,
 		})
 		if err != nil {
+			reqLog.Error("pp_video.persist_task_status_failed",
+				zap.String("upstream_task_id", statusTaskID),
+				zap.String("status", status),
+				zap.String("platform", account.Platform),
+				zap.Error(err),
+			)
 			h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "Failed to persist video task status")
 			return
 		}
@@ -645,6 +745,33 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 	}
 	h.gatewayService.WritePPVideoForwardResult(c, result)
+}
+
+// recoverPPVideoTaskAfterPersistFailure 在上游已接受任务、但本地写回结果失败时收尾：
+// 释放余额冻结，并把任务标记为提交失败。客户收到的是 503，没有任务 ID，之后不会有人查询
+// 或结算这个任务，不收尾就会一直占用余额，直到轮询器按提交超时兜底。
+// 收尾本身失败只记录日志，不改变返回给客户的响应；上游已创建的任务需要与供应商对账。
+func (h *OpenAIGatewayHandler) recoverPPVideoTaskAfterPersistFailure(c *gin.Context, reqLog *zap.Logger, task *service.PPVideoTask, payloadHash string, upstreamTaskID string) {
+	if h == nil || h.gatewayService == nil || task == nil {
+		return
+	}
+	// 客户端断开不应让收尾半途而废。
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 10*time.Second)
+	defer cancel()
+
+	fields := []zap.Field{
+		zap.String("local_task_id", task.LocalTaskID),
+		zap.String("upstream_task_id", upstreamTaskID),
+	}
+	if err := h.gatewayService.ReleasePPVideoBalanceHold(ctx, task, payloadHash); err != nil {
+		reqLog.Error("pp_video.release_hold_after_persist_failed", append(fields, zap.Error(err))...)
+		return
+	}
+	if err := h.gatewayService.MarkPPVideoTaskSubmitFailed(ctx, task.LocalTaskID, "persist_failed", "failed to persist upstream task id "+upstreamTaskID); err != nil {
+		reqLog.Error("pp_video.mark_failed_after_persist_failed", append(fields, zap.Error(err))...)
+	}
+	h.invalidatePPVideoBalanceCache(ctx, task.UserID)
+	reqLog.Warn("pp_video.recovered_after_persist_failed", fields...)
 }
 
 func (h *OpenAIGatewayHandler) invalidatePPVideoBalanceCache(ctx context.Context, userID int64) {

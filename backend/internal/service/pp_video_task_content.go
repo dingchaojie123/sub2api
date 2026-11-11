@@ -11,7 +11,7 @@ import (
 // （上游不提供公开直链），其余平台的结果以直链形式保存在任务的最新响应里。
 func ppVideoTaskUsesAuthenticatedContent(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformMaiTokenSeedance, PlatformOPONE:
+	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		return true
 	default:
 		return false

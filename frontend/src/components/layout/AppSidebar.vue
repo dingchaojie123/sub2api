@@ -236,7 +236,7 @@
 import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
+import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore, useWorkspaceAccessStore } from '@/stores'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
@@ -762,6 +762,9 @@ const flagRiskControl = makeSidebarFlag(FeatureFlags.riskControl)
 const flagOpsMonitoring = () => adminSettingsStore.opsMonitoringEnabled
 const flagAdminPayment = () => adminSettingsStore.paymentEnabled
 const flagBatchImageAccess = () => canUseBatchImage.value
+// 团队空间：企业账号，或已加入团队的账号才展示；未加载完成时先隐藏，避免个人账号看到菜单闪现。
+const workspaceAccessStore = useWorkspaceAccessStore()
+const flagTeamWorkspace = () => workspaceAccessStore.hasTeamAccess
 
 // buildSelfNavItems 构造用户自己的导航项（用户端主菜单和管理员的"我的账户"子菜单共享这组声明）。
 // withDashboard=true 时包含仪表盘（用户端），false 时不含（管理员的个人区已经有独立仪表盘入口）。
@@ -774,7 +777,7 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
     items.push({ path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon })
   }
   items.push(
-	{ path: '/organizations', label: t('nav.teamWorkspace'), icon: UsersIcon, hideInSimpleMode: true },
+    { path: '/organizations', label: t('nav.teamWorkspace'), icon: UsersIcon, hideInSimpleMode: true, featureFlag: flagTeamWorkspace },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
     { path: '/api-docs', label: t('nav.apiDocs'), icon: BookIcon },
     { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
@@ -892,6 +895,7 @@ const adminNavItems = computed((): NavItem[] => {
       ],
     },
     { path: '/admin/usage', label: t('nav.usage'), icon: ChartIcon },
+    { path: '/admin/enterprises', label: t('nav.enterpriseReview'), icon: UsersIcon, hideInSimpleMode: true },
     { path: '/admin/audit-logs', label: t('nav.auditLogs'), icon: ShieldIcon, hideInSimpleMode: true }
   ]
 

@@ -9,6 +9,7 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'seedance',
   'ctmo-seedance',
 	'xingapi-seedance',
+	'jijiu-seedance',
   'mai-token-seedance',
   'guangying',
   'opone',
@@ -45,7 +46,9 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'seedance',
   'ctmo-seedance',
 	'xingapi-seedance',
+	'jijiu-seedance',
   'mai-token-seedance',
+  'seedance-hub',
   'guangying',
   'opone',
   'bytedance',
@@ -191,6 +194,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
 		label: '星光 API Seedance',
 		defaultBaseUrl: 'https://xingapi.top/v1',
 		baseUrlPlaceholder: 'https://xingapi.top/v1',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'jijiu-seedance': {
+		id: 'jijiu-seedance',
+		label: '极九 API Seedance',
+		defaultBaseUrl: 'https://newapi.jijiucanvas.com',
+		baseUrlPlaceholder: 'https://newapi.jijiucanvas.com',
 		apiKeyPlaceholder: 'sk-...',
 		accountType: 'apikey',
 		authScheme: 'bearer'

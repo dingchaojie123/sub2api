@@ -417,7 +417,9 @@ func (r *organizationRepository) RemoveMember(ctx context.Context, organizationI
 	if targetRole == service.OrganizationRoleOwner {
 		return nil, service.ErrOrganizationOwnerImmutable
 	}
-	if actorRole != service.OrganizationRoleOwner && (actorRole != service.OrganizationRoleAdmin || targetRole != service.OrganizationRoleMember) {
+	// 成员可以主动退出团队（移除自己）；移除他人仍按角色权限校验。创建者不能退出（上面已拦截），只能删除团队。
+	selfLeave := actorUserID == memberUserID
+	if !selfLeave && actorRole != service.OrganizationRoleOwner && (actorRole != service.OrganizationRoleAdmin || targetRole != service.OrganizationRoleMember) {
 		return nil, service.ErrOrganizationForbidden
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT k.key FROM api_keys k JOIN organization_api_keys ok ON ok.api_key_id=k.id WHERE ok.organization_id=$1 AND ok.member_user_id=$2 AND ok.status='active'`, organizationID, memberUserID)
@@ -447,7 +449,11 @@ func (r *organizationRepository) RemoveMember(ctx context.Context, organizationI
 	if _, err = tx.ExecContext(ctx, `UPDATE organization_members SET status='disabled',updated_at=NOW() WHERE organization_id=$1 AND user_id=$2`, organizationID, memberUserID); err != nil {
 		return nil, err
 	}
-	if err = insertOrganizationAudit(ctx, tx, organizationID, actorUserID, "member.remove", "member", fmt.Sprint(memberUserID), nil); err != nil {
+	auditAction := "member.remove"
+	if selfLeave {
+		auditAction = "member.leave"
+	}
+	if err = insertOrganizationAudit(ctx, tx, organizationID, actorUserID, auditAction, "member", fmt.Sprint(memberUserID), nil); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -495,6 +501,76 @@ func (r *organizationRepository) FundFromUser(ctx context.Context, organizationI
 		return nil, err
 	}
 	if err = insertOrganizationAudit(ctx, tx, organizationID, actorUserID, "quota.fund", "organization", fmt.Sprint(organizationID), map[string]any{"amount": actualAmount, "display_amount": amount}); err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return r.GetForUser(ctx, organizationID, actorUserID)
+}
+
+// WithdrawToOwner 把团队可用额度转回创建者的个人余额。
+// 团队冻结额度（进行中的异步任务）已经从 balance 中扣除，所以 balance 本身就是可转出额度。
+// amount 为展示额度；实际额度按团队自身的 balance/display_balance 比例换算，与转入、删除团队退款的口径一致。
+func (r *organizationRepository) WithdrawToOwner(ctx context.Context, organizationID, actorUserID int64, amount float64) (*service.Organization, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	role, err := organizationActorRole(ctx, tx, organizationID, actorUserID)
+	if err != nil {
+		return nil, err
+	}
+	if role != service.OrganizationRoleOwner {
+		return nil, service.ErrOrganizationWithdrawOwner
+	}
+	var status string
+	var balance, display float64
+	err = tx.QueryRowContext(ctx, `SELECT status,balance,COALESCE(display_balance,0) FROM organizations WHERE id=$1 FOR UPDATE`, organizationID).Scan(&status, &balance, &display)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && status != "active" {
+		return nil, service.ErrOrganizationNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	// display_balance 为 0 的历史数据，展示额度等同于实际额度（与转入时的口径一致）。
+	effectiveDisplay := display
+	if effectiveDisplay <= 0 {
+		effectiveDisplay = balance
+	}
+	const eps = 0.00000001
+	if balance <= eps || amount > effectiveDisplay+eps {
+		return nil, service.ErrOrganizationBalance
+	}
+	actual, displayMoved := balance, effectiveDisplay
+	if amount < effectiveDisplay-eps {
+		// 部分转出：按比例换算；全部转出时直接取整个余额，避免浮点残留。
+		actual, displayMoved = amount*balance/effectiveDisplay, amount
+	}
+	var balanceAfter float64
+	if err = tx.QueryRowContext(ctx, `UPDATE organizations SET balance=balance-$1::numeric,
+		display_balance=GREATEST(0,COALESCE(display_balance,0)-$2::numeric),updated_at=NOW()
+		WHERE id=$3 RETURNING balance`, actual, displayMoved, organizationID).Scan(&balanceAfter); err != nil {
+		return nil, err
+	}
+	// 个人账户 display_balance 为 0 表示展示额度等同于 balance，先还原再累加（同一条 UPDATE 内右值均为更新前的值）。
+	res, err := tx.ExecContext(ctx, `UPDATE users SET
+		display_balance=(CASE WHEN COALESCE(display_balance,0)>0 THEN display_balance ELSE balance END)+$2::numeric,
+		balance=balance+$1::numeric,updated_at=NOW()
+		WHERE id=$3 AND deleted_at IS NULL`, actual, displayMoved, actorUserID)
+	if err != nil {
+		return nil, err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return nil, service.ErrOrganizationNotFound
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO organization_quota_ledger(organization_id,actor_user_id,entry_type,amount,balance_after,detail)
+		VALUES($1,$2,'withdraw',$3::numeric,$4::numeric,jsonb_build_object('destination','owner_personal_balance','display_amount',$5::numeric))`,
+		organizationID, actorUserID, -actual, balanceAfter, displayMoved); err != nil {
+		return nil, err
+	}
+	if err = insertOrganizationAudit(ctx, tx, organizationID, actorUserID, "quota.withdraw", "organization", fmt.Sprint(organizationID), map[string]any{"amount": actual, "display_amount": displayMoved}); err != nil {
 		return nil, err
 	}
 	if err = tx.Commit(); err != nil {
@@ -737,6 +813,40 @@ func (r *organizationRepository) ListAuditLogs(ctx context.Context, organization
 		items = append(items, v)
 	}
 	return items, rows.Err()
+}
+
+// ListFundRecords 列出团队额度的转入 / 转出记录（不含逐请求的用量流水，那部分量很大且已在「模型用量」里统计）。
+func (r *organizationRepository) ListFundRecords(ctx context.Context, organizationID, actorUserID int64, limit, offset int) ([]service.OrganizationFundRecord, int64, error) {
+	org, err := r.GetForUser(ctx, organizationID, actorUserID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if org.Role != service.OrganizationRoleOwner && org.Role != service.OrganizationRoleAdmin {
+		return nil, 0, service.ErrOrganizationForbidden
+	}
+	var total int64
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM organization_quota_ledger WHERE organization_id=$1 AND entry_type IN ('fund','withdraw')`, organizationID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT l.id,l.entry_type,
+		COALESCE((l.detail->>'display_amount')::numeric,ABS(l.amount))::float8,
+		COALESCE(l.actor_user_id,0),COALESCE(u.email,''),COALESCE(u.username,''),l.created_at
+		FROM organization_quota_ledger l LEFT JOIN users u ON u.id=l.actor_user_id
+		WHERE l.organization_id=$1 AND l.entry_type IN ('fund','withdraw')
+		ORDER BY l.created_at DESC,l.id DESC LIMIT $2 OFFSET $3`, organizationID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	items := []service.OrganizationFundRecord{}
+	for rows.Next() {
+		var v service.OrganizationFundRecord
+		if err := rows.Scan(&v.ID, &v.Type, &v.DisplayAmount, &v.ActorUserID, &v.ActorEmail, &v.ActorUsername, &v.CreatedAt); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, v)
+	}
+	return items, total, rows.Err()
 }
 
 func organizationActorRole(ctx context.Context, tx *sql.Tx, organizationID, userID int64) (string, error) {

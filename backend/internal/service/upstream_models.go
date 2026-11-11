@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -145,6 +146,20 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 	}
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		// The client only gets "HTTP <status>"; the host and the start of the body are what
+		// tell a blocked server IP (an HTML challenge page) from a bad key or a wrong path.
+		snippet := strings.Join(strings.Fields(string(body)), " ")
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		slog.Warn("upstream_model_list_http_error",
+			"platform", account.Platform,
+			"host", req.URL.Host,
+			"path", req.URL.Path,
+			"status", resp.StatusCode,
+			"content_type", resp.Header.Get("Content-Type"),
+			"body_snippet", snippet,
+		)
 		return nil, newUpstreamModelSyncUpstreamError(
 			fmt.Sprintf("Upstream model list request failed with HTTP %d", resp.StatusCode),
 			fmt.Errorf("upstream model list returned HTTP %d", resp.StatusCode),
@@ -320,6 +335,9 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 	}
 	if baseURL == "" && account.Platform == PlatformXingAPISeedance {
 		baseURL = XingAPISeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformJijiuSeedance {
+		baseURL = JijiuSeedanceDefaultBaseURL
 	}
 	if baseURL == "" && account.Platform == PlatformMaiTokenSeedance {
 		baseURL = MaiTokenSeedanceDefaultBaseURL
@@ -726,9 +744,14 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 			if ppVideoIsXingAPISeedanceModel(model) {
 				filtered = append(filtered, model)
 			}
+		case PlatformJijiuSeedance:
+			// The upstream lists every model of the site (chat, image, music); keep only its Seedance models.
+			if publicModel, ok := ppVideoJijiuPublicModel(model); ok {
+				filtered = append(filtered, publicModel)
+			}
 		case PlatformMaiTokenSeedance:
-			if strings.TrimSpace(model) == MaiTokenSeedanceModel {
-				filtered = append(filtered, model)
+			if publicModel, ok := ppVideoMaiTokenPublicModel(model); ok {
+				filtered = append(filtered, publicModel)
 			}
 		case PlatformGuangying:
 			if publicModel, ok := ppVideoGuangyingPublicModel(model); ok {

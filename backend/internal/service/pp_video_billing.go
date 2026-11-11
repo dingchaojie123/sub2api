@@ -34,13 +34,22 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 	meta PPVideoBillingMetadata,
 	key *APIKey,
 ) (PPVideoBillingQuote, error) {
+	// A Seedance aggregate group prices every line under the line's public name, on the
+	// group's own platform. The request itself is handled (and metered) as a request of the
+	// line's platform, so meta.Platform is that platform; a price estimate has no account and
+	// carries the group's platform.
+	isHub := key != nil && key.Group != nil && key.Group.Platform == PlatformSeedanceHub
 	platformLabel := "CTMO Seedance"
-	if meta.Platform == PlatformGuangying {
+	if isHub {
+		platformLabel = "Seedance Hub"
+	} else if meta.Platform == PlatformGuangying {
 		platformLabel = "Guangying"
 	} else if meta.Platform == PlatformOPONE {
 		platformLabel = "OPONE"
 	} else if meta.Platform == PlatformXingAPISeedance {
 		platformLabel = "XingAPI Seedance"
+	} else if meta.Platform == PlatformJijiuSeedance {
+		platformLabel = "Jijiu Seedance"
 	} else if meta.Platform == PlatformMaiTokenSeedance {
 		platformLabel = "Mai Token Seedance"
 	}
@@ -61,11 +70,26 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		return PPVideoBillingQuote{}, missing("video count must be positive")
 	}
 
+	pricingPlatform := meta.Platform
 	pricingModel := strings.TrimSpace(meta.Model)
+	if isHub {
+		// The prepared request carries the platform's own (or upstream) name of the model;
+		// the price is configured under the line's public name.
+		line, ok := SeedanceHubLineByName(pricingModel)
+		if !ok || (meta.Platform != PlatformSeedanceHub && line.Platform != meta.Platform) {
+			return PPVideoBillingQuote{}, missing("the model is not a line of this group")
+		}
+		pricingPlatform = PlatformSeedanceHub
+		pricingModel = line.Name
+	} else if meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance {
+		// The prepared request carries the upstream name; prices are looked up under the
+		// public name first, and the alias fallback below still finds upstream-name prices.
+		pricingModel = PPVideoPublicModelName(meta.Platform, pricingModel)
+	}
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: pricingModel, GroupID: key.GroupID})
 	p := resolved.channelPricing
 	pricingMatchesExactly := func(candidate *ChannelModelPricing, model string) bool {
-		if candidate == nil || candidate.Platform != meta.Platform {
+		if candidate == nil || candidate.Platform != pricingPlatform {
 			return false
 		}
 		for _, configuredModel := range candidate.Models {
@@ -75,8 +99,8 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		}
 		return false
 	}
-	if meta.Platform == PlatformGuangying && !pricingMatchesExactly(p, pricingModel) {
-		for _, alias := range ppVideoGuangyingModelAliases(pricingModel) {
+	if !isHub && (meta.Platform == PlatformGuangying || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance) && !pricingMatchesExactly(p, pricingModel) {
+		for _, alias := range ppVideoPricingModelAliases(meta.Platform, pricingModel) {
 			if strings.EqualFold(alias, pricingModel) {
 				continue
 			}
@@ -91,7 +115,7 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 	if p == nil {
 		return PPVideoBillingQuote{}, missing("no channel model price matched; check the active channel, group association, platform and model name")
 	}
-	if p.Platform != meta.Platform {
+	if p.Platform != pricingPlatform {
 		return PPVideoBillingQuote{}, missing("matched price belongs to another platform")
 	}
 	exact := false
@@ -146,7 +170,10 @@ func ppVideoChannelPriceForMetadata(pricing *ChannelModelPricing, meta PPVideoBi
 	if pricing == nil {
 		return nil
 	}
-	if meta.Platform == PlatformOPONE {
+	// Models with a choice of resolution are priced per resolution tier (labels 480p / 720p /
+	// 1080p); a model without a matching tier uses the default price. Lines of the Seedance
+	// aggregate group are priced the same way.
+	if meta.Platform == PlatformOPONE || meta.Platform == PlatformJijiuSeedance || pricing.Platform == PlatformSeedanceHub {
 		if tier := pricing.GetTierByLabel(meta.VideoResolution); tier != nil {
 			return tier.PerRequestPrice
 		}
@@ -308,7 +335,7 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	var err error
 	if meta.Platform == Platform88APIVideo {
 		quote, err = s.calculate88APIVideoCost(ctx, meta, billingAPIKey)
-	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformXingAPISeedance || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
+	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformXingAPISeedance || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformSeedanceHub || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
 		quote, err = s.calculateCTMOSeedanceCost(ctx, meta, billingAPIKey)
 	} else {
 		quote, err = s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)

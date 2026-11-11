@@ -19,15 +19,18 @@ describe('apiDocsCatalog', () => {
       expect(page.markdown.trim().length, page.slug).toBeGreaterThan(100)
       expect(apiDocGroups.some((group) => group.id === page.group), page.slug).toBe(true)
     })
-    expect(findApiDocPage('mai-token-seedance')).toMatchObject({
-      path: 'video-api/mai-token-seedance.md',
-      group: 'video',
-    })
+    // Seedance2.5-480全参 lives inside the Seedance (other models) page, not on a page of its own
+    expect(findApiDocPage('mai-token-seedance')).toBeUndefined()
+    expect(findApiDocPage('seedance-series')?.markdown).toContain('Seedance2.5-480全参')
+    expect(findApiDocPage('unified')).toMatchObject({ group: 'video' })
+    expect(findApiDocPage('seedance-hub')).toMatchObject({ group: 'video' })
+    expect(findApiDocPage('seedance-hub')?.markdown).toContain('Seedance2.5--720p--V--按次--X')
+    expect(findApiDocPage('wan')).toMatchObject({ group: 'video-v1' })
   })
 
   it('resolves relative links between pages', () => {
     expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'video-api/wan.md')).toBe('wan')
-    expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'video-api/mai-token-seedance.md')).toBe('mai-token-seedance')
+    expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'video-api/mai-token-seedance.md')).toBeNull()
     expect(resolveApiDocSlug('PP_VIDEO_GENERATION_API.md', 'QWEN_TTS_API.md')).toBe('qwen-tts')
     expect(resolveApiDocSlug('video-api/wan.md', '../PP_VIDEO_GENERATION_API.md')).toBe('video')
     expect(resolveApiDocSlug('video-api/wan.md', 'advanced.md')).toBe('advanced')
@@ -56,7 +59,7 @@ describe('apiDocsCatalog', () => {
   it('exposes no upstream or internal wording in any customer page', () => {
     const forbidden = [
       '浙创', 'OPC', '光影', 'OPONE', '88API', '88api', '优云智算', '火山', '方舟', 'ByteDance', 'bytedance',
-      '星光', 'CTMO', 'ctmo', 'xingapi', 'guangying', 'opone', 'compshare', 'ModelVerse', 'gy-model',
+      '星光', 'CTMO', 'ctmo', 'xingapi', 'guangying', 'opone', 'compshare', 'ModelVerse', 'gy-model', 'sdtj', '极九', 'jijiu',
       '管理员', '后台', '渠道计费', '分组倍率', 'docs/internal', 'PLATFORM_ADMIN',
     ]
     apiDocPages.forEach((page) => {

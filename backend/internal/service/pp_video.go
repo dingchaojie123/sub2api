@@ -30,6 +30,7 @@ const (
 	ByteDanceVideoDefaultBaseURL         = ModelVerseVideoDefaultBaseURL
 	CTMOSeedanceDefaultBaseURL           = "https://video.ctmoai.com"
 	XingAPISeedanceDefaultBaseURL        = "https://xingapi.top/v1"
+	JijiuSeedanceDefaultBaseURL          = "https://newapi.jijiucanvas.com"
 	MaiTokenSeedanceDefaultBaseURL       = "https://api.mai-token.com"
 	GuangyingDefaultBaseURL              = "https://api.guangying.store"
 	OPONEDefaultBaseURL                  = "https://api.opone.cc"
@@ -162,7 +163,7 @@ func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
 	case Platform88APIVideo:
 		return true
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -279,6 +280,14 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
 		payload["model"] = public.UpstreamModel
+	case PlatformJijiuSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeJijiuSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
 	case PlatformMaiTokenSeedance:
 		if operation != PPVideoOperationGeneric {
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
@@ -2134,7 +2143,7 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
-	case Platform88APIVideo, PlatformCTMOSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
+	case Platform88APIVideo, PlatformCTMOSeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
@@ -2396,6 +2405,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		),
 		RawBody: append([]byte(nil), body...),
 	}
+	if platform == PlatformJijiuSeedance {
+		return finalizeJijiuSeedanceResponse(result, body), nil
+	}
 	ctmoExplicitError := platform == PlatformCTMOSeedance && ppVideoResponseHasExplicitError(body)
 	if ctmoExplicitError && result.ErrorMessage == "" {
 		result.ErrorMessage = ppVideoCTMOErrorMessage(body)
@@ -2492,6 +2504,10 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if platform == PlatformMaiTokenSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
 		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
+	if platform == PlatformJijiuSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
+		// The upstream may carry a result address while the task is still running.
+		raw = ppVideoWithoutPublicVideoURL(raw)
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
 		return raw
@@ -2509,11 +2525,11 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if status != "" {
 		payload["status"] = status
 	}
-	if platform == PlatformMaiTokenSeedance && status == PPVideoTaskStatusSucceeded {
-		payload["status"] = "completed"
-	}
 	if maiTokenBillingPending {
-		payload["status"] = "in_progress"
+		// Generation has finished but the local charge is not settled yet. The task
+		// keeps the same "processing" status as any unfinished task of every other
+		// model; the flag only explains why no video address is returned yet.
+		payload["status"] = PPVideoTaskStatusProcessing
 		payload["billing_pending"] = true
 	}
 	model := strings.TrimSpace(public.Model)
@@ -2522,6 +2538,17 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	}
 	if model == "" {
 		model = ppVideoUpstreamModel(platform, public)
+	}
+	if platform == PlatformMaiTokenSeedance {
+		// Tasks recorded under the upstream name still show the public name.
+		if publicModel, ok := ppVideoMaiTokenPublicModel(model); ok {
+			model = publicModel
+		}
+	}
+	if platform == PlatformJijiuSeedance {
+		if publicModel, ok := ppVideoJijiuPublicModel(model); ok {
+			model = publicModel
+		}
 	}
 	payload["model"] = model
 	videoURL := ppVideoExtractVideoURL(raw)
@@ -2537,11 +2564,12 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 			}
 		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance || platform == PlatformMaiTokenSeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance || platform == PlatformJijiuSeedance || platform == PlatformMaiTokenSeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	}
 	if videoURL != "" {
-		if platform == PlatformMaiTokenSeedance {
+		if platform == PlatformMaiTokenSeedance || platform == PlatformJijiuSeedance {
+			// Never expose the upstream's own address (full link, relative path or ticket).
 			ppVideoRemoveVideoURLFields(payload)
 		}
 		ppVideoSetPublicVideoURL(payload, videoURL)
@@ -2777,6 +2805,13 @@ func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBill
 		metadata.VideoCount = 1
 	}
 	metadata.VideoResolution = normalizePPVideoResolution(resolution)
+	if platform == PlatformJijiuSeedance && metadata.VideoResolution == "" {
+		// Models with one fixed resolution do not send it upstream, but the task is still
+		// priced and recorded at that resolution.
+		if spec, ok := jijiuModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
 	if platform == PlatformMiniMaxH3CompShare {
 		metadata.VideoResolution = strings.ToLower(resolution)
 	}
@@ -3553,8 +3588,11 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsCTMOSeedanceModel(model)
 	case PlatformXingAPISeedance:
 		return ppVideoIsXingAPISeedanceModel(model)
+	case PlatformJijiuSeedance:
+		return ppVideoIsJijiuSeedanceModel(model)
 	case PlatformMaiTokenSeedance:
-		return strings.TrimSpace(model) == MaiTokenSeedanceModel
+		_, ok := ppVideoMaiTokenPublicModel(model)
+		return ok
 	case PlatformGuangying:
 		return ppVideoIsGuangyingModel(model)
 	case PlatformOPONE:
@@ -3602,6 +3640,9 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 }
 
 func filterPPVideoPublicModelsForPlatform(platform string, models []string) []string {
+	if platform == PlatformSeedanceHub {
+		return SeedanceHubPublicModels(models)
+	}
 	if !IsPPVideoPlatform(platform) {
 		return models
 	}
@@ -3610,6 +3651,12 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 		// specifications are added locally. Keep account mappings discoverable;
 		// request validation still controls which models can be invoked safely.
 		return models
+	}
+	if platform == PlatformMaiTokenSeedance {
+		return ppVideoMaiTokenPublicModels(models)
+	}
+	if platform == PlatformJijiuSeedance {
+		return ppVideoJijiuPublicModels(models)
 	}
 	if platform == PlatformGuangying {
 		filtered := make([]string, 0, len(models))

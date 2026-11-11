@@ -38,6 +38,11 @@ func RegisterUserRoutes(
 			user.GET("/api-keys/:id/usage/daily", h.Usage.GetMyAPIKeyDailyUsage)
 			user.GET("/platform-quotas", h.User.GetMyPlatformQuotas)
 
+			// 企业账号：团队空间访问权限 / 升级企业账号 / 修改企业信息
+			user.GET("/workspace-access", h.Enterprise.GetWorkspaceAccess)
+			user.POST("/enterprise", h.Enterprise.Upgrade)
+			user.PUT("/enterprise", h.Enterprise.Update)
+
 			// 通知邮箱管理
 			notifyEmail := user.Group("/notify-email")
 			{
@@ -89,6 +94,8 @@ func RegisterUserRoutes(
 			organizations.GET("/invitations", h.Organization.Invitations)
 			organizations.POST("/invitations", h.Organization.CreateInvitation)
 			organizations.POST("/fund", h.Organization.Fund)
+			organizations.POST("/withdraw", h.Organization.Withdraw)
+			organizations.GET("/fund-records", h.Organization.FundRecords)
 			organizations.GET("/usage", h.Organization.Usage)
 			organizations.GET("/audit-logs", h.Organization.AuditLogs)
 		}

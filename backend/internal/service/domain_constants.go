@@ -55,7 +55,9 @@ const (
 	PlatformSeedance           = domain.PlatformSeedance
 	PlatformCTMOSeedance       = domain.PlatformCTMOSeedance
 	PlatformXingAPISeedance    = domain.PlatformXingAPISeedance
+	PlatformJijiuSeedance      = domain.PlatformJijiuSeedance
 	PlatformMaiTokenSeedance   = domain.PlatformMaiTokenSeedance
+	PlatformSeedanceHub        = domain.PlatformSeedanceHub
 	PlatformGuangying          = domain.PlatformGuangying
 	PlatformOPONE              = domain.PlatformOPONE
 	PlatformByteDance          = domain.PlatformByteDance
@@ -90,7 +92,9 @@ var AllowedQuotaPlatforms = []string{
 	PlatformSeedance,
 	PlatformCTMOSeedance,
 	PlatformXingAPISeedance,
+	PlatformJijiuSeedance,
 	PlatformMaiTokenSeedance,
+	PlatformSeedanceHub,
 	PlatformGuangying,
 	PlatformOPONE,
 	PlatformByteDance,

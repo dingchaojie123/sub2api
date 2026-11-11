@@ -138,6 +138,7 @@ import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { extractApiErrorMessage } from '@/utils/apiError'
 
 const { t } = useI18n()
 
@@ -200,6 +201,7 @@ const upstreamSyncPlatforms = new Set([
   'seedance',
   'ctmo-seedance',
 	'xingapi-seedance',
+  'jijiu-seedance',
   'guangying',
   'opone',
   'bytedance',
@@ -342,7 +344,7 @@ const syncUpstreamModels = async () => {
       appStore.showInfo(t('admin.accounts.syncUpstreamModelsNoChanges', { count: upstreamModels.length }))
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : t('admin.accounts.syncUpstreamModelsFailed')
+    const message = extractApiErrorMessage(error, t('admin.accounts.syncUpstreamModelsFailed'))
     appStore.showError(t('admin.accounts.syncUpstreamModelsError', { message }))
   } finally {
     isSyncingUpstream.value = false

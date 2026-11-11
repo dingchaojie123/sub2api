@@ -41,6 +41,7 @@ func TestEveryGatewayPOSTRouteIsClassifiedForPromptAuditCoverage(t *testing.T) {
 		"/images/batches":           {"batch_image_handler.go"},
 		"/video/generations":        {"jimeng_video.go"},
 		"/videos/generations":       {"grok_media.go"},
+		"/v2/videos/generations":    {"pp_video.go"},
 		"/videos/text2video":        {"pp_video.go"},
 		"/videos/image2video":       {"pp_video.go"},
 		"/videos/edits":             {"grok_media.go"},

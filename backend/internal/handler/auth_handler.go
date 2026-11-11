@@ -27,13 +27,14 @@ type AuthHandler struct {
 	redeemService        *service.RedeemService
 	totpService          *service.TotpService
 	userAttributeService *service.UserAttributeService
+	enterpriseService    *service.EnterpriseService
 
 	dingTalkClientInstance *DingTalkClient
 	dingTalkClientMu       sync.Mutex
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, userAttributeService *service.UserAttributeService) *AuthHandler {
+func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userService *service.UserService, settingService *service.SettingService, promoService *service.PromoService, redeemService *service.RedeemService, totpService *service.TotpService, userAttributeService *service.UserAttributeService, enterpriseService *service.EnterpriseService) *AuthHandler {
 	return &AuthHandler{
 		cfg:                  cfg,
 		authService:          authService,
@@ -43,6 +44,7 @@ func NewAuthHandler(cfg *config.Config, authService *service.AuthService, userSe
 		redeemService:        redeemService,
 		totpService:          totpService,
 		userAttributeService: userAttributeService,
+		enterpriseService:    enterpriseService,
 	}
 }
 
@@ -55,6 +57,10 @@ type RegisterRequest struct {
 	PromoCode      string `json:"promo_code"`      // 注册优惠码
 	InvitationCode string `json:"invitation_code"` // 邀请码
 	AffCode        string `json:"aff_code"`        // 邀请返利码
+
+	// AccountType: "personal"（默认）或 "enterprise"。企业注册需同时提供 Enterprise 企业信息。
+	AccountType string                   `json:"account_type"`
+	Enterprise  *service.EnterpriseInput `json:"enterprise"`
 }
 
 // SendVerifyCodeRequest 发送验证码请求
@@ -165,6 +171,30 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 企业注册：先校验企业信息（含信用代码是否已被占用），避免注册成功后才发现信息有误。
+	var enterpriseInput *service.EnterpriseInput
+	switch strings.TrimSpace(req.AccountType) {
+	case "", service.AccountTypePersonal:
+	case service.AccountTypeEnterprise:
+		if req.Enterprise == nil {
+			response.BadRequest(c, "Enterprise information is required")
+			return
+		}
+		if h.enterpriseService == nil {
+			response.ErrorFrom(c, service.ErrServiceUnavailable)
+			return
+		}
+		normalized, err := h.enterpriseService.ValidateForRegistration(c.Request.Context(), *req.Enterprise)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		enterpriseInput = &normalized
+	default:
+		response.BadRequest(c, "Invalid account_type")
+		return
+	}
+
 	// Turnstile 验证（邮箱验证码注册场景避免重复校验一次性 token）
 	if err := h.authService.VerifyTurnstileForRegister(c.Request.Context(), req.TurnstileToken, ip.GetClientIP(c), req.VerifyCode); err != nil {
 		response.ErrorFrom(c, err)
@@ -185,7 +215,40 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// 账号已创建，补写企业档案（状态 pending，注册后立即可用）。
+	// 极小概率与他人同时占用同一信用代码而失败：账号仍保留为个人账号，用户可在个人资料页重新升级。
+	if enterpriseInput != nil && user != nil {
+		if _, err := h.enterpriseService.CreateProfile(c.Request.Context(), user.ID, *enterpriseInput); err != nil {
+			slog.Error("register: create enterprise profile failed", "user_id", user.ID, "error", err)
+		}
+	}
+
 	h.respondWithTokenPair(c, user)
+}
+
+// ValidateEnterpriseRequest 企业注册信息预检请求
+type ValidateEnterpriseRequest struct {
+	service.EnterpriseInput
+}
+
+// ValidateEnterprise 企业注册信息预检（公开接口）：校验格式并检查统一社会信用代码是否已被注册。
+// 在发送邮箱验证码之前调用，避免用户走完验证流程才发现信息有误。
+// POST /api/v1/auth/validate-enterprise
+func (h *AuthHandler) ValidateEnterprise(c *gin.Context) {
+	var req ValidateEnterpriseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if h.enterpriseService == nil {
+		response.ErrorFrom(c, service.ErrServiceUnavailable)
+		return
+	}
+	if _, err := h.enterpriseService.ValidateForRegistration(c.Request.Context(), req.EnterpriseInput); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"valid": true})
 }
 
 // SendVerifyCode 发送邮箱验证码

@@ -32,6 +32,7 @@ func RegisterAdminRoutes(
 
 		// 用户管理
 		registerUserManagementRoutes(admin, h)
+		registerEnterpriseReviewRoutes(admin, h)
 
 		// 分组管理
 		registerGroupRoutes(admin, h)
@@ -283,6 +284,15 @@ func registerDashboardRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		dashboard.POST("/api-keys-usage", h.Admin.Dashboard.GetBatchAPIKeysUsage)
 		dashboard.GET("/user-breakdown", h.Admin.Dashboard.GetUserBreakdown)
 		dashboard.POST("/aggregation/backfill", h.Admin.Dashboard.BackfillAggregation)
+	}
+}
+
+// registerEnterpriseReviewRoutes 企业账号审核。
+func registerEnterpriseReviewRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	enterprises := admin.Group("/enterprises")
+	{
+		enterprises.GET("", h.Enterprise.AdminList)
+		enterprises.POST("/:user_id/review", h.Enterprise.AdminReview)
 	}
 }
 

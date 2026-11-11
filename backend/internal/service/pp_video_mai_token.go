@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/tidwall/gjson"
+	"go.uber.org/zap"
 )
 
 const (
@@ -15,6 +17,11 @@ const (
 	maiTokenMaxReferenceVideos = 10
 	maiTokenMaxReferenceAudios = 10
 	maiTokenMaxReferences      = 50
+
+	// The generation length the platform accepts, in whole seconds. Shared by request
+	// validation, the capabilities list and the price quote.
+	maiTokenMinDurationSeconds = 4
+	maiTokenMaxDurationSeconds = 30
 )
 
 type maiTokenReferences struct {
@@ -30,8 +37,12 @@ func normalizeMaiTokenSeedancePayload(_ map[string]any, body []byte, public *PPV
 	if public == nil {
 		return nil, fmt.Errorf("Mai Token Seedance request body is required")
 	}
-	if !public.HasExplicitModel || strings.TrimSpace(public.Model) != MaiTokenSeedanceModel {
-		return nil, fmt.Errorf("Mai Token Seedance model must be %q", MaiTokenSeedanceModel)
+	if !public.HasExplicitModel {
+		return nil, fmt.Errorf("model must be %q", MaiTokenSeedancePublicModel)
+	}
+	publicModel, knownModel := ppVideoMaiTokenPublicModel(public.Model)
+	if !knownModel {
+		return nil, fmt.Errorf("model must be %q", MaiTokenSeedancePublicModel)
 	}
 	if err := maiTokenRejectUnsupportedFields(body); err != nil {
 		return nil, err
@@ -91,7 +102,7 @@ func normalizeMaiTokenSeedancePayload(_ map[string]any, body []byte, public *PPV
 		result["watermark"] = value
 	}
 
-	public.Model = MaiTokenSeedanceModel
+	public.Model = publicModel
 	public.UpstreamModel = MaiTokenSeedanceModel
 	public.Prompt = prompt
 	public.DurationMilliseconds = int64(duration) * 1000
@@ -135,7 +146,7 @@ func maiTokenDurationSeconds(body []byte) (int, error) {
 		value = gjson.GetBytes(body, "seconds")
 	}
 	if !value.Exists() || value.Type == gjson.Null {
-		return 4, nil
+		return maiTokenMinDurationSeconds, nil
 	}
 	if value.Type != gjson.Number {
 		return 0, fmt.Errorf("Mai Token Seedance duration must be an integer from 4 to 30 seconds")
@@ -145,7 +156,7 @@ func maiTokenDurationSeconds(body []byte) (int, error) {
 		return 0, fmt.Errorf("Mai Token Seedance duration must be an integer from 4 to 30 seconds")
 	}
 	duration := rational.Num().Int64()
-	if duration < 4 || duration > 30 {
+	if duration < maiTokenMinDurationSeconds || duration > maiTokenMaxDurationSeconds {
 		return 0, fmt.Errorf("Mai Token Seedance duration must be an integer from 4 to 30 seconds")
 	}
 	return int(duration), nil
@@ -460,6 +471,7 @@ func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 	case "completed":
 		if gjson.GetBytes(body, "billing_pending").Bool() || result.ProviderBillingSeconds <= 0 {
 			result.Status = PPVideoTaskStatusProcessing
+			logMaiTokenCompletedHeld(result.TaskID, body)
 		} else {
 			result.Status = PPVideoTaskStatusSucceeded
 		}
@@ -472,6 +484,61 @@ func parseMaiTokenSeedanceResponse(body []byte) (PPVideoResponse, error) {
 		result.VideoCount = 1
 	}
 	return result, nil
+}
+
+// Reasons a finished upstream task is still reported to the customer as processing.
+const (
+	maiTokenHeldUpstreamBillingPending = "upstream_billing_pending"
+	maiTokenHeldBillingSecondsMissing  = "billing_seconds_missing"
+	maiTokenHeldBillingSecondsNotNum   = "billing_seconds_not_a_number"
+	maiTokenHeldBillingSecondsNotInt   = "billing_seconds_not_an_integer"
+	maiTokenHeldBillingSecondsNotPos   = "billing_seconds_not_positive"
+)
+
+// maiTokenCompletedHeldReason explains why a response whose status is "completed"
+// is kept as processing. It mirrors the checks in parseMaiTokenSeedanceResponse
+// and returns "" when the response is final.
+func maiTokenCompletedHeldReason(body []byte) string {
+	if gjson.GetBytes(body, "billing_pending").Bool() {
+		return maiTokenHeldUpstreamBillingPending
+	}
+	value := gjson.GetBytes(body, "usage.billing_seconds")
+	switch {
+	case !value.Exists():
+		return maiTokenHeldBillingSecondsMissing
+	case value.Type != gjson.Number:
+		return maiTokenHeldBillingSecondsNotNum
+	}
+	if maiTokenProviderBillingSeconds(body) > 0 {
+		return ""
+	}
+	integer, ok := new(big.Int).SetString(strings.TrimSpace(value.Raw), 10)
+	switch {
+	case !ok:
+		// 11.5, 11.0 and 1e1 are all numbers, but not the whole seconds the upstream documents.
+		return maiTokenHeldBillingSecondsNotInt
+	case integer.Sign() <= 0:
+		return maiTokenHeldBillingSecondsNotPos
+	default:
+		// A positive integer that does not fit an int64.
+		return maiTokenHeldBillingSecondsNotInt
+	}
+}
+
+// logMaiTokenCompletedHeld records, for support, that the upstream reports the task
+// as completed while the local task stays unsettled. Only the status flags and the
+// small usage object are logged, never the response body, which can hold signed URLs.
+func logMaiTokenCompletedHeld(taskID string, body []byte) {
+	usage := gjson.GetBytes(body, "usage").Raw
+	if len(usage) > 300 {
+		usage = usage[:300]
+	}
+	logger.L().Warn("pp_video.mai_token_completed_but_held",
+		zap.String("upstream_task_id", taskID),
+		zap.String("reason", maiTokenCompletedHeldReason(body)),
+		zap.Bool("upstream_billing_pending", gjson.GetBytes(body, "billing_pending").Bool()),
+		zap.String("usage", usage),
+	)
 }
 
 func maiTokenProviderBillingSeconds(body []byte) int64 {

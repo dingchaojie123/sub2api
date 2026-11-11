@@ -334,10 +334,63 @@ func TestGatewayRoutesPPVideoRecommendedAndLegacyPathsAreRegistered(t *testing.T
 	}
 }
 
+func TestGatewayRoutesUnifiedVideoPathIsRegistered(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformGuangying)
+	registered := make(map[string]bool)
+	for _, route := range router.Routes() {
+		registered[route.Method+" "+route.Path] = true
+	}
+
+	require.True(t, registered["POST /v2/videos/generations"], "the unified video endpoint should be registered")
+}
+
+func TestGatewayRoutesUnifiedVideoDispatchesSupportedPlatforms(t *testing.T) {
+	for _, platform := range []string{
+		service.PlatformGuangying,
+		service.PlatformByteDance,
+		service.PlatformWan3,
+		service.PlatformPixverseV6,
+		service.PlatformMiniMaxH3CompShare,
+		service.Platform88APIVideo,
+		service.PlatformMaiTokenSeedance,
+		service.PlatformXingAPISeedance,
+		service.PlatformJijiuSeedance,
+	} {
+		router := newGatewayRoutesTestRouter(platform)
+		req := httptest.NewRequest(http.MethodPost, "/v2/videos/generations", strings.NewReader(`{"prompt":"lake"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.NotEqual(t, http.StatusNotFound, w.Code, "platform=%s should reach the PP video handler", platform)
+		require.NotContains(t, w.Body.String(), "not supported for this platform")
+	}
+}
+
+func TestGatewayRoutesUnifiedVideoRejectsUnsupportedPlatforms(t *testing.T) {
+	for _, platform := range []string{
+		service.PlatformOpenAI,
+		service.PlatformSeedance,
+		service.PlatformMiniMaxH3,
+		service.PlatformGrok,
+		service.PlatformJimeng,
+	} {
+		router := newGatewayRoutesTestRouter(platform)
+		req := httptest.NewRequest(http.MethodPost, "/v2/videos/generations", strings.NewReader(`{"prompt":"lake"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "platform=%s", platform)
+		require.Contains(t, w.Body.String(), "unified video API (v2) is not supported for this platform yet", "platform=%s", platform)
+	}
+}
+
 func TestGatewayRoutesAuthenticatedVideoContentPlatformsAreDispatched(t *testing.T) {
 	for _, platform := range []string{
 		service.PlatformCTMOSeedance,
 		service.PlatformXingAPISeedance,
+		service.PlatformJijiuSeedance,
 		service.PlatformOPONE,
 	} {
 		router := newGatewayRoutesTestRouter(platform)

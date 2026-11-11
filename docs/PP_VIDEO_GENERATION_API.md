@@ -2,6 +2,23 @@
 
 本文档是本站对下游客户提供的视频生成接口文档。下游使用已开通对应平台的本站 API Key 调用本站接口，无需直接对接上游地址或持有上游凭据。语音合成见 [Qwen TTS 语音合成接口](QWEN_TTS_API.md)。
 
+## 先看这里：怎么选 v1 还是 v2
+
+创建视频任务有两种写法，使用同一个 API Key，查询任务和下载视频的接口完全一样：
+
+| 写法 | 创建接口 | 请求体 | 适合谁 |
+| --- | --- | --- | --- |
+| v2（推荐） | `POST /v2/videos/generations` | 所有模型用同一种请求体，素材统一放在 `assets[]` | 新接入的客户 |
+| v1 | `POST /v1/videos/generations` | 按模型各写各的，写法见侧边栏“各模型原生写法（v1）” | 已经接入的客户，或暂不支持 v2 的模型 |
+
+接入步骤：
+
+1. 用你的 API Key 调用 `GET /v1/models`，选一个模型。每个模型都带 `capabilities` 字段，其中 `protocols` 写明它支持 `v1`，还是 `v1` 和 `v2`，另外还有时长、分辨率、画幅、素材数量的范围。
+2. `protocols` 包含 `v2` 的，按 [统一请求格式（v2）](video-api/unified.md) 调用 `POST /v2/videos/generations`；只有 `v1` 的，按该模型自己的页面调用 `POST /v1/videos/generations`。
+3. 创建成功后保存响应里的任务 ID，用 `GET /v1/videos/{task_id}` 轮询状态，完成后按“下载或播放视频”一节取得视频。创建时建议带 `Idempotency-Key`。
+
+已经在用 v1 的客户不需要迁移，v1 会继续可用。
+
 ## 基础信息
 
 ```text
@@ -32,11 +49,13 @@ curl https://YOUR_SITE/v1/models \
 从响应 `data[].id` 中选择一个模型填入生成请求的 `model`。模型列表只返回当前
 API Key 所属视频平台同步到的模型，不同平台的模型不能混用。
 
+每个视频模型还会带有 `capabilities` 字段，说明它支持的请求写法、时长、分辨率、画幅、素材数量等，字段说明见 [统一请求格式（v2）](video-api/unified.md) 的“查询模型能力”一节。
+
 如果请求未传 `model`，本站会根据 API Key 所属的视频平台自动选择该平台的实际模型。不同平台的模型不能混用。
 
 ### 模型总览
 
-以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID。
+以下模型通过本文档中的统一创建和查询接口调用。API Key 必须属于已开通对应视频平台的分组；不同平台的模型不能跨分组使用，**Seedance 综合分组**除外：它把多条 Seedance 线路放在同一个分组里，一个 API Key 可以调用其中全部线路，见 [Seedance 综合分组](video-api/seedance-hub.md)。下游应以 `/v1/models` 返回的结果为准，并使用其中的精确模型 ID。
 
 | 模型系列 | 模型 ID | 输入能力 | 时长 | 输出分辨率 | 调用说明 |
 | --- | --- | --- | --- | --- | --- |
@@ -44,13 +63,32 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` | [查看](video-api/wan.md) |
 | 综合视频模型 | `gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0`、`seedance-2.0`、`seedance-2.0-fast`、`seedance-2.0-mini`、`seedance-2.5`、`veo-3.1`、`veo-3.1-fast`、`wan3.0-video` | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4K`，按模型限制 | [查看](video-api/general-models.md) |
 | Seedance（其他型号） | `seedance-2.0-930`、`seedance-2.0-903`、`seedance-933`、`seedance2.0-933-C`、`seedance2.5-V`、`Seedance 2.5-全参720P`、`限时限量-Seedance 2.5 满参`、`Seedance 2.5-无视频`、`限时限量-Seedance 2.5 满参-备选`、`Seedance 2.0按次计费`、`Seedance 2.5-无参考视频 按秒计费`、`Seedance 2.0-无参考视频 按秒计费`、`竖屏-Seedance 2.0按次计费`、`竖屏-Seedance 2.0 Fast 按次计费`、`竖屏-Seedance 2.0 Mini 按次计费` | 文生、参考图片/视频/音频，部分模型支持首尾帧，按模型能力 | 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`，按模型限制 | [查看](video-api/seedance-series.md) |
-| Seedance 2.5 480P | `sdtj-2.5-480p` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | 固定 `480p` | [查看](video-api/mai-token-seedance.md) |
+| Seedance 2.5 480P | `Seedance2.5-480全参` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | 固定 `480p` | [查看](video-api/seedance-series.md) |
+| Seedance 综合分组 | 名称形如 `Seedance2.5--720p--V--按次--X`，全部线路见调用说明 | 文生、参考图片/视频/音频，部分线路支持首尾帧 | 4-30 秒，按线路限制 | `480p`、`720p`、`1080p`，按线路限制 | [查看](video-api/seedance-hub.md) |
 | MiniMax-H3 | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` | [查看](video-api/minimax-h3.md) |
 | Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` | [查看](video-api/pixverse.md) |
 
 所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。各模型调用说明中的 JSON 结构是新增视频模型推荐使用的请求体格式。
 
-## 2. 创建视频任务
+### 各模型请求写法速查
+
+不同模型的原生请求写法并不相同，下表汇总了主要差异，方便同时接入多个模型时对照。表中未列出的型号以各自的调用说明为准。
+
+| 模型系列 | 素材的写法 | 时长、分辨率、画幅 | 音频开关 |
+| --- | --- | --- | --- |
+| Seedance（doubao 系列） | `input.content[]`，元素为 `image_url` / `video_url` / `audio_url`，用 `role` 区分首帧、尾帧和参考 | `parameters.*` | `parameters.generate_audio` |
+| Wan3.0 | `input.media[]`，元素为 `{type, url}` | `parameters.*` | `parameters.audio` |
+| 综合视频模型 | 顶层 `images`、`videos`；参考音频放 `metadata.referenceAudios` | 顶层 `duration`、`resolution`、`ratio` | 顶层 `generate_audio`，仅部分型号支持 |
+| Seedance（其他型号） | 顶层 `images`、`videos`、`audios`；名称带中文的型号还可以用带 `name` 的 `assets[]` | 顶层 `duration`、`resolution`、`aspect_ratio` 或 `ratio` | 以各型号说明为准 |
+| Seedance2.5-480全参 | 顶层 `referenceImages`、`referenceVideos`、`referenceAudios`、`first_image`、`last_image` | 顶层 `duration`、固定 `resolution`、`ratio` | 顶层 `generate_audio` |
+| MiniMax-H3 | 顶层 `content[]` | 顶层 `duration`、`resolution`、`ratio` | `mute_audio`，传 `true` 表示关闭音频 |
+| Pixverse-V6 | `input.img_url`、`input.first_frame_url`、`input.last_frame_url`、`input.video_url` | `parameters.*` | `parameters.generate_audio` |
+
+如果不想为每个模型各写一套请求，可以使用 [统一请求格式（v2）](video-api/unified.md)：所有素材放在 `assets[]`，时长、分辨率、画幅和音频开关使用固定字段名。目前本节模型总览中的全部模型都支持统一请求格式：Seedance（doubao 系列）、Wan3.0、MiniMax-H3、Pixverse-V6、综合视频模型、Seedance（其他型号）（包括 `seedance-2.0-930`、`seedance-2.0-903`）、`Seedance2.5-480全参` 以及 [Seedance 综合分组](video-api/seedance-hub.md) 里的全部线路。个别写法仍只能用原生写法，例如 Wan3.0 的文件、链接参考和 `Seedance2.5-480全参` 的首帧图片文件上传，见各模型的调用说明。
+
+## 2. 创建视频任务（v1 写法）
+
+本节是 v1 写法。新接入推荐使用 [统一请求格式（v2）](video-api/unified.md)，所有模型用同一种请求体。
 
 推荐接口：
 
@@ -70,6 +108,7 @@ POST /v1/videos/generations
 | `images` | string[] | 否 | 推荐的参考图片 URL 列表。多张图片必须是同一人物、同一角色或同一视觉风格的补充参考；不要混入不同人物或不同次元/画风的图片。 |
 | `videos` | string[] | 否 | 参考视频 URL 列表，会透传给支持该能力的上游。 |
 | `audios` | string[] | 否 | 参考音频 URL 列表，会透传给支持该能力的上游。 |
+| `assets` | object[] | 否 | 带名称的参考素材列表（`type`、`url`、`name`），仅部分 Seedance 型号支持。需要在提示词中用 `@文件名` 引用素材时使用，详见 [Seedance（其他型号）](video-api/seedance-series.md) 中的“用 assets[] 传素材并指定名称”一节。 |
 | `aspect_ratio` | string | 否 | 画幅比例，例如 `16:9`、`9:16`、`1:1`。 |
 | `resolution` | string | 否 | 分辨率，例如 `480p`、`720p`、`1080p`；未传默认 `720p`。 |
 | `generate_audio` | boolean | 否 | 是否生成视频音频，以模型实际能力为准；传 `false` 可关闭。 |
@@ -100,6 +139,28 @@ curl -X POST https://YOUR_SITE/v1/videos/generations \
 ```
 
 ### 带参考素材示例
+
+以下示例使用 `assets[]` 传参考素材，并为每个素材指定 `name`，提示词中可以用 `@文件名` 引用。该写法适用于名称带中文的 Seedance 型号（如 `Seedance 2.5-全参720P`，完整说明见 [Seedance（其他型号）](video-api/seedance-series.md) 中的“用 assets[] 传素材并指定名称”一节）。`name` 必须与提示词里的 `@` 引用完全一致，同一请求内不能重复。
+
+```bash
+curl -X POST https://YOUR_SITE/v1/videos/generations \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Seedance 2.5-全参720P",
+    "prompt": "@角色.png 在 @场景.png 中自然向前走并回头微笑，配音参考 @配音.wav",
+    "duration": 5,
+    "resolution": "720p",
+    "aspect_ratio": "9:16",
+    "assets": [
+      { "type": "image", "name": "角色.png", "url": "https://example.com/character.png" },
+      { "type": "image", "name": "场景.png", "url": "https://example.com/scene.png" },
+      { "type": "audio", "name": "配音.wav", "url": "https://example.com/voice.wav" }
+    ]
+  }'
+```
+
+其他不支持 `assets[]` 的模型，使用 `images`、`videos`、`audios` 传参考素材。这三个字段只传 URL，不带文件名，本站会自动命名为 `image1`、`video1`、`audio1` 等：
 
 ```bash
 curl -X POST https://YOUR_SITE/v1/videos/generations \

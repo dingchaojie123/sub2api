@@ -82,6 +82,15 @@ const emit = defineEmits<{
 
 const searchText = ref('')
 
+// Accounts of these platforms can also be scheduled by a Seedance aggregate group.
+const SEEDANCE_HUB_MEMBER_PLATFORMS: readonly string[] = [
+  'ctmo-seedance',
+  'guangying',
+  'xingapi-seedance',
+  'mai-token-seedance',
+  'jijiu-seedance'
+]
+
 const isSearchable = computed(() => {
   if (props.searchable === 'auto') return props.groups.length > 5
   return props.searchable
@@ -96,6 +105,9 @@ const filteredGroups = computed(() => {
       result = result.filter(
         (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini'
       )
+    } else if (SEEDANCE_HUB_MEMBER_PLATFORMS.includes(props.platform)) {
+      // 这些平台的账号除了同平台分组，还可以加入 Seedance 聚合分组
+      result = result.filter((g) => g.platform === props.platform || g.platform === 'seedance-hub')
     } else {
       // 默认：只能选择同 platform 的分组
       result = result.filter((g) => g.platform === props.platform)

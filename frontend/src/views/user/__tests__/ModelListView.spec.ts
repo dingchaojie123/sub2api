@@ -67,24 +67,34 @@ describe('ModelListView', () => {
 
     expect(wrapper.text()).toContain('模型与价格')
     expect(wrapper.findAll('[data-testid="model-card"]')).toHaveLength(modelSquareCatalog.length)
-    expect(wrapper.text()).toContain('Seedance2.0-933')
-    expect(wrapper.text()).toContain('限时限量-Seedance 2.5 满参')
+    expect(wrapper.text()).toContain('Seedance2.0--720p--933--按次--X')
+    expect(wrapper.text()).toContain('Seedance2.5--720p--限时满参--按次--G')
     expect(wrapper.text()).toContain('19')
     expect(wrapper.text()).toContain('积分 / 次')
     expect(wrapper.text()).toContain(`显示 ${modelSquareCatalog.length} / ${modelSquareCatalog.length}`)
   })
 
-  it('lists sdtj-2.5-480p as an independent 480P per-second model', () => {
-    const model = modelSquareCatalog.find((item) => item.name === 'sdtj-2.5-480p')
+  it('lists Seedance 2.5-全参720P as a regular per-second model', () => {
+    const model = modelSquareCatalog.find((item) => item.name === 'Seedance2.5--720p--全参--按秒--G')
 
-    expect(model).toMatchObject({ category: 'video', billing: '按秒' })
+    expect(model).toMatchObject({ category: 'video', channel: '常规', billing: '按秒' })
     expect(model?.prices).toEqual([
-      expect.objectContaining({ label: '480P', suffix: '积分 / 秒' }),
+      expect.objectContaining({ label: '720P', amount: '1.2', suffix: '积分 / 秒' }),
     ])
     expect(model?.specs).toEqual(expect.arrayContaining([
-      { label: '时长', value: '4-30 秒' },
-      { label: '分辨率', value: '固定 480P' },
+      { label: '时长', value: '5–30 秒' },
+      { label: '画面比例', value: '9:16 / 16:9 / 1:1' },
+      { label: '参考图片', value: '最多 30 张' },
     ]))
+  })
+
+  it('no longer lists the withdrawn models', () => {
+    const ids = modelSquareCatalog.map((item) => item.id)
+
+    for (const id of ['mai-token-seedance-sdtj-2.5-480p', 'tiktok-seedance-2.5-face', 'tiktok-seedance-2.5-full', 'tiktok-seedance-2.0-full']) {
+      expect(ids).not.toContain(id)
+    }
+    expect(modelSquareCatalog.some((item) => item.name === 'Seedance2.5-480全参')).toBe(false)
   })
 
   it('shows the previously CNY-quoted models in credits with the numbers unchanged', () => {
@@ -95,9 +105,7 @@ describe('ModelListView', () => {
     expect(wrapper.text()).toContain('Pixverse-V6')
     expect(wrapper.text()).toContain('0.72')
     expect(wrapper.text()).toContain('7 折')
-    expect(price('tiktok-seedance-2.0-9-3-0', '720P')).toBe('3.36')
-    expect(price('tiktok-seedance-2.5-face', '1080P')).toBe('17.00')
-    expect(price('tiktok-seedance-2.5-full', '720P')).toBe('0.80')
+    expect(price('tiktok-seedance-2.0-9-3-0', '720P')).toBe('5.6')
     expect(price('legacy-kling-3.0-turbo', '720P')).toBe('1.30')
   })
 
@@ -148,7 +156,7 @@ describe('ModelListView', () => {
     await wrapper.get('[data-testid="filter-channel-特价"]').setValue(true)
     const specialCount = modelSquareCatalog.filter((item) => item.channel === '特价').length
     expect(wrapper.findAll('[data-testid="model-card"]')).toHaveLength(specialCount)
-    expect(wrapper.text()).toContain('特价-Seedance 2.0')
+    expect(wrapper.text()).toContain('Seedance2.0--720p--标准--按次--G')
     expect(wrapper.text()).not.toContain('Veo 3.1')
 
     await wrapper.get('[data-testid="filter-billing-按次"]').setValue(true)
@@ -162,14 +170,14 @@ describe('ModelListView', () => {
     const wrapper = renderView()
     const tiktokItems = modelSquareCatalog.filter((item) => item.id.startsWith('tiktok-'))
 
-    expect(tiktokItems).toHaveLength(6)
+    expect(tiktokItems).toHaveLength(3)
     tiktokItems.forEach((item) => expect(item.channel, item.name).toBe('特价'))
     expect(modelSquareCatalog.some((item) => item.channel.includes('补贴'))).toBe(false)
     expect(wrapper.find('[data-testid="filter-channel-TikTok 补贴"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="filter-channel-特价"]').setValue(true)
     const special = modelSquareCatalog.filter((item) => item.channel === '特价')
-    expect(special.length).toBeGreaterThanOrEqual(15)
+    expect(special.length).toBeGreaterThanOrEqual(12)
     expect(wrapper.findAll('[data-testid="model-card"]')).toHaveLength(special.length)
   })
 

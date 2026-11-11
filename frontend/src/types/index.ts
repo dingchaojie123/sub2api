@@ -126,6 +126,15 @@ export interface RegisterRequest {
   promo_code?: string
   invitation_code?: string
   aff_code?: string
+  /** 账号类型，缺省为个人账号；企业注册需同时提供 enterprise */
+  account_type?: 'personal' | 'enterprise'
+  enterprise?: {
+    company_name: string
+    credit_code: string
+    address: string
+    contact_name: string
+    contact_phone: string
+  }
 }
 
 export interface AffiliateInvitee {
@@ -528,7 +537,9 @@ export type GroupPlatform =
   | 'seedance'
   | 'ctmo-seedance'
 	| 'xingapi-seedance'
+	| 'jijiu-seedance'
   | 'mai-token-seedance'
+  | 'seedance-hub'
   | 'guangying'
   | 'opone'
   | 'bytedance'
@@ -818,7 +829,9 @@ export type AccountPlatform =
   | 'seedance'
   | 'ctmo-seedance'
 	| 'xingapi-seedance'
+	| 'jijiu-seedance'
   | 'mai-token-seedance'
+  | 'seedance-hub'
   | 'guangying'
   | 'opone'
   | 'bytedance'

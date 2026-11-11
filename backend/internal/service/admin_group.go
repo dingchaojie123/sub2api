@@ -77,13 +77,22 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		seen[model] = struct{}{}
 	}
 	for _, acc := range accounts {
-		if acc.Platform != platform {
+		if acc.Platform != platform && !(platform == PlatformSeedanceHub && IsSeedanceHubMemberPlatform(acc.Platform)) {
 			continue
 		}
 		for model := range acc.GetModelMapping() {
 			model = strings.TrimSpace(model)
 			if model == "" {
 				continue
+			}
+			if platform == PlatformSeedanceHub {
+				// A hub group lists its lines under their public names, and only those that the
+				// account's own platform serves.
+				line, ok := SeedanceHubLineFor(acc.Platform, model)
+				if !ok {
+					continue
+				}
+				model = line.Name
 			}
 			if _, ok := seen[model]; ok {
 				continue

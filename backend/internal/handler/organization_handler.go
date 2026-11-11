@@ -287,6 +287,33 @@ func (h *OrganizationHandler) Fund(c *gin.Context) {
 	response.Success(c, item)
 }
 
+// Withdraw 把团队额度转回超级管理员的个人余额。
+// POST /api/v1/organizations/withdraw  {organization_id, amount}
+func (h *OrganizationHandler) Withdraw(c *gin.Context) {
+	userID, ok := organizationSubject(c)
+	if !ok {
+		return
+	}
+	var req struct {
+		OrganizationID int64   `json:"organization_id"`
+		Amount         float64 `json:"amount"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request")
+		return
+	}
+	if req.OrganizationID <= 0 {
+		response.BadRequest(c, "Invalid organization_id")
+		return
+	}
+	item, err := h.organizations.Withdraw(c.Request.Context(), req.OrganizationID, userID, req.Amount)
+	if err != nil {
+		writeOrganizationError(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
 func (h *OrganizationHandler) Usage(c *gin.Context) {
 	userID, ok := organizationSubject(c)
 	if !ok {
@@ -325,6 +352,29 @@ func (h *OrganizationHandler) Usage(c *gin.Context) {
 		return
 	}
 	response.Success(c, item)
+}
+
+// FundRecords 团队额度转入 / 转出记录，分页。
+// GET /api/v1/organizations/fund-records?organization_id=&page=&page_size=
+func (h *OrganizationHandler) FundRecords(c *gin.Context) {
+	userID, ok := organizationSubject(c)
+	if !ok {
+		return
+	}
+	orgID, ok := organizationID(c)
+	if !ok {
+		return
+	}
+	page, pageSize := response.ParsePagination(c)
+	if pageSize > 200 {
+		pageSize = 200
+	}
+	items, total, err := h.organizations.FundRecords(c.Request.Context(), orgID, userID, pageSize, (page-1)*pageSize)
+	if err != nil {
+		writeOrganizationError(c, err)
+		return
+	}
+	response.Paginated(c, items, total, page, pageSize)
 }
 
 func (h *OrganizationHandler) AuditLogs(c *gin.Context) {

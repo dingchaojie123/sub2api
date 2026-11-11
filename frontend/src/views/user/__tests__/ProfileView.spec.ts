@@ -81,6 +81,8 @@ describe('ProfileView', () => {
           StatCard: { template: '<div class="stat-card" />' },
           ProfileInfoCard: { template: '<div data-testid="profile-info-card" />' },
           ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },
+          ProfileEnterpriseCard: { template: '<div data-testid="profile-enterprise-card" />' },
+          ProfileJoinTeamCard: { template: '<div data-testid="profile-join-team-card" />' },
           ProfilePasswordForm: { template: '<div data-testid="profile-password-form" />' },
           ProfileTotpCard: { template: '<div data-testid="profile-totp-card" />' },
           Icon: true

@@ -204,6 +204,7 @@ export default {
     securityAudit: '安全审计',
     contentModeration: '内容审核',
     promptAudit: '提示词审计',
+    enterpriseReview: '企业审核',
     auditLogs: '操作日志',
   },
 
@@ -439,6 +440,123 @@ export default {
   teams: {
     title: '团队空间',
     description: '企业共享额度、成员和用量管理'
+  },
+
+  // 企业账号
+  enterprise: {
+    accountType: {
+      personal: '个人注册',
+      enterprise: '企业注册'
+    },
+    sectionTitle: '企业信息',
+    sectionHint: '注册后即可使用；企业信息将提交后台认证，通过后显示「已认证」标识。',
+    fields: {
+      companyName: '公司名称',
+      creditCode: '统一社会信用代码',
+      address: '公司地址',
+      contactName: '联系人',
+      contactPhone: '联系电话'
+    },
+    placeholders: {
+      companyName: '请输入公司全称',
+      creditCode: '18 位统一社会信用代码',
+      address: '请输入公司详细地址',
+      contactName: '请输入联系人姓名',
+      contactPhone: '手机号或座机号'
+    },
+    errors: {
+      companyName: '公司名称需为 2-100 个字符',
+      creditCode: '统一社会信用代码不正确，请核对 18 位代码',
+      address: '地址需为 5-200 个字符',
+      contactName: '联系人需为 2-50 个字符',
+      contactPhone: '请输入正确的手机号或座机号'
+    },
+    serverErrors: {
+      ENTERPRISE_CREDIT_CODE_EXISTS: '该统一社会信用代码已被注册，如需使用请联系客服',
+      ENTERPRISE_ALREADY_REGISTERED: '当前账号已是企业账号',
+      ENTERPRISE_IDENTITY_LOCKED: '认证通过后，公司名称和统一社会信用代码不可修改，如需变更请联系客服',
+      ENTERPRISE_ACCOUNT_REQUIRED: '仅企业账号可以创建团队',
+      ORGANIZATION_INVITATION_INVALID: '邀请无效或已过期，请向管理员重新获取',
+      ORGANIZATION_EMAIL_MISMATCH: '该邀请指定了其他邮箱，请使用被邀请的邮箱账号加入',
+      ORGANIZATION_SEAT_LIMIT: '团队席位已满，请联系团队管理员',
+      INVALID_ENTERPRISE_COMPANY_NAME: '公司名称需为 2-100 个字符',
+      INVALID_ENTERPRISE_CREDIT_CODE: '统一社会信用代码不正确，请核对 18 位代码',
+      INVALID_ENTERPRISE_ADDRESS: '地址需为 5-200 个字符',
+      INVALID_ENTERPRISE_CONTACT_NAME: '联系人需为 2-50 个字符',
+      INVALID_ENTERPRISE_CONTACT_PHONE: '请输入正确的手机号或座机号'
+    },
+    status: {
+      pending: '待认证',
+      approved: '已认证',
+      rejected: '认证未通过',
+      incomplete: '信息待补全'
+    },
+    registerFailed: '企业信息校验失败',
+    profile: {
+      cardTitle: '企业信息',
+      cardDescription: '企业账号的认证信息，认证通过后显示「已认证」标识',
+      rejectReason: '驳回原因',
+      incompleteHint: '你已创建过团队，请补全企业信息并提交认证。',
+      rejectedHint: '认证未通过，请根据驳回原因修改后重新提交。',
+      lockedHint: '认证已通过，公司名称和统一社会信用代码已锁定；如需变更请联系客服。',
+      edit: '编辑',
+      save: '保存',
+      saveAndSubmit: '保存并提交认证',
+      saved: '企业信息已保存',
+      cancel: '取消',
+      upgradeTitle: '升级为企业账号',
+      upgradeDescription: '升级后可创建团队空间，邀请成员共享额度。提交后立即生效，企业信息将进入后台认证。',
+      upgradeButton: '升级为企业账号',
+      upgradeSubmit: '提交并升级',
+      upgraded: '已升级为企业账号'
+    },
+    join: {
+      title: '加入团队',
+      description: '收到团队管理员的邀请了吗？粘贴邀请链接或邀请令牌即可加入，加入后可在创建 API 密钥时使用团队共享额度。',
+      placeholder: '粘贴邀请链接或邀请令牌',
+      hint: '邀请由团队管理员在「团队空间 → 邀请」中生成。',
+      submit: '加入团队',
+      joining: '加入中...',
+      success: '已加入团队',
+      failed: '加入团队失败，请检查邀请是否有效'
+    },
+    team: {
+      banner: '企业信息',
+      incompleteBanner: '企业信息尚未补全，请前往个人资料补全并提交认证。',
+      goComplete: '去补全',
+      createRestricted: '仅企业账号可以创建团队',
+      emptyMember: '你还没有加入团队空间，粘贴邀请令牌即可加入。'
+    },
+    admin: {
+      title: '企业审核',
+      description: '审核企业账号提交的企业信息',
+      searchPlaceholder: '搜索公司名称 / 信用代码 / 联系人 / 账号邮箱',
+      allStatus: '全部状态',
+      columns: {
+        company: '公司',
+        creditCode: '统一社会信用代码',
+        contact: '联系人',
+        account: '账号',
+        status: '状态',
+        submittedAt: '提交时间',
+        actions: '操作'
+      },
+      approve: '通过',
+      reject: '驳回',
+      view: '查看',
+      approveConfirm: '确认通过「{name}」的企业认证？',
+      rejectTitle: '驳回企业认证',
+      rejectReasonLabel: '驳回原因',
+      rejectReasonPlaceholder: '请填写驳回原因，用户可见（最多 200 字）',
+      rejectReasonRequired: '请填写驳回原因',
+      approved: '已通过认证',
+      rejected: '已驳回',
+      empty: '暂无企业账号',
+      loadFailed: '加载企业列表失败',
+      address: '地址',
+      phone: '联系电话',
+      cannotApproveIncomplete: '信息未补全，暂不能通过'
+    }
   },
 
   // Dashboard

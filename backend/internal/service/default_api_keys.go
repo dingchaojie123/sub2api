@@ -170,7 +170,7 @@ func defaultAPIKeyGroupMatchesPurpose(group *Group, spec struct {
 		return group.AllowImageGeneration
 	case "video":
 		// Jimeng serves video through its own gateway, separate from PP video.
-		return group.Platform == PlatformJimeng || IsPPVideoPlatform(group.Platform)
+		return group.Platform == PlatformJimeng || IsPPVideoGroupPlatform(group.Platform)
 	case "audio":
 		return IsAudioPlatform(group.Platform)
 	default:
@@ -179,7 +179,7 @@ func defaultAPIKeyGroupMatchesPurpose(group *Group, spec struct {
 }
 
 func isDefaultTextAPIKeyGroup(group *Group) bool {
-	if group.AllowImageGeneration || IsPPVideoPlatform(group.Platform) || IsAudioPlatform(group.Platform) {
+	if group.AllowImageGeneration || IsPPVideoGroupPlatform(group.Platform) || IsAudioPlatform(group.Platform) {
 		return false
 	}
 	switch group.Platform {

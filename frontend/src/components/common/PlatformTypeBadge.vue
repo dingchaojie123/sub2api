@@ -101,7 +101,9 @@ const platformLabel = computed(() => {
   if (props.platform === 'seedance') return 'Seedance'
   if (props.platform === 'ctmo-seedance') return '浙创 OPC Seedance'
 	if (props.platform === 'xingapi-seedance') return '星光 API Seedance'
+	if (props.platform === 'jijiu-seedance') return '极九 API Seedance'
   if (props.platform === 'mai-token-seedance') return 'Mai Token Seedance'
+  if (props.platform === 'seedance-hub') return 'Seedance 综合'
   if (props.platform === 'guangying') return '光影 AI Seedance'
   if (props.platform === 'opone') return 'OPONE Seedance'
   if (props.platform === 'bytedance') return 'ByteDance'
@@ -232,8 +234,14 @@ const platformClass = computed(() => {
 	if (props.platform === 'xingapi-seedance') {
 		return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
 	}
+	if (props.platform === 'jijiu-seedance') {
+		return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+	}
   if (props.platform === 'mai-token-seedance') {
     return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
+  }
+  if (props.platform === 'seedance-hub') {
+    return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
   }
   if (props.platform === 'guangying') {
     return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
@@ -314,8 +322,14 @@ const typeClass = computed(() => {
 	if (props.platform === 'xingapi-seedance') {
 		return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
 	}
+	if (props.platform === 'jijiu-seedance') {
+		return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300'
+	}
   if (props.platform === 'mai-token-seedance') {
     return 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300'
+  }
+  if (props.platform === 'seedance-hub') {
+    return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
   }
   if (props.platform === 'guangying') {
     return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300'

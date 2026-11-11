@@ -56,6 +56,13 @@ declare module 'vue-router' {
     requiresRiskControl?: boolean
 
     /**
+     * 是否要求账号拥有团队空间访问权限（企业账号，或已加入团队的账号）。
+     * 携带 ?invite= 邀请令牌的链接例外：被邀请的个人账号需要通过该链接加入团队。
+     * @default false
+     */
+    requiresTeamAccess?: boolean
+
+    /**
      * i18n key for the page title
      */
     titleKey?: string

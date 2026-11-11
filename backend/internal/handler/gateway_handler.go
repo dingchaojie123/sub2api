@@ -1021,7 +1021,12 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, platform)
 	if apiKey != nil && apiKey.Group != nil && apiKey.Group.CustomModelsListEnabled() {
 		fallbackModels := defaultModelIDsForPlatform(platform)
-		availableModels = filterModelsByCustomList(customModelsListSource(platform, availableModels, fallbackModels), fallbackModels, apiKey.Group.ModelsListConfig.Models)
+		selectedModels := make([]string, 0, len(apiKey.Group.ModelsListConfig.Models))
+		for _, model := range apiKey.Group.ModelsListConfig.Models {
+			// Lists saved under an upstream name keep matching after a model is renamed.
+			selectedModels = append(selectedModels, service.PPVideoPublicModelName(platform, model))
+		}
+		availableModels = filterModelsByCustomList(customModelsListSource(platform, availableModels, fallbackModels), fallbackModels, selectedModels)
 		writeCustomModelsList(c, platform, availableModels)
 		return
 	}
@@ -1031,7 +1036,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 		return
 	}
 
-	if service.IsPPVideoPlatform(platform) {
+	if service.IsPPVideoGroupPlatform(platform) {
 		writeModelsList(c, platform, nil)
 		return
 	}
@@ -1079,6 +1084,10 @@ func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 	if platform == service.PlatformMidjourney {
 		modelIDs = orderMidjourneyImageModels(modelIDs)
 	}
+	if service.IsPPVideoGroupPlatform(platform) {
+		writePPVideoModelsList(c, platform, modelIDs)
+		return
+	}
 	models := make([]claude.Model, 0, len(modelIDs))
 	for _, modelID := range modelIDs {
 		models = append(models, claude.Model{
@@ -1086,6 +1095,33 @@ func writeModelsList(c *gin.Context, platform string, modelIDs []string) {
 			Type:        "model",
 			DisplayName: modelID,
 			CreatedAt:   "2024-01-01T00:00:00Z",
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"object": "list",
+		"data":   models,
+	})
+}
+
+// ppVideoModelListItem is a model list entry of a video group. Besides the usual
+// model fields it carries the request protocols the group accepts and, where they
+// are known, the model's capabilities, so clients can validate a request locally.
+type ppVideoModelListItem struct {
+	claude.Model
+	Capabilities service.PPVideoModelCapabilities `json:"capabilities"`
+}
+
+func writePPVideoModelsList(c *gin.Context, platform string, modelIDs []string) {
+	models := make([]ppVideoModelListItem, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		models = append(models, ppVideoModelListItem{
+			Model: claude.Model{
+				ID:          modelID,
+				Type:        "model",
+				DisplayName: modelID,
+				CreatedAt:   "2024-01-01T00:00:00Z",
+			},
+			Capabilities: service.PPVideoCapabilitiesForModel(platform, modelID),
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{

@@ -22,8 +22,11 @@ export type Platform =
   | 'seedance'
   | 'ctmo-seedance'
 	| 'xingapi-seedance'
+	| 'jijiu-seedance'
   | 'guangying'
   | 'opone'
+  | 'mai-token-seedance'
+  | 'seedance-hub'
   | 'bytedance'
   | 'wan3'
   | 'minimax-h3'
@@ -53,8 +56,11 @@ const BADGE: Record<Platform, string> = {
   seedance: 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-500/10 text-teal-700 border-teal-500/30 dark:text-teal-300',
 	'xingapi-seedance': 'bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300',
+	'jijiu-seedance': 'bg-orange-500/10 text-orange-700 border-orange-500/30 dark:text-orange-300',
   guangying: 'bg-rose-500/10 text-rose-700 border-rose-500/30 dark:text-rose-300',
   opone: 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30 dark:text-indigo-300',
+  'mai-token-seedance': 'bg-cyan-500/10 text-cyan-700 border-cyan-500/30 dark:text-cyan-300',
+  'seedance-hub': 'bg-purple-500/10 text-purple-700 border-purple-500/30 dark:text-purple-300',
   bytedance: 'bg-violet-500/10 text-violet-700 border-violet-500/30 dark:text-violet-300',
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 border-fuchsia-500/30 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 border-pink-500/30 dark:text-pink-300',
@@ -86,8 +92,11 @@ const BADGE_LIGHT: Record<Platform, string> = {
   seedance: 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-500/10 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300',
 	'xingapi-seedance': 'bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300',
+	'jijiu-seedance': 'bg-orange-500/10 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300',
   guangying: 'bg-rose-500/10 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300',
   opone: 'bg-indigo-500/10 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300',
+  'mai-token-seedance': 'bg-cyan-500/10 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300',
+  'seedance-hub': 'bg-purple-500/10 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300',
   bytedance: 'bg-violet-500/10 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300',
   wan3: 'bg-fuchsia-500/10 text-fuchsia-700 dark:bg-fuchsia-500/10 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-500/10 text-pink-700 dark:bg-pink-500/10 dark:text-pink-300',
@@ -118,8 +127,11 @@ const BORDER: Record<Platform, string> = {
   seedance: 'border-teal-500/20 dark:border-teal-500/20',
   'ctmo-seedance': 'border-teal-500/20 dark:border-teal-500/20',
 	'xingapi-seedance': 'border-amber-500/20 dark:border-amber-500/20',
+	'jijiu-seedance': 'border-orange-500/20 dark:border-orange-500/20',
   guangying: 'border-rose-500/20 dark:border-rose-500/20',
   opone: 'border-indigo-500/20 dark:border-indigo-500/20',
+  'mai-token-seedance': 'border-cyan-500/20 dark:border-cyan-500/20',
+  'seedance-hub': 'border-purple-500/20 dark:border-purple-500/20',
   bytedance: 'border-violet-500/20 dark:border-violet-500/20',
   wan3: 'border-fuchsia-500/20 dark:border-fuchsia-500/20',
   'minimax-h3': 'border-pink-500/20 dark:border-pink-500/20',
@@ -151,8 +163,11 @@ const ACCENT_BAR: Record<Platform, string> = {
   seedance: 'bg-gradient-to-r from-teal-400 to-teal-600',
   'ctmo-seedance': 'bg-gradient-to-r from-teal-400 to-teal-600',
 	'xingapi-seedance': 'bg-gradient-to-r from-amber-400 to-amber-600',
+	'jijiu-seedance': 'bg-gradient-to-r from-orange-400 to-orange-600',
   guangying: 'bg-gradient-to-r from-rose-400 to-rose-600',
   opone: 'bg-gradient-to-r from-indigo-400 to-indigo-600',
+  'mai-token-seedance': 'bg-gradient-to-r from-cyan-400 to-cyan-500',
+  'seedance-hub': 'bg-gradient-to-r from-purple-400 to-purple-500',
   bytedance: 'bg-gradient-to-r from-violet-400 to-violet-600',
   wan3: 'bg-gradient-to-r from-fuchsia-400 to-fuchsia-600',
   'minimax-h3': 'bg-gradient-to-r from-pink-400 to-pink-600',
@@ -184,8 +199,11 @@ const TEXT: Record<Platform, string> = {
   seedance: 'text-teal-700 dark:text-teal-300',
   'ctmo-seedance': 'text-teal-700 dark:text-teal-300',
 	'xingapi-seedance': 'text-amber-700 dark:text-amber-300',
+	'jijiu-seedance': 'text-orange-700 dark:text-orange-300',
   guangying: 'text-rose-700 dark:text-rose-300',
   opone: 'text-indigo-700 dark:text-indigo-300',
+  'mai-token-seedance': 'text-cyan-700 dark:text-cyan-300',
+  'seedance-hub': 'text-purple-700 dark:text-purple-300',
   bytedance: 'text-violet-700 dark:text-violet-300',
   wan3: 'text-fuchsia-700 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-700 dark:text-pink-300',
@@ -217,8 +235,11 @@ const ICON: Record<Platform, string> = {
   seedance: 'text-teal-500 dark:text-teal-300',
   'ctmo-seedance': 'text-teal-500 dark:text-teal-300',
 	'xingapi-seedance': 'text-amber-500 dark:text-amber-300',
+	'jijiu-seedance': 'text-orange-500 dark:text-orange-300',
   guangying: 'text-rose-500 dark:text-rose-300',
   opone: 'text-indigo-500 dark:text-indigo-300',
+  'mai-token-seedance': 'text-cyan-500 dark:text-cyan-300',
+  'seedance-hub': 'text-purple-500 dark:text-purple-300',
   bytedance: 'text-violet-500 dark:text-violet-300',
   wan3: 'text-fuchsia-500 dark:text-fuchsia-300',
   'minimax-h3': 'text-pink-500 dark:text-pink-300',
@@ -250,8 +271,11 @@ const BUTTON: Record<Platform, string> = {
   seedance: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
   'ctmo-seedance': 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 dark:bg-teal-600/80 dark:hover:bg-teal-600',
 	'xingapi-seedance': 'bg-amber-600 text-white hover:bg-amber-700 active:bg-amber-800 dark:bg-amber-600/80 dark:hover:bg-amber-600',
+	'jijiu-seedance': 'bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 dark:bg-orange-600/80 dark:hover:bg-orange-600',
   guangying: 'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 dark:bg-rose-600/80 dark:hover:bg-rose-600',
   opone: 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600/80 dark:hover:bg-indigo-600',
+  'mai-token-seedance': 'bg-cyan-600 text-white hover:bg-cyan-700 active:bg-cyan-800 dark:bg-cyan-600/80 dark:hover:bg-cyan-600',
+  'seedance-hub': 'bg-purple-600 text-white hover:bg-purple-700 active:bg-purple-800 dark:bg-purple-600/80 dark:hover:bg-purple-600',
   bytedance: 'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 dark:bg-violet-600/80 dark:hover:bg-violet-600',
   wan3: 'bg-fuchsia-600 text-white hover:bg-fuchsia-700 active:bg-fuchsia-800 dark:bg-fuchsia-600/80 dark:hover:bg-fuchsia-600',
   'minimax-h3': 'bg-pink-600 text-white hover:bg-pink-700 active:bg-pink-800 dark:bg-pink-600/80 dark:hover:bg-pink-600',
@@ -283,8 +307,11 @@ const DISCOUNT: Record<Platform, string> = {
   seedance: 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
   'ctmo-seedance': 'bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300',
 	'xingapi-seedance': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+	'jijiu-seedance': 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   guangying: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
   opone: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'mai-token-seedance': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
+  'seedance-hub': 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
   bytedance: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
   wan3: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/40 dark:text-fuchsia-300',
   'minimax-h3': 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',
@@ -316,8 +343,11 @@ const GRADIENT: Record<Platform, string> = {
   seedance: 'from-teal-500 to-teal-600',
   'ctmo-seedance': 'from-teal-500 to-teal-600',
 	'xingapi-seedance': 'from-amber-500 to-amber-600',
+	'jijiu-seedance': 'from-orange-500 to-orange-600',
   guangying: 'from-rose-500 to-rose-600',
   opone: 'from-indigo-500 to-indigo-600',
+  'mai-token-seedance': 'from-cyan-500 to-cyan-600',
+  'seedance-hub': 'from-purple-500 to-purple-600',
   bytedance: 'from-violet-500 to-violet-600',
   wan3: 'from-fuchsia-500 to-fuchsia-600',
   'minimax-h3': 'from-pink-500 to-pink-600',
@@ -349,8 +379,11 @@ const GRADIENT_TEXT: Record<Platform, string> = {
   seedance: 'text-teal-100',
   'ctmo-seedance': 'text-teal-100',
 	'xingapi-seedance': 'text-amber-100',
+	'jijiu-seedance': 'text-orange-100',
   guangying: 'text-rose-100',
   opone: 'text-indigo-100',
+  'mai-token-seedance': 'text-cyan-100',
+  'seedance-hub': 'text-purple-100',
   bytedance: 'text-violet-100',
   wan3: 'text-fuchsia-100',
   'minimax-h3': 'text-pink-100',
@@ -381,8 +414,11 @@ const GRADIENT_SUBTEXT: Record<Platform, string> = {
   seedance: 'text-teal-200',
   'ctmo-seedance': 'text-teal-200',
 	'xingapi-seedance': 'text-amber-200',
+	'jijiu-seedance': 'text-orange-200',
   guangying: 'text-rose-200',
   opone: 'text-indigo-200',
+  'mai-token-seedance': 'text-cyan-200',
+  'seedance-hub': 'text-purple-200',
   bytedance: 'text-violet-200',
   wan3: 'text-fuchsia-200',
   'minimax-h3': 'text-pink-200',
@@ -399,7 +435,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 // ── Public API ──────────────────────────────────────────────────────
 
 function isPlatform(p: string): p is Platform {
-	return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'ctmo-seedance' || p === 'xingapi-seedance' || p === 'guangying' || p === 'opone' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
+	return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok' || p === 'jimeng' || p === 'doubao' || p === 'qwen' || p === 'kimi' || p === 'deepseek' || p === 'midjourney' || p === 'kling' || p === 'happyhourse' || p === 'seedance' || p === 'ctmo-seedance' || p === 'xingapi-seedance' || p === 'jijiu-seedance' || p === 'guangying' || p === 'opone' || p === 'mai-token-seedance' || p === 'seedance-hub' || p === 'bytedance' || p === 'wan3' || p === 'minimax-h3' || p === 'minimax-h3-compshare' || p === '88api-video' || p === 'minimax-speech' || p === 'qwen-tts' || p === 'pixverse-v6' || p === 'grok-imagine-video' || p === 'kuaishou'
 }
 
 export function platformBadgeClass(p: string): string {
@@ -464,8 +500,11 @@ export function platformLabel(p: string): string {
     case 'seedance': return 'Seedance'
     case 'ctmo-seedance': return '浙创 OPC Seedance'
 	case 'xingapi-seedance': return '星光 API Seedance'
+	case 'jijiu-seedance': return '极九 API Seedance'
     case 'guangying': return '光影 AI Seedance'
     case 'opone': return 'OPONE Seedance'
+    case 'mai-token-seedance': return 'Mai Token Seedance'
+    case 'seedance-hub': return 'Seedance 综合'
     case 'bytedance': return 'ByteDance'
     case 'wan3': return 'Wan3.0'
     case 'minimax-h3': return 'MiniMax-H3'

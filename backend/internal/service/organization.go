@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ var (
 	ErrOrganizationOwnerImmutable = infraerrors.Forbidden("ORGANIZATION_OWNER_IMMUTABLE", "organization owner cannot be removed or disabled")
 	ErrOrganizationOwnerOnly      = infraerrors.Forbidden("ORGANIZATION_OWNER_ONLY", "only the organization owner can delete the organization")
 	ErrOrganizationHasFrozenUsage = infraerrors.Conflict("ORGANIZATION_HAS_FROZEN_USAGE", "organization has unsettled usage and cannot be deleted")
+	ErrOrganizationWithdrawOwner  = infraerrors.Forbidden("ORGANIZATION_WITHDRAW_OWNER_ONLY", "only the organization owner can transfer quota back to the personal balance")
 	ErrOrganizationBalance        = infraerrors.Forbidden("ORGANIZATION_QUOTA_EXHAUSTED", "organization balance is insufficient")
 	ErrOrganizationMemberLimit    = infraerrors.TooManyRequests("ORGANIZATION_MEMBER_QUOTA_EXHAUSTED", "organization member quota is exhausted")
 )
@@ -100,6 +102,19 @@ type OrganizationUsageReport struct {
 	Models  []OrganizationModelUsage  `json:"models"`
 }
 
+// OrganizationFundRecord 团队额度的转入 / 转出记录。
+type OrganizationFundRecord struct {
+	ID int64 `json:"id"`
+	// Type: fund 转入（个人余额 → 团队）/ withdraw 转出（团队 → 超级管理员个人余额）
+	Type string `json:"type"`
+	// DisplayAmount 展示额度（正数，方向由 Type 决定），与页面上的团队额度同一口径
+	DisplayAmount float64   `json:"display_amount"`
+	ActorUserID   int64     `json:"actor_user_id"`
+	ActorEmail    string    `json:"actor_email"`
+	ActorUsername string    `json:"actor_username"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
 type OrganizationAuditLog struct {
 	ID          int64          `json:"id"`
 	ActorUserID int64          `json:"actor_user_id"`
@@ -164,24 +179,39 @@ type OrganizationRepository interface {
 	UpdateMember(ctx context.Context, organizationID, actorUserID, memberUserID int64, role, status *string, monthlyLimit *float64) error
 	RemoveMember(ctx context.Context, organizationID, actorUserID, memberUserID int64) ([]string, error)
 	FundFromUser(ctx context.Context, organizationID, actorUserID int64, amount float64) (*Organization, error)
+	// WithdrawToOwner 把团队可用额度转回创建者（超级管理员）的个人余额，amount 为展示额度。
+	WithdrawToOwner(ctx context.Context, organizationID, actorUserID int64, amount float64) (*Organization, error)
 	AttachAPIKey(ctx context.Context, organizationID, actorUserID, apiKeyID int64) error
 	SetAPIKeyBillingSource(ctx context.Context, apiKeyID, actorUserID int64, billingType string, organizationID *int64) (*APIKeyBillingSource, string, error)
 	GetBillingSubjectByAPIKey(ctx context.Context, apiKeyID int64) (*OrganizationBillingSubject, error)
 	GetAPIKeyBillingSources(ctx context.Context, apiKeyIDs []int64) (map[int64]APIKeyBillingSource, error)
 	UsageReport(ctx context.Context, organizationID, actorUserID int64, start, end time.Time) (*OrganizationUsageReport, error)
 	ListAuditLogs(ctx context.Context, organizationID, actorUserID int64, limit int) ([]OrganizationAuditLog, error)
+	ListFundRecords(ctx context.Context, organizationID, actorUserID int64, limit, offset int) ([]OrganizationFundRecord, int64, error)
 }
 
 type OrganizationService struct {
-	repo     OrganizationRepository
-	userRepo UserRepository
+	repo       OrganizationRepository
+	userRepo   UserRepository
+	enterprise EnterpriseRepository
 }
 
-func NewOrganizationService(repo OrganizationRepository, userRepo UserRepository) *OrganizationService {
-	return &OrganizationService{repo: repo, userRepo: userRepo}
+func NewOrganizationService(repo OrganizationRepository, userRepo UserRepository, enterprise EnterpriseRepository) *OrganizationService {
+	return &OrganizationService{repo: repo, userRepo: userRepo, enterprise: enterprise}
 }
 
 func (s *OrganizationService) Create(ctx context.Context, userID int64, in CreateOrganizationInput) (*Organization, error) {
+	// 只有企业账号（存在企业档案，无论认证状态）才能创建团队；加入团队不受此限制。
+	if s.enterprise == nil {
+		return nil, ErrServiceUnavailable
+	}
+	profile, err := s.enterprise.Get(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if profile == nil {
+		return nil, ErrEnterpriseRequired
+	}
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" || len([]rune(in.Name)) > 120 {
 		return nil, infraerrors.BadRequest("INVALID_ORGANIZATION_NAME", "organization name is required and must not exceed 120 characters")
@@ -281,6 +311,14 @@ func (s *OrganizationService) Fund(ctx context.Context, organizationID, actorID 
 	return s.repo.FundFromUser(ctx, organizationID, actorID, amount)
 }
 
+// Withdraw 把团队额度转回超级管理员的个人余额（仅创建者，可部分转出，只能转出可用额度，冻结部分不可动）。
+func (s *OrganizationService) Withdraw(ctx context.Context, organizationID, actorID int64, amount float64) (*Organization, error) {
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_ORGANIZATION_WITHDRAW_AMOUNT", "withdraw amount must be positive")
+	}
+	return s.repo.WithdrawToOwner(ctx, organizationID, actorID, amount)
+}
+
 func (s *OrganizationService) AttachAPIKey(ctx context.Context, organizationID, userID, apiKeyID int64) error {
 	return s.repo.AttachAPIKey(ctx, organizationID, userID, apiKeyID)
 }
@@ -291,6 +329,17 @@ func (s *OrganizationService) BillingSubject(ctx context.Context, apiKeyID int64
 
 func (s *OrganizationService) UsageReport(ctx context.Context, organizationID, userID int64, start, end time.Time) (*OrganizationUsageReport, error) {
 	return s.repo.UsageReport(ctx, organizationID, userID, start, end)
+}
+
+// FundRecords 团队额度转入 / 转出记录（仅超级管理员和管理员可查看）。
+func (s *OrganizationService) FundRecords(ctx context.Context, organizationID, userID int64, limit, offset int) ([]OrganizationFundRecord, int64, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return s.repo.ListFundRecords(ctx, organizationID, userID, limit, offset)
 }
 
 func (s *OrganizationService) AuditLogs(ctx context.Context, organizationID, userID int64, limit int) ([]OrganizationAuditLog, error) {

@@ -153,6 +153,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformXingAPISeedance {
 		baseURLRaw = XingAPISeedanceDefaultBaseURL
 	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformJijiuSeedance {
+		baseURLRaw = JijiuSeedanceDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMaiTokenSeedance {
 		baseURLRaw = MaiTokenSeedanceDefaultBaseURL
 	}
@@ -539,7 +542,7 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
-	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformMaiTokenSeedance && account.Platform != PlatformOPONE) {
+	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformJijiuSeedance && account.Platform != PlatformMaiTokenSeedance && account.Platform != PlatformOPONE) {
 		return nil, fmt.Errorf("authenticated-content PP video account is required")
 	}
 	if method != http.MethodGet && method != http.MethodHead {
@@ -560,6 +563,8 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 			baseURLRaw = CTMOSeedanceDefaultBaseURL
 		case PlatformXingAPISeedance:
 			baseURLRaw = XingAPISeedanceDefaultBaseURL
+		case PlatformJijiuSeedance:
+			baseURLRaw = JijiuSeedanceDefaultBaseURL
 		case PlatformMaiTokenSeedance:
 			baseURLRaw = MaiTokenSeedanceDefaultBaseURL
 		case PlatformOPONE:

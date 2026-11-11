@@ -7,13 +7,14 @@ import qwenTts from '../../../../docs/QWEN_TTS_API.md?raw'
 import advanced from '../../../../docs/video-api/advanced.md?raw'
 import doubaoSeedance from '../../../../docs/video-api/doubao-seedance.md?raw'
 import generalModels from '../../../../docs/video-api/general-models.md?raw'
-import maiTokenSeedance from '../../../../docs/video-api/mai-token-seedance.md?raw'
 import minimaxH3 from '../../../../docs/video-api/minimax-h3.md?raw'
 import pixverse from '../../../../docs/video-api/pixverse.md?raw'
+import seedanceHub from '../../../../docs/video-api/seedance-hub.md?raw'
 import seedanceSeries from '../../../../docs/video-api/seedance-series.md?raw'
+import unified from '../../../../docs/video-api/unified.md?raw'
 import wan from '../../../../docs/video-api/wan.md?raw'
 
-export type ApiDocGroupId = 'video' | 'audio'
+export type ApiDocGroupId = 'video' | 'video-v1' | 'audio'
 
 export interface ApiDocPage {
   /** 路由参数，/api-docs/:slug */
@@ -30,19 +31,21 @@ export const API_DOC_DEFAULT_SLUG = 'video'
 
 export const apiDocGroups: { id: ApiDocGroupId; label: string }[] = [
   { id: 'video', label: '视频生成' },
+  { id: 'video-v1', label: '各模型原生写法（v1）' },
   { id: 'audio', label: '语音合成' },
 ]
 
 export const apiDocPages: ApiDocPage[] = [
   { slug: 'video', path: 'PP_VIDEO_GENERATION_API.md', title: '快速开始', group: 'video', markdown: videoEntry },
-  { slug: 'doubao-seedance', path: 'video-api/doubao-seedance.md', title: 'Seedance（doubao 系列）', group: 'video', markdown: doubaoSeedance },
-  { slug: 'seedance-series', path: 'video-api/seedance-series.md', title: 'Seedance（其他型号）', group: 'video', markdown: seedanceSeries },
-  { slug: 'mai-token-seedance', path: 'video-api/mai-token-seedance.md', title: 'sdtj-2.5-480p', group: 'video', markdown: maiTokenSeedance },
-  { slug: 'wan', path: 'video-api/wan.md', title: 'Wan3.0', group: 'video', markdown: wan },
-  { slug: 'general-models', path: 'video-api/general-models.md', title: '综合视频模型', group: 'video', markdown: generalModels },
-  { slug: 'minimax-h3', path: 'video-api/minimax-h3.md', title: 'MiniMax-H3', group: 'video', markdown: minimaxH3 },
-  { slug: 'pixverse', path: 'video-api/pixverse.md', title: 'Pixverse-V6', group: 'video', markdown: pixverse },
-  { slug: 'advanced', path: 'video-api/advanced.md', title: '进阶说明', group: 'video', markdown: advanced },
+  { slug: 'unified', path: 'video-api/unified.md', title: '统一请求格式（v2）', group: 'video', markdown: unified },
+  { slug: 'seedance-hub', path: 'video-api/seedance-hub.md', title: 'Seedance 综合分组', group: 'video', markdown: seedanceHub },
+  { slug: 'doubao-seedance', path: 'video-api/doubao-seedance.md', title: 'Seedance（doubao 系列）', group: 'video-v1', markdown: doubaoSeedance },
+  { slug: 'seedance-series', path: 'video-api/seedance-series.md', title: 'Seedance（其他型号、Seedance2.5-480全参）', group: 'video-v1', markdown: seedanceSeries },
+  { slug: 'wan', path: 'video-api/wan.md', title: 'Wan3.0', group: 'video-v1', markdown: wan },
+  { slug: 'general-models', path: 'video-api/general-models.md', title: '综合视频模型', group: 'video-v1', markdown: generalModels },
+  { slug: 'minimax-h3', path: 'video-api/minimax-h3.md', title: 'MiniMax-H3', group: 'video-v1', markdown: minimaxH3 },
+  { slug: 'pixverse', path: 'video-api/pixverse.md', title: 'Pixverse-V6', group: 'video-v1', markdown: pixverse },
+  { slug: 'advanced', path: 'video-api/advanced.md', title: '进阶说明', group: 'video-v1', markdown: advanced },
   { slug: 'qwen-tts', path: 'QWEN_TTS_API.md', title: 'Qwen TTS 语音合成', group: 'audio', markdown: qwenTts },
 ]
 
