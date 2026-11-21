@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,6 +45,73 @@ func compShareVideoPrices(resolution string, apiKey *APIKey) (float64, float64, 
 		return 0, 0, fmt.Errorf("configure CompShare %s and 768P prices in the group before generating video", resolution)
 	}
 	return *price, *group.VideoPrice720P, nil
+}
+
+// calculateCompShareVideoCost prices a CompShare video. A per-second (video) price configured
+// for the model in the group's channel takes precedence; a group without one keeps using the
+// group's video price card.
+func (s *OpenAIGatewayService) calculateCompShareVideoCost(ctx context.Context, meta PPVideoBillingMetadata, key *APIKey) (PPVideoBillingQuote, error) {
+	quote, ok, err := s.compShareChannelVideoQuote(ctx, meta, key)
+	if err != nil || ok {
+		return quote, err
+	}
+	return s.calculatePPVideoGroupVideoCost(meta, key)
+}
+
+// compShareChannelVideoQuote returns ok=false when the group's channel has no per-second price
+// entry for the model, so the caller falls back to the group price card.
+func (s *OpenAIGatewayService) compShareChannelVideoQuote(ctx context.Context, meta PPVideoBillingMetadata, key *APIKey) (PPVideoBillingQuote, bool, error) {
+	if s == nil || s.resolver == nil || key == nil || key.GroupID == nil {
+		return PPVideoBillingQuote{}, false, nil
+	}
+	p := s.resolver.Resolve(ctx, PricingInput{Model: meta.Model, GroupID: key.GroupID}).channelPricing
+	if p == nil || p.Platform != PlatformMiniMaxH3CompShare || p.BillingMode != BillingModeVideo {
+		return PPVideoBillingQuote{}, false, nil
+	}
+	missing := func(reason string) error {
+		return fmt.Errorf("configure CompShare video pricing for model %q and resolution %q in the group's channel (group_id=%d): %s", meta.Model, meta.VideoResolution, *key.GroupID, reason)
+	}
+	exact := false
+	for _, model := range p.Models {
+		if strings.EqualFold(strings.TrimSpace(model), strings.TrimSpace(meta.Model)) {
+			exact = true
+			break
+		}
+	}
+	if !exact {
+		return PPVideoBillingQuote{}, false, missing("an exact model price is required; wildcard prices are not supported")
+	}
+	if meta.RequestedDurationMilliseconds <= 0 || meta.VideoCount <= 0 {
+		return PPVideoBillingQuote{}, false, missing("requested duration and video count must be positive")
+	}
+	// A resolution tier overrides the default per-second price; a resolution without a tier
+	// uses the default price.
+	priceFor := func(resolution string) *float64 {
+		if tier := p.GetTierByLabel(resolution); tier != nil {
+			return tier.PerRequestPrice
+		}
+		return p.PerRequestPrice
+	}
+	valid := func(value *float64) bool {
+		return value != nil && *value >= 0 && !math.IsNaN(*value) && !math.IsInf(*value, 0)
+	}
+	price := priceFor(meta.VideoResolution)
+	if !valid(price) {
+		return PPVideoBillingQuote{}, false, missing("the resolution has no valid per-second price; add a tier for it or set the default price")
+	}
+	// Settlement bills a task that CompShare downgraded to 768P at the fallback price.
+	fallback := priceFor("768p")
+	if !valid(fallback) {
+		return PPVideoBillingQuote{}, false, missing("a valid 768P per-second price is required for downgraded tasks; add a 768P tier or set the default price")
+	}
+	units := float64(meta.RequestedDurationMilliseconds) / 1000 * float64(meta.VideoCount)
+	return PPVideoBillingQuote{
+		Formula:           PPVideoBillingFormulaPerSecond,
+		Units:             units,
+		UnitPrice:         *price,
+		FallbackUnitPrice: *fallback,
+		Cost:              units * *price,
+	}, true, nil
 }
 
 func compShareVideoModelAllowed(model string) bool {

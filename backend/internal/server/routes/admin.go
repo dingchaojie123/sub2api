@@ -88,6 +88,9 @@ func RegisterAdminRoutes(
 		// 使用记录管理
 		registerUsageRoutes(admin, h)
 
+		// 视频任务（下游客户生成的视频任务）
+		registerVideoTaskRoutes(admin, h)
+
 		// 用户属性管理
 		registerUserAttributeRoutes(admin, h)
 
@@ -332,6 +335,11 @@ func registerGroupRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		groups.GET("/capacity-summary", h.Admin.Group.GetCapacitySummary)
 		groups.PUT("/sort-order", h.Admin.Group.UpdateSortOrder)
 		groups.GET("/:id/models-list-candidates", h.Admin.Group.GetModelsListCandidates)
+		// Seedance aggregate groups: route a model line to another line (service/pp_video_line_route.go).
+		groups.GET("/line-routes-switch", h.OpenAIGateway.AdminGetLineRoutesSwitch)
+		groups.PUT("/line-routes-switch", h.OpenAIGateway.AdminSetLineRoutesSwitch)
+		groups.GET("/:id/line-routes", h.OpenAIGateway.AdminGetGroupLineRoutes)
+		groups.PUT("/:id/line-routes", h.OpenAIGateway.AdminSetGroupLineRoute)
 		groups.GET("/:id", h.Admin.Group.GetByID)
 		groups.POST("", h.Admin.Group.Create)
 		groups.POST("/:id/duplicate", h.Admin.Group.Duplicate)
@@ -668,6 +676,15 @@ func registerUsageRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		usage.GET("/cleanup-tasks", h.Admin.Usage.ListCleanupTasks)
 		usage.POST("/cleanup-tasks", h.Admin.Usage.CreateCleanupTask)
 		usage.POST("/cleanup-tasks/:id/cancel", h.Admin.Usage.CancelCleanupTask)
+	}
+}
+
+func registerVideoTaskRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	videoTasks := admin.Group("/video-tasks")
+	{
+		videoTasks.GET("", h.OpenAIGateway.AdminListVideoTasks)
+		videoTasks.GET("/:id", h.OpenAIGateway.AdminGetVideoTask)
+		videoTasks.GET("/:id/content", h.OpenAIGateway.AdminGetVideoTaskContent)
 	}
 }
 

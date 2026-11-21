@@ -218,3 +218,11 @@ func TestListUserVideoTasksRejectsInvalidFilters(t *testing.T) {
 		})
 	}
 }
+
+func TestPPVideoContentRangeStart(t *testing.T) {
+	require.Equal(t, int64(368047), ppVideoContentRangeStart("bytes 368047-3941439/3941440"))
+	require.Equal(t, int64(0), ppVideoContentRangeStart(" bytes 0-99/100 "))
+	for _, header := range []string{"", "bytes */3941440", "items 1-2/3", "bytes abc-2/3"} {
+		require.Equal(t, int64(-1), ppVideoContentRangeStart(header), header)
+	}
+}

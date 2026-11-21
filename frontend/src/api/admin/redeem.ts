@@ -62,6 +62,7 @@ export async function getById(id: number): Promise<RedeemCode> {
  * @param groupId - Group ID (required for subscription type)
  * @param validityDays - Validity days (for subscription type)
  * @param expiresInDays - Days before the code itself expires
+ * @param extra - Optional pay amount (discount code, balance type only) and notes
  * @returns Array of generated redeem codes
  */
 export async function generate(
@@ -70,7 +71,8 @@ export async function generate(
   value: number,
   groupId?: number | null,
   validityDays?: number,
-  expiresInDays?: number | null
+  expiresInDays?: number | null,
+  extra?: { payAmount?: number; notes?: string }
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
@@ -87,6 +89,13 @@ export async function generate(
   }
   if (expiresInDays && expiresInDays > 0) {
     payload.expires_in_days = expiresInDays
+  }
+  // 折扣码：value 为积分面值，pay_amount 为客户实付金额（仅余额类型）
+  if (type === 'balance' && extra?.payAmount && extra.payAmount > 0) {
+    payload.pay_amount = extra.payAmount
+  }
+  if (extra?.notes && extra.notes.trim()) {
+    payload.notes = extra.notes.trim()
   }
 
   const { data } = await apiClient.post<RedeemCode[]>('/admin/redeem-codes/generate', payload)

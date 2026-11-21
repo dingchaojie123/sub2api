@@ -40,8 +40,24 @@ type jijiuModelSpec struct {
 	MaxVideos          int // 0: reference videos are not supported
 	MaxAudios          int
 	MaxReferenceTotal  int // 0: no combined limit
-	VideoField         string
-	AudioField         string
+	// FirstLastFrame: the model takes a first and last frame image. Only the apophis-seedance,
+	// zexi-seedance and xm-seedance platforms read it; every other platform refuses frames regardless.
+	FirstLastFrame bool
+	// NoAudioSwitch: the upstream refuses the audio switch for this model (xm-seedance only; every
+	// other platform refuses generate_audio regardless).
+	NoAudioSwitch bool
+	// ResolutionRequired: the request must name the resolution (naiwa-seedance only; every other
+	// platform falls back to the default resolution when it is left out).
+	ResolutionRequired bool
+	// MaxPromptChars: the upstream's documented prompt limit in characters, 0 when it is not known
+	// (naiwa-seedance only; no other platform enforces a prompt length).
+	MaxPromptChars int
+	// Field names of the upstream request. Empty means the jijiu names: images / videos /
+	// audios / aspect_ratio. The miaowu-seedance platform reuses this type with its own names.
+	ImageField string
+	VideoField string
+	AudioField string
+	RatioField string
 }
 
 func (s jijiuModelSpec) publicName() string {
@@ -56,6 +72,20 @@ func (s jijiuModelSpec) defaultResolution() string {
 		return s.DefaultResolution
 	}
 	return s.Resolutions[0]
+}
+
+func (s jijiuModelSpec) imageField() string {
+	if s.ImageField != "" {
+		return s.ImageField
+	}
+	return "images"
+}
+
+func (s jijiuModelSpec) ratioField() string {
+	if s.RatioField != "" {
+		return s.RatioField
+	}
+	return "aspect_ratio"
 }
 
 func (s jijiuModelSpec) videoField() string {
@@ -201,6 +231,19 @@ func (r jijiuReferences) count() int {
 }
 
 func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (map[string]any, error) {
+	return normalizeSeedanceSpecPayload(body, public, jijiuModelSpecFor, jijiuReferencesFromRequest)
+}
+
+// normalizeSeedanceSpecPayload builds the upstream request of a platform whose models are
+// described by jijiuModelSpec: lookup finds the model's spec by any name it answers to and
+// references reads the media of the client's request. The request is validated against the
+// spec, and only the fields the upstream documents are written to the new payload.
+func normalizeSeedanceSpecPayload(
+	body []byte,
+	public *PPVideoPublicRequest,
+	lookup func(string) (jijiuModelSpec, bool),
+	references func([]byte) (jijiuReferences, error),
+) (map[string]any, error) {
 	if public == nil {
 		return nil, fmt.Errorf("Seedance request body is required")
 	}
@@ -211,7 +254,7 @@ func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (m
 	if upstreamModel == "" {
 		upstreamModel = strings.TrimSpace(public.Model)
 	}
-	spec, ok := jijiuModelSpecFor(upstreamModel)
+	spec, ok := lookup(upstreamModel)
 	if !ok {
 		return nil, fmt.Errorf("model %q is not available", public.Model)
 	}
@@ -219,11 +262,11 @@ func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (m
 		return nil, err
 	}
 
-	references, err := jijiuReferencesFromRequest(body)
+	refs, err := references(body)
 	if err != nil {
 		return nil, err
 	}
-	if err := jijiuCheckReferenceLimits(spec, references); err != nil {
+	if err := jijiuCheckReferenceLimits(spec, refs); err != nil {
 		return nil, err
 	}
 
@@ -231,7 +274,7 @@ func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (m
 	if err != nil {
 		return nil, err
 	}
-	seconds, err := jijiuDurationSeconds(body, spec, references)
+	seconds, err := jijiuDurationSeconds(body, spec, refs)
 	if err != nil {
 		return nil, err
 	}
@@ -250,22 +293,22 @@ func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (m
 		"seconds": seconds,
 	}
 	if ratio != "" {
-		result["aspect_ratio"] = ratio
+		result[spec.ratioField()] = ratio
 	}
 	if spec.ForwardResolution {
 		result["resolution"] = resolution
 	}
-	if len(references.images) > 0 {
-		result["images"] = jijiuStringItems(references.images)
+	if len(refs.images) > 0 {
+		result[spec.imageField()] = jijiuStringItems(refs.images)
 	}
-	if len(references.videos) > 0 {
-		result[spec.videoField()] = jijiuStringItems(references.videos)
+	if len(refs.videos) > 0 {
+		result[spec.videoField()] = jijiuStringItems(refs.videos)
 	}
-	if len(references.audios) > 0 {
-		result[spec.audioField()] = jijiuStringItems(references.audios)
+	if len(refs.audios) > 0 {
+		result[spec.audioField()] = jijiuStringItems(refs.audios)
 	}
 
-	if requested, ok := jijiuModelSpecFor(public.Model); ok {
+	if requested, ok := lookup(public.Model); ok {
 		// What the client asked for is shown under its public name, even when an account
 		// mapping serves it from another upstream line.
 		public.Model = requested.publicName()
@@ -275,7 +318,7 @@ func normalizeJijiuSeedancePayload(body []byte, public *PPVideoPublicRequest) (m
 	public.DurationMilliseconds = int64(seconds) * 1000
 	public.VideoCount = 1
 	public.Resolution = resolution
-	public.HasImage = len(references.images) > 0
+	public.HasImage = len(refs.images) > 0
 	return result, nil
 }
 

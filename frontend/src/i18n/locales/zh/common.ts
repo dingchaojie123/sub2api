@@ -206,6 +206,7 @@ export default {
     promptAudit: '提示词审计',
     enterpriseReview: '企业审核',
     auditLogs: '操作日志',
+    customerVideoTasks: '客户视频任务',
   },
 
   // Auth

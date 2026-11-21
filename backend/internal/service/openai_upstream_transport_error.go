@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -129,8 +130,43 @@ func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Co
 	}
 
 	return &UpstreamFailoverError{
-		StatusCode:   http.StatusBadGateway,
-		ResponseBody: openAITransportFailoverBody,
+		StatusCode:     http.StatusBadGateway,
+		ResponseBody:   openAITransportFailoverBody,
+		TransportCause: openAITransportErrorLabel(err),
+	}
+}
+
+// openAITransportErrorLabel turns a transport-level failure into a short label that is
+// safe to show to customers: it never contains the upstream URL, IP addresses or ports
+// (the raw error does, e.g. `Post "https://host/v1/videos": read tcp a:1->b:443: ...`).
+// The full raw error stays in the Ops error log.
+func openAITransportErrorLabel(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := strings.ToLower(err.Error())
+	var dnsErr *net.DNSError
+	var netErr net.Error
+	switch {
+	case strings.Contains(msg, "proxyconnect") || strings.Contains(msg, "socks"):
+		return "proxy connection failed"
+	case errors.Is(err, syscall.ECONNRESET) || strings.Contains(msg, "connection reset by peer"):
+		return "connection reset by upstream"
+	case errors.Is(err, syscall.ECONNREFUSED) || strings.Contains(msg, "connection refused"):
+		return "connection refused by upstream"
+	case errors.As(err, &dnsErr) || strings.Contains(msg, "no such host"):
+		return "upstream host lookup failed"
+	case errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) || strings.HasSuffix(msg, "eof"):
+		return "connection closed by upstream (EOF)"
+	case strings.Contains(msg, "broken pipe"):
+		return "connection closed by upstream"
+	case errors.Is(err, context.DeadlineExceeded) || strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline exceeded") ||
+		(errors.As(err, &netErr) && netErr.Timeout()):
+		return "upstream request timed out"
+	case strings.Contains(msg, "tls") || strings.Contains(msg, "x509"):
+		return "upstream TLS error"
+	default:
+		return "upstream transport error"
 	}
 }
 

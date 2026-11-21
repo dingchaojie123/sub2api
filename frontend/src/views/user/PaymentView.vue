@@ -544,11 +544,11 @@ const subscriptionUsdToCnyRate = computed(() => {
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
 const defaultBalanceProducts: BalanceRechargeProduct[] = [
-  { id: 'balance_12', pay_amount: 12, display_amount: 18, original_amount: 18, lottery_chances: 0, stock_label: '库存一般' },
-  { id: 'balance_88', pay_amount: 88, display_amount: 128, original_amount: 128, lottery_chances: 1, stock_label: '库存充足' },
-  { id: 'balance_258', pay_amount: 258, display_amount: 388, original_amount: 388, lottery_chances: 3, stock_label: '库存一般' },
-  { id: 'balance_688', pay_amount: 688, display_amount: 1088, original_amount: 1088, lottery_chances: 14, stock_label: '库存一般' },
-  { id: 'balance_1288', pay_amount: 1288, display_amount: 2088, original_amount: 2088, lottery_chances: 30, stock_label: '库存一般' },
+  { id: 'balance_12', pay_amount: 12, display_amount: 19, original_amount: 19, lottery_chances: 0, stock_label: '库存一般' },
+  { id: 'balance_88', pay_amount: 88, display_amount: 118, original_amount: 118, lottery_chances: 1, stock_label: '库存充足' },
+  { id: 'balance_258', pay_amount: 258, display_amount: 358, original_amount: 358, lottery_chances: 3, stock_label: '库存一般' },
+  { id: 'balance_688', pay_amount: 688, display_amount: 988, original_amount: 988, lottery_chances: 14, stock_label: '库存一般' },
+  { id: 'balance_1288', pay_amount: 1288, display_amount: 1888, original_amount: 1888, lottery_chances: 30, stock_label: '库存一般' },
 ]
 const balanceProducts = computed(() => {
   const products = checkout.value.balance_products

@@ -103,8 +103,8 @@ function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
     global_min: 0,
     global_max: 0,
     balance_products: [
-      { id: 'balance_12', pay_amount: 12, display_amount: 18, original_amount: 18, lottery_chances: 0, stock_label: '库存一般' },
-      { id: 'balance_88', pay_amount: 88, display_amount: 128, original_amount: 128, lottery_chances: 1, stock_label: '库存充足' },
+      { id: 'balance_12', pay_amount: 12, display_amount: 19, original_amount: 19, lottery_chances: 0, stock_label: '库存一般' },
+      { id: 'balance_88', pay_amount: 88, display_amount: 118, original_amount: 118, lottery_chances: 1, stock_label: '库存充足' },
     ],
     plans: [],
     balance_disabled: false,
@@ -167,7 +167,7 @@ function jsapiOrderFixture(resumeToken: string) {
   return {
     order_id: 123,
     amount: 88,
-    display_amount: 128,
+    display_amount: 118,
     pay_amount: 88,
     fee_rate: 0,
     expires_at: '2099-01-01T00:10:00.000Z',
@@ -618,7 +618,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
       .mockResolvedValueOnce({
         order_id: 778,
         amount: 88,
-        display_amount: 128,
+        display_amount: 118,
         pay_amount: 88,
         fee_rate: 0,
         expires_at: '2099-01-01T00:10:00.000Z',

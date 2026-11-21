@@ -137,8 +137,11 @@ type BatchImageBalanceHoldCommand struct {
 	OrganizationMemberID *int64
 	BatchID              string
 	HoldRequestID        string
-	HoldAmount           float64
-	ActualAmount         float64
+	// ReleaseRequestID 只用于扣款（capture）：如果这笔冻结已经被释放过，就不能再扣款，
+	// 否则会再次消耗用户冻结池里属于其他任务的金额。为空表示不检查。
+	ReleaseRequestID string
+	HoldAmount       float64
+	ActualAmount     float64
 }
 
 func (c *BatchImageBalanceHoldCommand) Normalize() {

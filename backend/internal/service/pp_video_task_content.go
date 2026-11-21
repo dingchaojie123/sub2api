@@ -11,7 +11,7 @@ import (
 // （上游不提供公开直链），其余平台的结果以直链形式保存在任务的最新响应里。
 func ppVideoTaskUsesAuthenticatedContent(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
+	case PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMiaowuSeedance, PlatformPaisioSeedance, PlatformApophisSeedance, PlatformXSNSeedance, PlatformFengyueSeedance, PlatformHongpeiSeedance, PlatformVshiSeedance, PlatformHuahuoSeedance, PlatformZexiSeedance, PlatformXMSeedance, PlatformNaiwaSeedance, PlatformV6KSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		return true
 	default:
 		return false
@@ -49,6 +49,12 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskUserContent(ctx context.Context
 func (s *OpenAIGatewayService) ForwardPPVideoTaskContentWithMethod(ctx context.Context, method string, account *Account, task *PPVideoTask, rangeHeader, ifRangeHeader string) (*http.Response, error) {
 	if s == nil || s.httpUpstream == nil || task == nil || !PPVideoTaskContentAvailable(task.Platform, task.Status, task.BillingStatus) || account == nil || account.ID != task.AccountID || account.Platform != task.Platform || task.TaskID == "" {
 		return nil, fmt.Errorf("original video task account is required")
+	}
+	if task.Platform == PlatformMiaowuSeedance && method == http.MethodGet {
+		// The direct result address kept at completion is the fallback when the
+		// authenticated content endpoint does not serve the file.
+		return s.forwardPPVideoContentWithMethod(ctx, method, account, task.TaskID, rangeHeader, ifRangeHeader,
+			PPVideoProviderURLFromResponse([]byte(task.ResponseBody)))
 	}
 	return s.forwardPPVideoContentWithMethod(ctx, method, account, task.TaskID, rangeHeader, ifRangeHeader)
 }

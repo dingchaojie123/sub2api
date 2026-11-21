@@ -76,6 +76,15 @@ type RedeemCodeRepository interface {
 	SumPositiveBalanceByUser(ctx context.Context, userID int64) (float64, error)
 }
 
+// RedeemCodePayAmountStore persists the optional paid amount of a discounted
+// redeem code (see RedeemCode.PayAmount). It is kept off RedeemCodeRepository
+// so existing implementations and test stubs are unaffected.
+type RedeemCodePayAmountStore interface {
+	SetPayAmount(ctx context.Context, id int64, payAmount float64) error
+	// GetPayAmount returns nil when the code has no paid amount (a regular code).
+	GetPayAmount(ctx context.Context, id int64) (*float64, error)
+}
+
 type lotteryChanceGranter interface {
 	GrantChancesForRedeem(ctx context.Context, userID, redeemCodeID int64, value float64) error
 }
@@ -148,6 +157,7 @@ type RedeemService struct {
 	redeemRepo           RedeemCodeRepository
 	userRepo             UserRepository
 	redeemUserRepo       RedeemUserAdjustmentRepository
+	redeemPaidUserRepo   RedeemPaidBalanceRepository
 	subscriptionService  *SubscriptionService
 	cache                RedeemCache
 	billingCacheService  *BillingCacheService
@@ -174,10 +184,12 @@ func NewRedeemService(
 	affiliateService *AffiliateService,
 ) *RedeemService {
 	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
+	redeemPaidUserRepo, _ := userRepo.(RedeemPaidBalanceRepository)
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
 		redeemUserRepo:       redeemUserRepo,
+		redeemPaidUserRepo:   redeemPaidUserRepo,
 		subscriptionService:  subscriptionService,
 		cache:                cache,
 		billingCacheService:  billingCacheService,
@@ -452,6 +464,13 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
+	// 折扣兑换码：读取实付金额。读取失败必须中止，否则会把积分面值当作真实余额入账。
+	payAmount, err := s.loadRedeemPayAmount(ctx, redeemCode)
+	if err != nil {
+		return nil, err
+	}
+	redeemCode.PayAmount = payAmount
+
 	// 使用数据库事务保证兑换码标记与权益发放的原子性
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
@@ -475,17 +494,26 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	switch redeemCode.Type {
 	case RedeemTypeBalance:
 		amount := redeemCode.Value
-		if amount < 0 {
+		switch {
+		case amount < 0:
 			if s.redeemUserRepo == nil {
 				return nil, errors.New("user repository does not support atomic redeem balance adjustments")
 			}
 			if err := s.redeemUserRepo.ApplyRedeemBalanceAdjustment(txCtx, userID, amount); err != nil {
 				return nil, fmt.Errorf("update user balance: %w", err)
 			}
-		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
-			return nil, fmt.Errorf("update user balance: %w", err)
-		} else if err := s.applyRedeemBalanceDisplayBonus(txCtx, tx.Client(), userID, amount); err != nil {
-			return nil, err
+		case redeemCode.PayAmount != nil:
+			// 折扣码：积分余额按面值入账，真实余额按实付金额入账；面值已是最终积分，不再叠加充值档位加成。
+			if err := s.creditPaidRedeemBalance(txCtx, userID, amount, *redeemCode.PayAmount); err != nil {
+				return nil, err
+			}
+		default:
+			if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
+				return nil, fmt.Errorf("update user balance: %w", err)
+			}
+			if err := s.applyRedeemBalanceDisplayBonus(txCtx, tx.Client(), userID, amount); err != nil {
+				return nil, err
+			}
 		}
 
 	case RedeemTypeConcurrency:
@@ -540,9 +568,13 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 事务提交成功后失效缓存
 	s.invalidateRedeemCaches(ctx, userID, redeemCode)
 
-	// 余额类正数兑换码触发邀请返利（best-effort，失败不影响兑换结果）
-	if redeemCode.Type == RedeemTypeBalance && redeemCode.Value > 0 {
-		s.tryAccrueAffiliateRebateForRedeem(ctx, userID, redeemCode.Value)
+	// 余额类正数兑换码触发邀请返利（best-effort，失败不影响兑换结果）。
+	// 折扣码按客户实付金额返利，而不是积分面值。
+	// 必须在下面重新获取 redeemCode 之前计算，重新获取的对象不带 PayAmount。
+	rebateAmount := redeemCode.RealAmount()
+	isPositiveBalanceCode := redeemCode.Type == RedeemTypeBalance && redeemCode.Value > 0
+	if isPositiveBalanceCode {
+		s.tryAccrueAffiliateRebateForRedeem(ctx, userID, rebateAmount)
 	}
 
 	// 重新获取更新后的兑换码
@@ -552,6 +584,36 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 
 	return redeemCode, nil
+}
+
+// loadRedeemPayAmount 读取折扣兑换码的实付金额；普通码、非余额类型、或仓储不支持时返回 nil。
+func (s *RedeemService) loadRedeemPayAmount(ctx context.Context, code *RedeemCode) (*float64, error) {
+	if code == nil || code.Type != RedeemTypeBalance || code.Value <= 0 {
+		return nil, nil
+	}
+	store, ok := s.redeemRepo.(RedeemCodePayAmountStore)
+	if !ok {
+		return nil, nil
+	}
+	payAmount, err := store.GetPayAmount(ctx, code.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get redeem code pay amount: %w", err)
+	}
+	if payAmount != nil && *payAmount <= 0 {
+		return nil, nil
+	}
+	return payAmount, nil
+}
+
+// creditPaidRedeemBalance 给用户入账一张折扣兑换码：积分余额加 credits，真实余额与累计充值加 realAmount。
+func (s *RedeemService) creditPaidRedeemBalance(ctx context.Context, userID int64, credits, realAmount float64) error {
+	if s.redeemPaidUserRepo == nil {
+		return errors.New("user repository does not support paid redeem balance credits")
+	}
+	if err := s.redeemPaidUserRepo.ApplyRedeemPaidBalanceCredit(ctx, userID, credits, realAmount); err != nil {
+		return fmt.Errorf("update user balance: %w", err)
+	}
+	return nil
 }
 
 func (s *RedeemService) applyRedeemBalanceDisplayBonus(ctx context.Context, client *dbent.Client, userID int64, realAmount float64) error {
@@ -578,7 +640,8 @@ func (s *RedeemService) grantLotteryChancesForRedeem(ctx context.Context, userID
 	if s.lotteryService == nil || redeemCode == nil || redeemCode.Type != RedeemTypeBalance || redeemCode.Value <= 0 {
 		return nil
 	}
-	if err := s.lotteryService.GrantChancesForRedeem(ctx, userID, redeemCode.ID, redeemCode.Value); err != nil {
+	// 折扣码按实付金额发放抽奖次数，与同金额的真实充值一致。
+	if err := s.lotteryService.GrantChancesForRedeem(ctx, userID, redeemCode.ID, redeemCode.RealAmount()); err != nil {
 		if errors.Is(err, ErrLotteryChanceAlreadyGranted) {
 			return nil
 		}

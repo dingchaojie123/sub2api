@@ -35,11 +35,24 @@ describe('video account platform metadata', () => {
       'ctmo-seedance',
 	  'xingapi-seedance',
 	  'jijiu-seedance',
+	  'miaowu-seedance',
+	  'paisio-seedance',
+	  'apophis-seedance',
+	  'xsn-seedance',
+	  'fengyue-seedance',
+	  'hongpei-seedance',
+	  'vshi-seedance',
+	  'huahuo-seedance',
+	  'zexi-seedance',
+	  'xm-seedance',
+	  'naiwa-seedance',
+	  'v6k-seedance',
 	  'mai-token-seedance',
       'guangying',
       'opone',
       'bytedance',
       'wan3',
+      'kyy-wan',
       'minimax-h3',
       'minimax-h3-compshare',
       'pixverse-v6',
@@ -50,7 +63,7 @@ describe('video account platform metadata', () => {
     for (const platform of VIDEO_ACCOUNT_PLATFORMS) {
       const metadata = getVideoAccountPlatformMetadata(platform)
 
-      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'xingapi-seedance' ? 'https://xingapi.top/v1' : platform === 'jijiu-seedance' ? 'https://newapi.jijiucanvas.com' : platform === 'mai-token-seedance' ? 'https://api.mai-token.com' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
+      const expectedBaseUrl = platform === '88api-video' ? 'https://88api.ai/v1' : platform === 'kyy-wan' ? 'https://zcbservice.aizfw.cn/kyyReactApiServer' : platform === 'ctmo-seedance' ? 'https://video.ctmoai.com' : platform === 'xingapi-seedance' ? 'https://xingapi.top/v1' : platform === 'jijiu-seedance' ? 'https://newapi.jijiucanvas.com' : platform === 'miaowu-seedance' ? 'https://api.miaowuai.store/v1' : platform === 'paisio-seedance' ? 'https://api.paisio.online' : platform === 'apophis-seedance' ? 'https://www.apophiscode.com' : platform === 'xsn-seedance' ? 'https://xsn686.cn' : platform === 'fengyue-seedance' ? 'https://api.nldw.online' : platform === 'hongpei-seedance' ? 'https://api.hongpei.click' : platform === 'vshi-seedance' ? 'https://api.vshiai.com' : platform === 'huahuo-seedance' ? 'https://huahuo.ccwu.cc' : platform === 'zexi-seedance' ? 'https://zexitongxue.com' : platform === 'xm-seedance' ? 'https://ai.987xm.com' : platform === 'naiwa-seedance' ? 'https://api.nailongapi.cc' : platform === 'v6k-seedance' ? 'https://www.v6k.top' : platform === 'mai-token-seedance' ? 'https://api.mai-token.com' : platform === 'guangying' ? 'https://api.guangying.store' : platform === 'opone' ? 'https://api.opone.cc' : platform === 'minimax-h3-compshare' ? 'https://cp.compshare.cn' :
         platform === 'bytedance' ||
         platform === 'wan3' ||
         platform === 'minimax-h3' ||

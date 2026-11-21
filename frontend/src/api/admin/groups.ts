@@ -409,6 +409,72 @@ export async function getCapacitySummary(): Promise<
   return data
 }
 
+/** A line a route can point at (a visible line of the same version the group has accounts for). */
+export interface GroupLineRouteCandidate {
+  line_name: string
+  platform: string
+  accounts: number
+}
+
+/** One line of a Seedance aggregate group with its route. */
+export interface GroupLineRoute {
+  line_name: string
+  platform: string
+  version: string
+  billing: string
+  hidden: boolean
+  /** Schedulable accounts of the group that serve the line itself. */
+  accounts: number
+  /** The line that serves this one now; '' means the line serves itself. */
+  target_line_name: string
+  /** Schedulable accounts of the group that serve the current target. */
+  target_accounts: number
+  candidates: GroupLineRouteCandidate[]
+}
+
+/**
+ * Lines of a Seedance aggregate group with their routes (upstream switch).
+ */
+export async function getGroupLineRoutes(id: number): Promise<GroupLineRoute[]> {
+  const { data } = await apiClient.get<{ group_id: number; lines: GroupLineRoute[] }>(
+    `/admin/groups/${id}/line-routes`
+  )
+  return data.lines || []
+}
+
+/**
+ * Point a line of the group at another line; an empty target removes the route.
+ * Returns the refreshed list of lines.
+ */
+export async function setGroupLineRoute(
+  id: number,
+  lineName: string,
+  targetLineName: string
+): Promise<GroupLineRoute[]> {
+  const { data } = await apiClient.put<{ group_id: number; lines: GroupLineRoute[] }>(
+    `/admin/groups/${id}/line-routes`,
+    { line_name: lineName, target_line_name: targetLineName }
+  )
+  return data.lines || []
+}
+
+/**
+ * The global switch of line routes. It is off until an operator turns it on; while it is off no
+ * request is routed, whatever routes are saved.
+ */
+export async function getLineRoutesSwitch(): Promise<boolean> {
+  const { data } = await apiClient.get<{ enabled: boolean }>('/admin/groups/line-routes-switch')
+  return !!data.enabled
+}
+
+/** Turn line routes on or off for every group. Returns the new state. */
+export async function setLineRoutesSwitch(enabled: boolean): Promise<boolean> {
+  const { data } = await apiClient.put<{ enabled: boolean }>('/admin/groups/line-routes-switch', {
+    enabled
+  })
+  return !!data.enabled
+}
+
 export const groupsAPI = {
   list,
   getAll,
@@ -429,6 +495,10 @@ export const groupsAPI = {
   getGroupRPMOverrides,
   clearGroupRPMOverrides,
   batchSetGroupRPMOverrides,
+  getGroupLineRoutes,
+  setGroupLineRoute,
+  getLineRoutesSwitch,
+  setLineRoutesSwitch,
   updateSortOrder,
   getUsageSummary,
   getCapacitySummary

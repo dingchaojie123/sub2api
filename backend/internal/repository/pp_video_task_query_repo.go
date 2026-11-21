@@ -43,8 +43,13 @@ const ppVideoTaskRecordFrom = `
 
 // buildPPVideoTaskListWhere 生成列表 / 计数共用的 WHERE 子句与参数。user_id 恒为 $1。
 func buildPPVideoTaskListWhere(userID int64, filter service.PPVideoTaskListFilter) (string, []any) {
-	clauses := []string{"t.user_id = $1"}
-	args := []any{userID}
+	clauses, args := appendPPVideoTaskFilterClauses([]string{"t.user_id = $1"}, []any{userID}, filter)
+	return strings.Join(clauses, " AND "), args
+}
+
+// appendPPVideoTaskFilterClauses 把任务 ID / 模型 / API Key / 状态 / 时间范围筛选追加到已有的
+// 子句与参数之后；占位符序号接着 args 现有长度继续编号。用户端与管理端列表共用。
+func appendPPVideoTaskFilterClauses(clauses []string, args []any, filter service.PPVideoTaskListFilter) ([]string, []any) {
 	next := func(value any) string {
 		args = append(args, value)
 		return "$" + strconv.Itoa(len(args))
@@ -73,7 +78,7 @@ func buildPPVideoTaskListWhere(userID int64, filter service.PPVideoTaskListFilte
 	if filter.EndTime != nil {
 		clauses = append(clauses, "t.created_at < "+next(*filter.EndTime))
 	}
-	return strings.Join(clauses, " AND "), args
+	return clauses, args
 }
 
 func (r *usageBillingRepository) ListPPVideoTasksForUser(ctx context.Context, userID int64, filter service.PPVideoTaskListFilter) ([]*service.PPVideoTaskRecord, int64, error) {
@@ -170,9 +175,18 @@ func (r *usageBillingRepository) SetPPVideoTaskPrompt(ctx context.Context, local
 
 func scanPPVideoTaskRecord(row ppVideoTaskScanner) (*service.PPVideoTaskRecord, error) {
 	var record service.PPVideoTaskRecord
+	if err := scanPPVideoTaskRecordInto(row, &record); err != nil {
+		return nil, err
+	}
+	return &record, nil
+}
+
+// scanPPVideoTaskRecordInto 扫描 ppVideoTaskRecordColumns 对应的列到 record，
+// extra 依次接收其后追加的列（管理端的用户 / 账号 / 分组信息）。
+func scanPPVideoTaskRecordInto(row ppVideoTaskScanner, record *service.PPVideoTaskRecord, extra ...any) error {
 	var actualCost sql.NullFloat64
 	var finishedAt, settledAt sql.NullTime
-	if err := row.Scan(
+	dest := []any{
 		&record.LocalTaskID,
 		&record.TaskID,
 		&record.APIKeyName,
@@ -195,8 +209,9 @@ func scanPPVideoTaskRecord(row ppVideoTaskScanner) (*service.PPVideoTaskRecord, 
 		&finishedAt,
 		&settledAt,
 		&record.FailureResponseBody,
-	); err != nil {
-		return nil, err
+	}
+	if err := row.Scan(append(dest, extra...)...); err != nil {
+		return err
 	}
 	if actualCost.Valid {
 		record.ActualCost = &actualCost.Float64
@@ -207,5 +222,5 @@ func scanPPVideoTaskRecord(row ppVideoTaskScanner) (*service.PPVideoTaskRecord, 
 	if settledAt.Valid {
 		record.SettledAt = &settledAt.Time
 	}
-	return &record, nil
+	return nil
 }

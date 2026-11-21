@@ -30,6 +30,10 @@ func TestPPVideoCapabilitiesProtocolsFollowUnifiedSupport(t *testing.T) {
 		PlatformMaiTokenSeedance,
 		PlatformXingAPISeedance,
 		PlatformJijiuSeedance,
+		PlatformPaisioSeedance,
+		PlatformApophisSeedance,
+		PlatformXSNSeedance,
+		PlatformFengyueSeedance,
 		PlatformCTMOSeedance,
 		PlatformSeedanceHub,
 	} {
@@ -330,6 +334,7 @@ func TestPPVideoCapabilitiesMatchTheDocumentedOverviewTable(t *testing.T) {
 		{"| Seedance（doubao 系列） |", PlatformByteDance, ByteDanceVideoDefaultModel},
 		{"| Seedance（doubao 系列） |", PlatformByteDance, ByteDanceSeedance25Model},
 		{"| Wan3.0 |", PlatformWan3, Wan30VideoDefaultModel},
+		{"| Wan3.0（c3 型号） |", PlatformKyyWan, KyyWanModelC3},
 		{"| MiniMax-H3 |", PlatformMiniMaxH3CompShare, MiniMaxH3VideoDefaultModel},
 		{"| Pixverse-V6 |", PlatformPixverseV6, PixverseV6VideoDefaultModel},
 		{"| Seedance 2.5 480P |", PlatformMaiTokenSeedance, MaiTokenSeedancePublicModel},

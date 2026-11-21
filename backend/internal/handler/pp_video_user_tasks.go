@@ -1,13 +1,13 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -125,24 +125,11 @@ func (h *OpenAIGatewayHandler) ListUserVideoTasks(c *gin.Context) {
 		return
 	}
 
-	userTZ := c.Query("timezone")
-	if startDate := strings.TrimSpace(c.Query("start_date")); startDate != "" {
-		start, err := timezone.ParseInUserLocation("2006-01-02", startDate, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid start_date format, use YYYY-MM-DD")
-			return
-		}
-		filter.StartTime = &start
+	start, end, ok := parseVideoTaskDateRange(c)
+	if !ok {
+		return
 	}
-	if endDate := strings.TrimSpace(c.Query("end_date")); endDate != "" {
-		end, err := timezone.ParseInUserLocation("2006-01-02", endDate, userTZ)
-		if err != nil {
-			response.BadRequest(c, "Invalid end_date format, use YYYY-MM-DD")
-			return
-		}
-		end = end.AddDate(0, 0, 1)
-		filter.EndTime = &end
-	}
+	filter.StartTime, filter.EndTime = start, end
 
 	records, total, err := h.gatewayService.ListPPVideoTasksForUser(c.Request.Context(), subject.UserID, filter)
 	if err != nil {
@@ -191,6 +178,12 @@ func (h *OpenAIGatewayHandler) GetUserVideoTaskContent(c *gin.Context) {
 		response.NotFound(c, "Video content is not available")
 		return
 	}
+	h.streamPPVideoTaskContent(c, reqLog, task)
+}
+
+// streamPPVideoTaskContent 把已校验过可播放的任务的结果视频代理给当前请求。
+// 用户端与管理端内容接口共用；调用方负责鉴权与任务归属 / 可播放校验。
+func (h *OpenAIGatewayHandler) streamPPVideoTaskContent(c *gin.Context, reqLog *zap.Logger, task *service.PPVideoTask) {
 	reqLog = reqLog.With(zap.String("platform", task.Platform), zap.Int64("account_id", task.AccountID))
 
 	selection, err := h.gatewayService.SelectPPVideoTaskAccountForStatus(c.Request.Context(), task.AccountID, task.Platform)
@@ -254,5 +247,60 @@ func (h *OpenAIGatewayHandler) GetUserVideoTaskContent(c *gin.Context) {
 	if c.Request.Method == http.MethodHead {
 		return
 	}
-	_, _ = io.Copy(c.Writer, resp.Body)
+	copied, copyErr := io.Copy(c.Writer, resp.Body)
+	total := resp.ContentLength
+	// The upstream sometimes resets the connection part-way through a large file. The status line
+	// and Content-Length are already sent, so the only way to still deliver a complete file is to
+	// continue from the byte where it stopped (the upstreams serve Range requests).
+	for attempt := 1; attempt <= ppVideoUserContentResumeAttempts && total > 0 && copied < total && c.Request.Context().Err() == nil; attempt++ {
+		reqLog.Warn("pp_video.user_content_resume",
+			zap.Int("attempt", attempt),
+			zap.Int64("copied_bytes", copied),
+			zap.Int64("content_length", total),
+			zap.Error(copyErr),
+		)
+		resumed, resumeErr := h.gatewayService.ForwardPPVideoTaskUserContent(c.Request.Context(), selection.Account, task, fmt.Sprintf("bytes=%d-", copied), "")
+		if resumeErr != nil {
+			copyErr = resumeErr
+			continue
+		}
+		if resumed.StatusCode != http.StatusPartialContent || ppVideoContentRangeStart(resumed.Header.Get("Content-Range")) != copied {
+			// Anything but the exact continuation would corrupt the file; stop here.
+			reqLog.Warn("pp_video.user_content_resume_rejected",
+				zap.Int("upstream_status", resumed.StatusCode),
+				zap.String("upstream_content_range", resumed.Header.Get("Content-Range")),
+			)
+			_ = resumed.Body.Close()
+			break
+		}
+		written, err := io.Copy(c.Writer, resumed.Body)
+		_ = resumed.Body.Close()
+		copied += written
+		copyErr = err
+	}
+	// If it still stopped early nothing more can be told to the browser (the status line is
+	// already sent), but the page rejects a file shorter than Content-Length, so record it here.
+	if copyErr != nil || (total > 0 && copied != total) {
+		reqLog.Warn("pp_video.user_content_copy_incomplete",
+			zap.Int64("copied_bytes", copied),
+			zap.Int64("content_length", total),
+			zap.Error(copyErr),
+		)
+		return
+	}
+	reqLog.Info("pp_video.user_content_copy_done", zap.Int64("copied_bytes", copied))
+}
+
+// ppVideoUserContentResumeAttempts is how many times a download cut off by the upstream is
+// continued before giving up.
+const ppVideoUserContentResumeAttempts = 5
+
+// ppVideoContentRangeStart returns the first byte of a "bytes start-end/total" Content-Range
+// header, or -1 when it cannot be read.
+func ppVideoContentRangeStart(header string) int64 {
+	var start int64
+	if _, err := fmt.Sscanf(strings.TrimSpace(header), "bytes %d-", &start); err != nil {
+		return -1
+	}
+	return start
 }

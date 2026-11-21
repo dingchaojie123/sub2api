@@ -125,9 +125,9 @@ func TestBuildPaymentOrderProviderSnapshot_IncludesBalanceRechargeProduct(t *tes
 
 	require.Equal(t, "balance_88", snapshot[balanceRechargeSnapshotProductID])
 	require.Equal(t, 88.0, snapshot[balanceRechargeSnapshotPayAmount])
-	require.Equal(t, 128.0, snapshot[balanceRechargeSnapshotDisplayAmount])
+	require.Equal(t, 118.0, snapshot[balanceRechargeSnapshotDisplayAmount])
 	require.Equal(t, 1, snapshot[balanceRechargeSnapshotLotteryChances])
-	require.Equal(t, 128.0, PaymentOrderDisplayAmount(&dbent.PaymentOrder{
+	require.Equal(t, 118.0, PaymentOrderDisplayAmount(&dbent.PaymentOrder{
 		Amount:           88,
 		OrderType:        payment.OrderTypeBalance,
 		ProviderSnapshot: snapshot,
@@ -159,7 +159,7 @@ func TestPaymentOrderAmountsRecoverLegacyFirstTierOrder(t *testing.T) {
 	}
 
 	require.Equal(t, 12.0, PaymentOrderRealBalanceAmount(order))
-	require.Equal(t, 18.0, PaymentOrderDisplayAmount(order))
+	require.Equal(t, 19.0, PaymentOrderDisplayAmount(order))
 }
 
 func TestBuildPaymentOrderProviderSnapshot_UsesWxpayJSAPIAppIDForOpenIDOrders(t *testing.T) {

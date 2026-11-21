@@ -88,12 +88,12 @@ async function readErrorMessage(data: unknown): Promise<string> {
 const MIN_VIDEO_BYTES = 1024
 
 /**
- * Fetch the result video as a Blob so it can be played or saved with the user's session.
+ * Fetch a result video from a content endpoint as a Blob so it can be played or saved with the session.
  * Non-2xx responses are turned into a VideoContentError carrying the status and server message.
  * Partial or truncated bodies are rejected too: handing a broken blob to the player only shows a black screen.
  */
-export async function fetchContent(id: string, options?: { signal?: AbortSignal }): Promise<Blob> {
-  const response = await apiClient.get<Blob>(`/video-tasks/${encodeURIComponent(id)}/content`, {
+export async function fetchVideoBlob(url: string, options?: { signal?: AbortSignal }): Promise<Blob> {
+  const response = await apiClient.get<Blob>(url, {
     responseType: 'blob',
     timeout: 5 * 60 * 1000,
     signal: options?.signal,
@@ -114,6 +114,11 @@ export async function fetchContent(id: string, options?: { signal?: AbortSignal 
     throw new VideoContentError('Incomplete video data', 502)
   }
   return blob
+}
+
+/** Fetch the logged-in user's own task result video. */
+export async function fetchContent(id: string, options?: { signal?: AbortSignal }): Promise<Blob> {
+  return fetchVideoBlob(`/video-tasks/${encodeURIComponent(id)}/content`, options)
 }
 
 export const videoTasksAPI = { list, fetchContent }

@@ -51,6 +51,40 @@ func TestPrepareCTMOSeedanceRequestBody(t *testing.T) {
 	}`, string(body))
 }
 
+// kaopu-sd-2.0-mini (added 2026-11-19) was deleted on 2026-11-20 because it is not in the operator's
+// table. It, and its public name, are refused like any unknown model, and no line of the aggregate
+// group answers to either. The public-name table stays, empty, for the next model that needs it.
+func TestCTMOSeedanceKaopuMiniIsDeleted(t *testing.T) {
+	t.Parallel()
+
+	for _, model := range []string{"kaopu-sd-2.0-mini", "Seedance2.0-kaopu-mini"} {
+		require.False(t, ppVideoIsCTMOSeedanceModel(model), model)
+		require.False(t, ppVideoModelBelongsToPlatform(PlatformCTMOSeedance, model), model)
+		_, _, err := PreparePPVideoRequestBody(PlatformCTMOSeedance, PPVideoOperationGeneric, []byte(
+			`{"model":"`+model+`","prompt":"lake","duration":5}`))
+		require.Error(t, err, model)
+		_, found := SeedanceHubLineByName(model)
+		require.False(t, found, model)
+	}
+	_, found := SeedanceHubLineByName("Seedance2.0--480p/720p--kaopu-mini--按次--Z")
+	require.False(t, found)
+
+	// With no aliased model, the public-name helpers leave every name alone.
+	require.Empty(t, ctmoSeedancePublicNames)
+	require.Nil(t, ppVideoPricingModelAliases(PlatformCTMOSeedance, "seedance-2.0-933"))
+	require.Equal(t, "seedance-2.0-933", PPVideoPublicModelName(PlatformCTMOSeedance, "seedance-2.0-933"))
+	require.Equal(t, []string{"seedance-2.0-933"},
+		filterPPVideoPublicModelsForPlatform(PlatformCTMOSeedance, []string{"seedance-2.0-933", "kaopu-sd-2.0-mini", "other-model"}))
+
+	// 933 is the 浙创 line of the table: 9 images / 3 videos / 3 audios, 5-15 seconds, 720p.
+	capabilities := PPVideoCapabilitiesForModel(PlatformSeedanceHub, "Seedance2.0--720p--933--按次--Z")
+	require.Equal(t, &PPVideoDurationRange{Min: 5, Max: 15}, capabilities.Duration)
+	require.Equal(t, []string{"720p"}, capabilities.Resolutions)
+	require.Equal(t, 9, *capabilities.Assets.ReferenceImages)
+	require.Equal(t, 3, *capabilities.Assets.ReferenceVideos)
+	require.Equal(t, 3, *capabilities.Assets.ReferenceAudios)
+}
+
 func TestPrepareCTMOSeedanceRequestRestoresLegacyOneModelMappings(t *testing.T) {
 	t.Parallel()
 

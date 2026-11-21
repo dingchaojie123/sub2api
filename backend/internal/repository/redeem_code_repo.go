@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,12 +14,15 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
 type redeemCodeRepository struct {
 	client *dbent.Client
 }
+
+var _ service.RedeemCodePayAmountStore = (*redeemCodeRepository)(nil)
 
 func NewRedeemCodeRepository(client *dbent.Client) service.RedeemCodeRepository {
 	return &redeemCodeRepository{client: client}
@@ -97,6 +102,64 @@ func (r *redeemCodeRepository) GetByCode(ctx context.Context, code string) (*ser
 func (r *redeemCodeRepository) Delete(ctx context.Context, id int64) error {
 	_, err := r.client.RedeemCode.Delete().Where(redeemcode.IDEQ(id)).Exec(ctx)
 	return err
+}
+
+// redeemCodePlaceholder 返回第 n 个绑定参数的占位符（Postgres 用 $n，其余方言用 ?）。
+func redeemCodePlaceholder(client *dbent.Client, n int) string {
+	if userRepoDialect(client) == dialect.Postgres {
+		return fmt.Sprintf("$%d", n)
+	}
+	return "?"
+}
+
+// SetPayAmount 写入折扣兑换码的实付金额。pay_amount 列不在 ent schema 中，因此使用原生 SQL。
+func (r *redeemCodeRepository) SetPayAmount(ctx context.Context, id int64, payAmount float64) error {
+	client := clientFromContext(ctx, r.client)
+	query := fmt.Sprintf(
+		"UPDATE redeem_codes SET pay_amount = %s WHERE id = %s",
+		redeemCodePlaceholder(client, 1), redeemCodePlaceholder(client, 2),
+	)
+	result, err := client.ExecContext(ctx, query, payAmount, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrRedeemCodeNotFound
+	}
+	return nil
+}
+
+// GetPayAmount 读取折扣兑换码的实付金额；普通兑换码（列为 NULL）返回 nil。
+func (r *redeemCodeRepository) GetPayAmount(ctx context.Context, id int64) (*float64, error) {
+	client := clientFromContext(ctx, r.client)
+	query := fmt.Sprintf("SELECT pay_amount FROM redeem_codes WHERE id = %s", redeemCodePlaceholder(client, 1))
+	rows, err := client.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		return nil, service.ErrRedeemCodeNotFound
+	}
+	var payAmount sql.NullFloat64
+	if err := rows.Scan(&payAmount); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if !payAmount.Valid {
+		return nil, nil
+	}
+	return &payAmount.Float64, nil
 }
 
 func (r *redeemCodeRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.RedeemCode, *pagination.PaginationResult, error) {

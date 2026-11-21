@@ -241,7 +241,7 @@ func (s *MediaQuoteService) resolveChannelVideoQuote(
 		return PPVideoBillingQuote{}, false, nil
 	}
 	platform := strings.TrimSpace(apiKey.Group.Platform)
-	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformXingAPISeedance && platform != PlatformJijiuSeedance && platform != PlatformGuangying && platform != PlatformOPONE && platform != PlatformMaiTokenSeedance && platform != PlatformSeedanceHub {
+	if platform != Platform88APIVideo && platform != PlatformCTMOSeedance && platform != PlatformKyyWan && platform != PlatformXingAPISeedance && platform != PlatformJijiuSeedance && platform != PlatformMiaowuSeedance && platform != PlatformPaisioSeedance && platform != PlatformApophisSeedance && platform != PlatformXSNSeedance && platform != PlatformFengyueSeedance && platform != PlatformHongpeiSeedance && platform != PlatformVshiSeedance && platform != PlatformHuahuoSeedance && platform != PlatformZexiSeedance && platform != PlatformXMSeedance && platform != PlatformNaiwaSeedance && platform != PlatformV6KSeedance && platform != PlatformGuangying && platform != PlatformOPONE && platform != PlatformMaiTokenSeedance && platform != PlatformSeedanceHub {
 		return PPVideoBillingQuote{}, false, nil
 	}
 
@@ -337,6 +337,9 @@ func normalizeMediaQuoteVideoSpec(platform, model, resolution string, durationSe
 		}
 		if limits := line.Limits; limits != nil && len(limits.Resolutions) > 0 {
 			resolved := limits.Resolutions[0]
+			if limits.DefaultResolution != "" {
+				resolved = limits.DefaultResolution
+			}
 			if strings.TrimSpace(resolution) != "" {
 				// The same spellings the other platforms accept (720, hd, ...) mean the same here.
 				value := normalizePPVideoResolution(resolution)
@@ -371,6 +374,245 @@ func normalizeMediaQuoteVideoSpec(platform, model, resolution string, durationSe
 		// Each model has its own length range and resolutions, the same ones the submission
 		// enforces, so the estimate never promises a task that cannot be created.
 		spec, ok := jijiuModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformMiaowuSeedance {
+		// Same rule as above, read from the miaowu model table.
+		spec, ok := miaowuModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformPaisioSeedance {
+		// Same rule as above, read from the paisio model table.
+		spec, ok := paisioModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformApophisSeedance {
+		// Same rule as above, read from the apophis model table.
+		spec, ok := apophisModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformXSNSeedance {
+		// Same rule as above, read from the xsn model table.
+		spec, ok := xsnModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformFengyueSeedance {
+		// Same rule as above, read from the fengyue model table.
+		spec, ok := fengyueModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformVshiSeedance {
+		// Same rule as above, read from the vshi model table.
+		spec, ok := vshiModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformHuahuoSeedance {
+		// Same rule as above, read from the huahuo model table.
+		spec, ok := huahuoModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformZexiSeedance {
+		// Same rule as above, read from the zexi model table.
+		spec, ok := zexiModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformXMSeedance {
+		// Same rule as above, read from the xm model table.
+		spec, ok := xmModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformNaiwaSeedance {
+		// Same rule as above, read from the naiwa model table; the two M models need the resolution
+		// to be named, as at submission.
+		spec, ok := naiwaModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		} else if spec.ResolutionRequired {
+			return "", false
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformV6KSeedance {
+		// Same rule as above, read from the v6k model table.
+		spec, ok := v6kModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.defaultResolution()
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformKyyWan {
+		// Same rule as above, read from the kyy-wan model table.
+		spec, ok := kyyWanModelSpecFor(model)
+		if !ok {
+			return "", false
+		}
+		resolved := spec.DefaultResolution
+		if value := strings.ToLower(strings.TrimSpace(resolution)); value != "" {
+			if !spec.allowsResolution(value) {
+				return "", false
+			}
+			resolved = value
+		}
+		if durationSeconds < spec.MinSeconds || durationSeconds > spec.MaxSeconds {
+			return "", false
+		}
+		return resolved, true
+	}
+	if strings.TrimSpace(platform) == PlatformHongpeiSeedance {
+		// Same rule as above, read from the hongpei model table. The longer minimum length that
+		// vs-sd2.5-L asks for once references are sent is checked at submission, where the
+		// references are known.
+		spec, ok := hongpeiModelSpecFor(model)
 		if !ok {
 			return "", false
 		}

@@ -62,6 +62,7 @@ import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import type { AccountPlatform, AdminGroup, GroupPlatform } from '@/types'
+import { SEEDANCE_HUB_MEMBER_PLATFORMS } from '@/constants/platforms'
 
 const { t } = useI18n()
 
@@ -82,15 +83,6 @@ const emit = defineEmits<{
 
 const searchText = ref('')
 
-// Accounts of these platforms can also be scheduled by a Seedance aggregate group.
-const SEEDANCE_HUB_MEMBER_PLATFORMS: readonly string[] = [
-  'ctmo-seedance',
-  'guangying',
-  'xingapi-seedance',
-  'mai-token-seedance',
-  'jijiu-seedance'
-]
-
 const isSearchable = computed(() => {
   if (props.searchable === 'auto') return props.groups.length > 5
   return props.searchable
@@ -106,8 +98,14 @@ const filteredGroups = computed(() => {
         (g) => g.platform === 'antigravity' || g.platform === 'anthropic' || g.platform === 'gemini'
       )
     } else if (SEEDANCE_HUB_MEMBER_PLATFORMS.includes(props.platform)) {
-      // 这些平台的账号除了同平台分组，还可以加入 Seedance 聚合分组
-      result = result.filter((g) => g.platform === props.platform || g.platform === 'seedance-hub')
+      // 这些平台的账号除了同平台分组，还可以加入 Seedance 聚合分组，以及其他 Seedance 平台的普通分组
+      // （作为那个分组「线路路由」的备用账号；平时不会被该分组的正常请求选中）
+      result = result.filter(
+        (g) =>
+          g.platform === props.platform ||
+          g.platform === 'seedance-hub' ||
+          SEEDANCE_HUB_MEMBER_PLATFORMS.includes(g.platform)
+      )
     } else {
       // 默认：只能选择同 platform 的分组
       result = result.filter((g) => g.platform === props.platform)

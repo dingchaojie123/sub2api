@@ -6,6 +6,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,15 @@ type GenerateRedeemCodesRequest struct {
 	ValidityDays  int        `json:"validity_days"` // 订阅类型使用，正数增加/负数退款扣减
 	ExpiresAt     *time.Time `json:"expires_at"`
 	ExpiresInDays *int       `json:"expires_in_days" binding:"omitempty,min=1,max=3650"`
+	// PayAmount 余额类型专用：客户实付金额。传入时生成折扣码，Value 为积分面值，
+	// 兑换时真实余额/累计充值/邀请返利/抽奖次数按 PayAmount 计，积分余额按 Value 计。
+	PayAmount *float64 `json:"pay_amount" binding:"omitempty,gt=0"`
+	Notes     string   `json:"notes" binding:"max=500"`
+}
+
+// roundToCents 四舍五入到分，避免折扣换算产生的浮点尾数写入面值。
+func roundToCents(v float64) float64 {
+	return math.Round(v*100) / 100
 }
 
 // CreateAndRedeemCodeRequest represents creating a fixed code and redeeming it for a target user.
@@ -143,14 +153,21 @@ func (h *RedeemHandler) Generate(c *gin.Context) {
 	}
 
 	executeAdminIdempotentJSON(c, "admin.redeem_codes.generate", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
-		codes, execErr := h.adminService.GenerateRedeemCodes(ctx, &service.GenerateRedeemCodesInput{
+		input := &service.GenerateRedeemCodesInput{
 			Count:        req.Count,
 			Type:         req.Type,
 			Value:        req.Value,
 			GroupID:      req.GroupID,
 			ValidityDays: req.ValidityDays,
 			ExpiresAt:    expiresAt,
-		})
+			Notes:        strings.TrimSpace(req.Notes),
+		}
+		if req.PayAmount != nil {
+			payAmount := roundToCents(*req.PayAmount)
+			input.PayAmount = &payAmount
+			input.Value = roundToCents(req.Value)
+		}
+		codes, execErr := h.adminService.GenerateRedeemCodes(ctx, input)
 		if execErr != nil {
 			return nil, execErr
 		}

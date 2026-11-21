@@ -781,6 +781,12 @@ func requestedModelLookupAliases(platform, requestedModel string) []string {
 		aliases = addAlias(aliases, JimengVideoLegacyRoutingModel)
 		aliases = addAlias(aliases, JimengVideoBillingModel)
 		return aliases
+	case PlatformCTMOSeedance:
+		var aliases []string
+		for _, alias := range ppVideoCTMOModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
 	case PlatformGuangying:
 		var aliases []string
 		for _, alias := range ppVideoGuangyingModelAliases(trimmed) {
@@ -796,6 +802,84 @@ func requestedModelLookupAliases(platform, requestedModel string) []string {
 	case PlatformJijiuSeedance:
 		var aliases []string
 		for _, alias := range ppVideoJijiuModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformMiaowuSeedance:
+		var aliases []string
+		for _, alias := range ppVideoMiaowuModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformPaisioSeedance:
+		var aliases []string
+		for _, alias := range ppVideoPaisioModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformApophisSeedance:
+		var aliases []string
+		for _, alias := range ppVideoApophisModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformXSNSeedance:
+		var aliases []string
+		for _, alias := range ppVideoXSNModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformFengyueSeedance:
+		var aliases []string
+		for _, alias := range ppVideoFengyueModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformHongpeiSeedance:
+		var aliases []string
+		for _, alias := range ppVideoHongpeiModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformVshiSeedance:
+		var aliases []string
+		for _, alias := range ppVideoVshiModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformHuahuoSeedance:
+		var aliases []string
+		for _, alias := range ppVideoHuahuoModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformZexiSeedance:
+		var aliases []string
+		for _, alias := range ppVideoZexiModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformXMSeedance:
+		var aliases []string
+		for _, alias := range ppVideoXMModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformNaiwaSeedance:
+		var aliases []string
+		for _, alias := range ppVideoNaiwaModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformV6KSeedance:
+		var aliases []string
+		for _, alias := range ppVideoV6KModelAliases(trimmed) {
+			aliases = addAlias(aliases, alias)
+		}
+		return aliases
+	case PlatformKyyWan:
+		var aliases []string
+		for _, alias := range ppVideoKyyWanModelAliases(trimmed) {
 			aliases = addAlias(aliases, alias)
 		}
 		return aliases

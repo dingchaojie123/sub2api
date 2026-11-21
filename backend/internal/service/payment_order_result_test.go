@@ -232,11 +232,11 @@ func TestBalanceRechargeProductsUseFixedDisplayAmounts(t *testing.T) {
 		displayAmount float64
 		chances       int
 	}{
-		{payAmount: 12, displayAmount: 18, chances: 0},
-		{payAmount: 88, displayAmount: 128, chances: 1},
-		{payAmount: 258, displayAmount: 388, chances: 3},
-		{payAmount: 688, displayAmount: 1088, chances: 14},
-		{payAmount: 1288, displayAmount: 2088, chances: 30},
+		{payAmount: 12, displayAmount: 19, chances: 0},
+		{payAmount: 88, displayAmount: 118, chances: 1},
+		{payAmount: 258, displayAmount: 358, chances: 3},
+		{payAmount: 688, displayAmount: 988, chances: 14},
+		{payAmount: 1288, displayAmount: 1888, chances: 30},
 	}
 
 	for _, tt := range tests {

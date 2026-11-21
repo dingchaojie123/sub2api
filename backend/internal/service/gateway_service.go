@@ -621,6 +621,10 @@ type UpstreamFailoverError struct {
 	NextAccountAction        NextAccountAction
 	ClientStatusCode         int
 	ClientMessage            string
+
+	// TransportCause 是传输层失败（没有拿到任何 HTTP 响应）的简短原因，例如 "connection reset by upstream"。
+	// 它不含上游地址、IP 和端口，可以写入客户可见的任务失败原因。Error() 不使用它，以免改变其他调用方看到的文案。
+	TransportCause string
 }
 
 func (e *UpstreamFailoverError) Error() string {
@@ -1217,7 +1221,7 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 				if platform == PlatformSeedanceHub {
 					// Only a model that the account's own platform serves is a line of the group,
 					// and it is listed under the line's public name.
-					if line, ok := SeedanceHubLineFor(acc.Platform, model); ok {
+					if line, ok := SeedanceHubLineFor(acc.Platform, model); ok && !line.Hidden {
 						modelSet[line.Name] = struct{}{}
 					}
 					continue

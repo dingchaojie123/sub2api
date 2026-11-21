@@ -154,3 +154,6 @@ aicodex
 output/
 sub2api-deploy/*
 sub2api-deploy_/*
+
+# Office/WPS 打开文件时产生的临时锁文件
+.~*

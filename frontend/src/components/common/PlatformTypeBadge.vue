@@ -102,12 +102,25 @@ const platformLabel = computed(() => {
   if (props.platform === 'ctmo-seedance') return '浙创 OPC Seedance'
 	if (props.platform === 'xingapi-seedance') return '星光 API Seedance'
 	if (props.platform === 'jijiu-seedance') return '极九 API Seedance'
+	if (props.platform === 'miaowu-seedance') return '喵呜 API Seedance'
+	if (props.platform === 'paisio-seedance') return 'Paisio Seedance'
+	if (props.platform === 'apophis-seedance') return 'Apophis Seedance'
+	if (props.platform === 'xsn-seedance') return 'XSN Seedance'
+	if (props.platform === 'fengyue-seedance') return '风月 Seedance'
+	if (props.platform === 'hongpei-seedance') return '红佩 Seedance'
+	if (props.platform === 'vshi-seedance') return 'VSHI Seedance'
+	if (props.platform === 'huahuo-seedance') return 'HUAHUO Seedance'
+	if (props.platform === 'zexi-seedance') return '泽西 Seedance'
+	if (props.platform === 'xm-seedance') return 'XM Seedance'
+	if (props.platform === 'naiwa-seedance') return '奶蛙 Seedance'
+	if (props.platform === 'v6k-seedance') return 'V6K Seedance'
   if (props.platform === 'mai-token-seedance') return 'Mai Token Seedance'
   if (props.platform === 'seedance-hub') return 'Seedance 综合'
   if (props.platform === 'guangying') return '光影 AI Seedance'
   if (props.platform === 'opone') return 'OPONE Seedance'
   if (props.platform === 'bytedance') return 'ByteDance'
   if (props.platform === 'wan3') return 'Wan3.0'
+  if (props.platform === 'kyy-wan') return '客易云 Wan3.0'
   if (props.platform === 'minimax-h3') return 'MiniMax-H3'
   if (props.platform === 'minimax-h3-compshare') return 'MiniMax-H3（优云智算）'
   if (props.platform === '88api-video') return '88API Video'
@@ -237,6 +250,42 @@ const platformClass = computed(() => {
 	if (props.platform === 'jijiu-seedance') {
 		return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
 	}
+	if (props.platform === 'miaowu-seedance') {
+		return 'bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-300'
+	}
+	if (props.platform === 'paisio-seedance') {
+		return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+	}
+	if (props.platform === 'apophis-seedance') {
+		return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+	}
+	if (props.platform === 'xsn-seedance') {
+		return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+	}
+	if (props.platform === 'fengyue-seedance') {
+		return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
+	}
+	if (props.platform === 'hongpei-seedance') {
+		return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+	}
+	if (props.platform === 'vshi-seedance') {
+		return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+	}
+	if (props.platform === 'huahuo-seedance') {
+		return 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+	}
+	if (props.platform === 'zexi-seedance') {
+		return 'bg-stone-100 text-stone-700 dark:bg-stone-900/30 dark:text-stone-300'
+	}
+	if (props.platform === 'xm-seedance') {
+		return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+	}
+	if (props.platform === 'naiwa-seedance') {
+		return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+	}
+	if (props.platform === 'v6k-seedance') {
+		return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+	}
   if (props.platform === 'mai-token-seedance') {
     return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
   }
@@ -254,6 +303,9 @@ const platformClass = computed(() => {
   }
   if (props.platform === 'wan3') {
     return 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+  }
+  if (props.platform === 'kyy-wan') {
+    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
   }
   if (props.platform === 'minimax-h3' || props.platform === 'minimax-h3-compshare') {
     return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300'
@@ -325,6 +377,42 @@ const typeClass = computed(() => {
 	if (props.platform === 'jijiu-seedance') {
 		return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-300'
 	}
+	if (props.platform === 'miaowu-seedance') {
+		return 'bg-lime-100 text-lime-600 dark:bg-lime-900/30 dark:text-lime-300'
+	}
+	if (props.platform === 'paisio-seedance') {
+		return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
+	}
+	if (props.platform === 'apophis-seedance') {
+		return 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-300'
+	}
+	if (props.platform === 'xsn-seedance') {
+		return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+	}
+	if (props.platform === 'fengyue-seedance') {
+		return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'
+	}
+	if (props.platform === 'hongpei-seedance') {
+		return 'bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-300'
+	}
+	if (props.platform === 'vshi-seedance') {
+		return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300'
+	}
+	if (props.platform === 'huahuo-seedance') {
+		return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+	}
+	if (props.platform === 'zexi-seedance') {
+		return 'bg-stone-100 text-stone-600 dark:bg-stone-900/30 dark:text-stone-300'
+	}
+	if (props.platform === 'xm-seedance') {
+		return 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300'
+	}
+	if (props.platform === 'naiwa-seedance') {
+		return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+	}
+	if (props.platform === 'v6k-seedance') {
+		return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300'
+	}
   if (props.platform === 'mai-token-seedance') {
     return 'bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300'
   }
@@ -342,6 +430,9 @@ const typeClass = computed(() => {
   }
   if (props.platform === 'wan3') {
     return 'bg-fuchsia-100 text-fuchsia-600 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+  }
+  if (props.platform === 'kyy-wan') {
+    return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300'
   }
   if (props.platform === 'minimax-h3' || props.platform === 'minimax-h3-compshare') {
     return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-300'

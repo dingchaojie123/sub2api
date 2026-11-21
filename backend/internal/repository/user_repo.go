@@ -34,6 +34,7 @@ type userRepository struct {
 }
 
 var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
+var _ service.RedeemPaidBalanceRepository = (*userRepository)(nil)
 
 func NewUserRepository(client *dbent.Client, sqlDB *sql.DB) service.UserRepository {
 	return newUserRepositoryWithSQL(client, sqlDB)
@@ -823,6 +824,24 @@ func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id in
 	return nil
 }
 
+// ApplyRedeemPaidBalanceCredit 入账折扣兑换码：积分余额加 credits，真实余额与累计充值加 realAmount。
+func (r *userRepository) ApplyRedeemPaidBalanceCredit(ctx context.Context, id int64, credits, realAmount float64) error {
+	client := clientFromContext(ctx, r.client)
+	updateSQL, args := buildRedeemPaidBalanceCreditSQL(client, id, credits, realAmount)
+	result, err := client.ExecContext(ctx, updateSQL, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrUserNotFound
+	}
+	return nil
+}
+
 // DeductBalance 扣除用户余额
 // 透支策略：允许余额变为负数，确保当前请求能够完成
 // 中间件会阻止余额 <= 0 的用户发起后续请求
@@ -967,6 +986,36 @@ SET balance = CASE WHEN balance - ? > 0 THEN balance - ? ELSE 0 END,
     END,
     updated_at = %s
 WHERE id = ? AND deleted_at IS NULL`, nowExpr), []any{amount, amount, amount, amount, userID}
+}
+
+// buildRedeemPaidBalanceCreditSQL 构造折扣兑换码的入账 SQL。
+// 积分余额（display_balance）的回退规则与 buildUpdateBalanceSQL 一致：
+// 已启用积分余额、或真实余额非正时在积分余额上累加，否则以真实余额为基数累加。
+// 同一条 UPDATE 内右值均为更新前的值。
+func buildRedeemPaidBalanceCreditSQL(client *dbent.Client, userID int64, credits, realAmount float64) (string, []any) {
+	nowExpr := userRepoCurrentTimestampExpr(client)
+	if userRepoDialect(client) == dialect.Postgres {
+		return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + $1,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + $2
+        ELSE balance + $2
+    END,
+    total_recharged = total_recharged + $1,
+    updated_at = %s
+WHERE id = $3 AND deleted_at IS NULL`, nowExpr), []any{realAmount, credits, userID}
+	}
+	return fmt.Sprintf(`
+UPDATE users
+SET balance = balance + ?,
+    display_balance = CASE
+        WHEN COALESCE(display_balance, 0) > 0 OR balance <= 0 THEN COALESCE(display_balance, 0) + ?
+        ELSE balance + ?
+    END,
+    total_recharged = total_recharged + ?,
+    updated_at = %s
+WHERE id = ? AND deleted_at IS NULL`, nowExpr), []any{realAmount, credits, credits, realAmount, userID}
 }
 
 func optionalDeductBalanceArg(amount float64, include bool) []any {

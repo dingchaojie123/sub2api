@@ -35,6 +35,7 @@ import riskControlAPI from './riskControl'
 import adminComplianceAPI from './compliance'
 import auditAPI from './audit'
 import lotteryAPI from './lottery'
+import videoTasksAPI from './videoTasks'
 
 /**
  * Unified admin API object for convenient access
@@ -71,7 +72,8 @@ export const adminAPI = {
   riskControl: riskControlAPI,
   compliance: adminComplianceAPI,
   audit: auditAPI,
-  lottery: lotteryAPI
+  lottery: lotteryAPI,
+  videoTasks: videoTasksAPI
 }
 
 export {
@@ -106,7 +108,8 @@ export {
   riskControlAPI,
   adminComplianceAPI,
   auditAPI,
-  lotteryAPI
+  lotteryAPI,
+  videoTasksAPI
 }
 
 export default adminAPI

@@ -38,7 +38,7 @@ func (h *OpenAIGatewayHandler) PPVideoStatus(c *gin.Context) {
 func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
 	if !ok || apiKey == nil || apiKey.Group == nil ||
-		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformJijiuSeedance && apiKey.Group.Platform != service.PlatformMaiTokenSeedance && apiKey.Group.Platform != service.PlatformOPONE && apiKey.Group.Platform != service.PlatformSeedanceHub) {
+		(apiKey.Group.Platform != service.PlatformCTMOSeedance && apiKey.Group.Platform != service.PlatformXingAPISeedance && apiKey.Group.Platform != service.PlatformJijiuSeedance && apiKey.Group.Platform != service.PlatformMiaowuSeedance && apiKey.Group.Platform != service.PlatformPaisioSeedance && apiKey.Group.Platform != service.PlatformApophisSeedance && apiKey.Group.Platform != service.PlatformXSNSeedance && apiKey.Group.Platform != service.PlatformFengyueSeedance && apiKey.Group.Platform != service.PlatformHongpeiSeedance && apiKey.Group.Platform != service.PlatformVshiSeedance && apiKey.Group.Platform != service.PlatformHuahuoSeedance && apiKey.Group.Platform != service.PlatformZexiSeedance && apiKey.Group.Platform != service.PlatformXMSeedance && apiKey.Group.Platform != service.PlatformNaiwaSeedance && apiKey.Group.Platform != service.PlatformV6KSeedance && apiKey.Group.Platform != service.PlatformMaiTokenSeedance && apiKey.Group.Platform != service.PlatformOPONE && apiKey.Group.Platform != service.PlatformSeedanceHub) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video content is not supported for this platform")
 		return
 	}
@@ -56,7 +56,7 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	// A task records the platform of the account that ran it, so a Seedance aggregate group
 	// serves the tasks of every member platform.
 	if err != nil || task == nil || !service.PPVideoGroupServesPlatform(apiKey.Group.Platform, task.Platform) ||
-		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformJijiuSeedance && task.Platform != service.PlatformMaiTokenSeedance && task.Platform != service.PlatformOPONE) {
+		(task.Platform != service.PlatformCTMOSeedance && task.Platform != service.PlatformXingAPISeedance && task.Platform != service.PlatformJijiuSeedance && task.Platform != service.PlatformMiaowuSeedance && task.Platform != service.PlatformPaisioSeedance && task.Platform != service.PlatformApophisSeedance && task.Platform != service.PlatformXSNSeedance && task.Platform != service.PlatformFengyueSeedance && task.Platform != service.PlatformHongpeiSeedance && task.Platform != service.PlatformVshiSeedance && task.Platform != service.PlatformHuahuoSeedance && task.Platform != service.PlatformZexiSeedance && task.Platform != service.PlatformXMSeedance && task.Platform != service.PlatformNaiwaSeedance && task.Platform != service.PlatformV6KSeedance && task.Platform != service.PlatformMaiTokenSeedance && task.Platform != service.PlatformOPONE) {
 		h.errorResponse(c, http.StatusNotFound, "not_found_error", "Video request not found")
 		return
 	}
@@ -72,12 +72,26 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	if selection.ReleaseFunc != nil {
 		defer selection.ReleaseFunc()
 	}
+	// 这个接口原先没有任何日志，下载慢或失败时只能看到访问日志里的总耗时。
+	// 记录首字节耗时（上游响应头到达）和实际传输字节数，才能区分是上游慢、本站出口慢还是客户端慢。
+	reqLog := requestLogger(c, "handler.openai_gateway.pp_video_content",
+		zap.String("task", requestID),
+		zap.String("platform", task.Platform),
+		zap.Int64("account_id", task.AccountID),
+	)
+	contentStarted := time.Now()
 	resp, err := h.gatewayService.ForwardPPVideoTaskContentWithMethod(c.Request.Context(), c.Request.Method, selection.Account, task, c.GetHeader("Range"), c.GetHeader("If-Range"))
 	if err != nil {
+		reqLog.Warn("pp_video.content_forward_failed",
+			zap.String("client_range", c.GetHeader("Range")),
+			zap.Int64("elapsed_ms", time.Since(contentStarted).Milliseconds()),
+			zap.Error(err),
+		)
 		h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream video download failed")
 		return
 	}
 	defer func() { _ = resp.Body.Close() }()
+	firstByteMs := time.Since(contentStarted).Milliseconds()
 	for _, header := range []string{"Content-Type", "Content-Length", "Content-Disposition", "Cache-Control", "Accept-Ranges", "Content-Range", "ETag", "Last-Modified"} {
 		if value := strings.TrimSpace(resp.Header.Get(header)); value != "" {
 			c.Header(header, value)
@@ -91,7 +105,21 @@ func (h *OpenAIGatewayHandler) PPVideoContent(c *gin.Context) {
 	if c.Request.Method == http.MethodHead {
 		return
 	}
-	_, _ = io.Copy(c.Writer, resp.Body)
+	copied, copyErr := io.Copy(c.Writer, resp.Body)
+	copyFields := []zap.Field{
+		zap.Int("status", resp.StatusCode),
+		zap.String("client_range", c.GetHeader("Range")),
+		zap.Int64("content_length", resp.ContentLength),
+		zap.Int64("copied_bytes", copied),
+		zap.Int64("first_byte_ms", firstByteMs),
+		zap.Int64("total_ms", time.Since(contentStarted).Milliseconds()),
+	}
+	if copyErr != nil || (resp.ContentLength > 0 && copied != resp.ContentLength) {
+		// 状态行和响应头已经发出，这里只能记录：客户端会收到被截断的文件。
+		reqLog.Warn("pp_video.content_incomplete", append(copyFields, zap.Error(copyErr))...)
+		return
+	}
+	reqLog.Info("pp_video.content_done", copyFields...)
 }
 
 func (h *OpenAIGatewayHandler) PPVideoCancel(c *gin.Context) {
@@ -305,6 +333,22 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 	// one platform and the request is handled as one sent to a group of that platform.
 	requestPlatform := apiKey.Group.Platform
 	var hubLine *service.SeedanceHubLine
+	// routedSubmission is set when the group routes the requested line to another line (a line
+	// route): the request is then run by the target line's platform, while hubLine, the line the
+	// client asked for, keeps naming, pricing and recording the task. revertRoute puts the
+	// request back on the requested line when the target turns out to have no usable account.
+	var routedSubmission *service.PPVideoRoutedRequest
+	var revertRoute func()
+	// routedSourceResolution is the resolution the requested line itself would have run (the
+	// request's own, or that line's default). A routed request is priced on it, so that a target
+	// with another default resolution cannot move the request into a different price tier.
+	var routedSourceResolution string
+	// An ordinary group of a Seedance platform (no hubLine) is billed and recorded as the request
+	// the platform itself would have run: its platform, prepared body and public model name.
+	var routedSourcePlatform, routedSourceModel string
+	var routedSourceBody []byte
+	// routeLine is the line the client asked for, when the request can be routed (nil otherwise).
+	var routeLine *service.SeedanceHubLine
 	if !isStatus {
 		mediaType, _, contentTypeErr := mime.ParseMediaType(c.GetHeader("Content-Type"))
 		isMultipartSubmission = contentTypeErr == nil && strings.EqualFold(mediaType, "multipart/form-data")
@@ -440,6 +484,35 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				return
 			}
 		}
+		// The line the client asked for: in an aggregate group the one its model names; in the
+		// ordinary group of a Seedance platform the one that platform serves under the requested model.
+		routeLine = hubLine
+		if routeLine == nil && !isMultipartSubmission && service.IsSeedanceHubMemberPlatform(apiKey.Group.Platform) {
+			routeLine = ppVideoRouteSourceLine(apiKey.Group.Platform, publicRequest, body)
+		}
+		if routeLine != nil && !isMultipartSubmission {
+			// The request was validated and hashed above as a request for the line the client asked
+			// for. If the group routes that line to another one, the request is handed to the
+			// target line's platform from here on.
+			if routed := h.routePPVideoSubmission(c, reqLog, apiKey.GroupID, *routeLine, operation, originalBody, isPPVideoUnifiedRequest(c)); routed != nil {
+				sourcePlatform, sourcePipelineBody, sourceBody, sourcePublic, sourceSubmission :=
+					requestPlatform, pipelineSourceBody, body, publicRequest, submission
+				revertRoute = func() {
+					requestPlatform, pipelineSourceBody, body, publicRequest, submission =
+						sourcePlatform, sourcePipelineBody, sourceBody, sourcePublic, sourceSubmission
+				}
+				routedSubmission = routed
+				routedSourceResolution = service.PPVideoBillingMetadataFromRequest(sourcePlatform, sourceBody).VideoResolution
+				if hubLine == nil {
+					routedSourcePlatform, routedSourceBody, routedSourceModel = sourcePlatform, sourceBody, sourcePublic.Model
+				}
+				requestPlatform = routed.Platform
+				pipelineSourceBody = routed.PipelineBody
+				body = routed.Body
+				publicRequest = routed.Public
+				submission = &service.PPVideoSubmissionBody{JSON: body}
+			}
+		}
 	}
 
 	var task *service.PPVideoTask
@@ -490,6 +563,40 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 		return h.gatewayService.SelectPPVideoAccountForRequest(c.Request.Context(), apiKey.GroupID, requestPlatform, publicRequest)
 	}()
+	if (err != nil || selection == nil || selection.Account == nil) && routedSubmission != nil && revertRoute != nil {
+		// The group has no usable account for the route's target right now (all busy, disabled or
+		// removed after the route was saved): serve the line the client asked for, as if there
+		// were no route, instead of failing the request.
+		reqLog.Warn("pp_video.line_route_target_unavailable",
+			zap.String("line", routeLine.Name),
+			zap.String("target", routedSubmission.Line.Name),
+			zap.Error(err),
+		)
+		revertRoute()
+		routedSubmission = nil
+		selection, err = h.gatewayService.SelectPPVideoAccountForRequest(c.Request.Context(), apiKey.GroupID, requestPlatform, publicRequest)
+	}
+	if err == nil && selection != nil && selection.Account != nil && routedSubmission != nil && revertRoute != nil {
+		// The request was checked for the target platform without an account. The checks that depend
+		// on the account (its model mapping) can still refuse it; that must not reach the client
+		// either, so the request goes back to the line the client asked for.
+		if reason, accountErr := ppVideoRoutedAccountCheck(selection.Account, operation,
+			ppVideoSubmissionSourceBody(isMultipartSubmission, submission, pipelineSourceBody, originalBody)); accountErr != nil {
+			reqLog.Warn("pp_video.line_route_account_rejected",
+				zap.String("line", routeLine.Name),
+				zap.String("target", routedSubmission.Line.Name),
+				zap.Int64("account_id", selection.Account.ID),
+				zap.String("reason", reason),
+				zap.Error(accountErr),
+			)
+			if selection.ReleaseFunc != nil {
+				selection.ReleaseFunc()
+			}
+			revertRoute()
+			routedSubmission = nil
+			selection, err = h.gatewayService.SelectPPVideoAccountForRequest(c.Request.Context(), apiKey.GroupID, requestPlatform, publicRequest)
+		}
+	}
 	if err != nil || selection == nil || selection.Account == nil {
 		if isStatus && canFallbackToStoredPPVideoStatus(task) {
 			reqLog.Info("pp_video.status_stored_fallback",
@@ -507,6 +614,16 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		defer selection.ReleaseFunc()
 	}
 	account := selection.Account
+	// 记录选中的账号，否则失败响应写入 Ops 错误日志时 account_id 为空，按账号排查会查不到。
+	setOpsSelectedAccount(c, account.ID, account.Platform)
+	if routedSubmission != nil {
+		reqLog.Info("pp_video.line_routed",
+			zap.String("line", routeLine.Name),
+			zap.String("target", routedSubmission.Line.Name),
+			zap.Int64("account_id", account.ID),
+			zap.String("account_platform", account.Platform),
+		)
+	}
 
 	if task == nil {
 		var prepareErr error
@@ -520,6 +637,9 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			// The task, the response and the usage record carry the name the client knows the
 			// line by; the request that was prepared for the platform already carries its own.
 			publicRequest.Model = hubLine.Name
+		} else if routedSubmission != nil && routedSourceModel != "" {
+			// A routed request of an ordinary group is recorded under the model the client asked for.
+			publicRequest.Model = routedSourceModel
 		}
 		if isMultipartSubmission && submission.Multipart != nil && len(submission.Multipart.Uploads) > 0 {
 			publicRequest.HasImage = true
@@ -530,6 +650,12 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			return
 		}
 		meta := service.PPVideoBillingMetadataFromRequest(account.Platform, body)
+		if hubLine == nil && routedSubmission != nil && routedSourceBody != nil {
+			// An ordinary group's channel prices its own platform's models. A routed request is run
+			// by another platform, but billed as the request the group's platform would have run:
+			// the metadata (model, resolution, duration) is that of the request prepared for it.
+			meta = service.PPVideoBillingMetadataFromRequest(routedSourcePlatform, routedSourceBody)
+		}
 		if meta.ValidationError != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", meta.ValidationError.Error())
 			return
@@ -539,6 +665,12 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			// but the price of a hub line is configured under the line's public name, whatever
 			// the account maps it to.
 			meta.Model = hubLine.Name
+			// A routed request is run by another platform than the line's own, and is still priced
+			// as the line the client asked for.
+			meta.HubLineRouted = routedSubmission != nil
+			if routedSubmission != nil && routedSourceResolution != "" {
+				meta.VideoResolution = routedSourceResolution
+			}
 		}
 		cost, costErr := h.gatewayService.CalculatePPVideoCost(c.Request.Context(), apiKey, apiKey.User, account, meta)
 		if costErr != nil {
@@ -606,11 +738,16 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
 		}
 	}
-	if task != nil && task.TaskID == "" && (account.Platform == service.PlatformGuangying || account.Platform == service.PlatformMaiTokenSeedance) {
+	if task != nil && task.TaskID == "" && (account.Platform == service.PlatformGuangying || account.Platform == service.PlatformMaiTokenSeedance || account.Platform == service.PlatformHongpeiSeedance || account.Platform == service.PlatformVshiSeedance || account.Platform == service.PlatformHuahuoSeedance) {
 		publicRequest.UpstreamIdempotencyKey = task.LocalTaskID
 	}
 
 	result, err := h.gatewayService.ForwardPPVideoSubmissionBuffered(c.Request.Context(), c, account, operation, requestID, submission, publicRequest)
+	// 上游调用不随客户端断开而中止，可能比客户端自己的超时更久（miaowu 的提交就出现过几分钟才返回）。
+	// 返回之后的落库、释放冻结和结算必须脱离请求上下文，否则客户端先断开会让写库报
+	// context canceled，上游已接受的任务就丢了任务 ID（persist_failed）。
+	persistCtx, cancelPersist := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 30*time.Second)
+	defer cancelPersist()
 	if err != nil {
 		if isStatus && !service.IsResponseCommitted(c) && canFallbackToStoredPPVideoStatus(task) {
 			reqLog.Info("pp_video.status_stored_fallback",
@@ -622,11 +759,11 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			return
 		}
 		if task != nil && task.TaskID == "" {
-			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash); releaseErr != nil {
+			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(persistCtx, task, payloadHash); releaseErr != nil {
 				reqLog.Warn("pp_video.release_hold_after_forward_failed", zap.Error(releaseErr))
 			}
-			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "upstream_error", err.Error())
-			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
+			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(persistCtx, task.LocalTaskID, "upstream_error", ppVideoSubmitFailureMessage(err))
+			h.invalidatePPVideoBalanceCache(persistCtx, task.UserID)
 		}
 		if !service.IsResponseCommitted(c) {
 			var upstreamErr *service.PPVideoUpstreamError
@@ -646,11 +783,11 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 
 	if task.TaskID == "" {
 		if strings.TrimSpace(result.ResponseID) == "" {
-			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(c.Request.Context(), task, payloadHash); releaseErr != nil {
+			if releaseErr := h.gatewayService.ReleasePPVideoBalanceHold(persistCtx, task, payloadHash); releaseErr != nil {
 				reqLog.Warn("pp_video.release_hold_after_missing_task_id_failed", zap.Error(releaseErr))
 			}
-			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(c.Request.Context(), task.LocalTaskID, "missing_task_id", "upstream response missing task id")
-			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
+			_ = h.gatewayService.MarkPPVideoTaskSubmitFailed(persistCtx, task.LocalTaskID, "missing_task_id", "upstream response missing task id")
+			h.invalidatePPVideoBalanceCache(persistCtx, task.UserID)
 			h.errorResponse(c, http.StatusBadGateway, "upstream_error", "Upstream response missing video task id")
 			return
 		}
@@ -660,7 +797,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 		submittedLocalTaskID := task.LocalTaskID
 		pendingTask := task
-		task, err = h.gatewayService.MarkPPVideoTaskSubmitted(c.Request.Context(), service.MarkPPVideoTaskSubmittedParams{
+		task, err = h.markPPVideoTaskSubmittedWithRetry(persistCtx, reqLog, pendingTask, service.MarkPPVideoTaskSubmittedParams{
 			LocalTaskID: submittedLocalTaskID, TaskID: result.ResponseID, Status: status,
 			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
 			InputVideoDurationMilliseconds:     result.VideoInputDurationMilliseconds,
@@ -697,7 +834,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 			status = service.PPVideoTaskStatusProcessing
 		}
 		statusTaskID := task.TaskID
-		task, err = h.gatewayService.MarkPPVideoTaskStatus(c.Request.Context(), service.MarkPPVideoTaskStatusParams{
+		task, err = h.gatewayService.MarkPPVideoTaskStatus(persistCtx, service.MarkPPVideoTaskStatusParams{
 			TaskID: task.TaskID, Status: status,
 			GeneratedVideoDurationMilliseconds: result.VideoDurationMilliseconds,
 			ProviderBillingSeconds:             result.VideoProviderBillingSeconds,
@@ -724,7 +861,7 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 		}
 	}
 	if service.IsTerminalPPVideoTaskStatus(task.Status) {
-		if err := h.gatewayService.SettlePPVideoTask(c.Request.Context(), &service.PPVideoSettlementInput{
+		if err := h.gatewayService.SettlePPVideoTask(persistCtx, &service.PPVideoSettlementInput{
 			Task: task, FinalStatus: task.Status, APIKey: apiKey, User: apiKey.User,
 			Account: account, Subscription: subscription,
 			InboundEndpoint: GetInboundEndpoint(c), UpstreamEndpoint: result.UpstreamEndpoint,
@@ -741,10 +878,74 @@ func (h *OpenAIGatewayHandler) handlePPVideo(c *gin.Context, operation service.P
 				return
 			}
 		} else {
-			h.invalidatePPVideoBalanceCache(c.Request.Context(), task.UserID)
+			h.invalidatePPVideoBalanceCache(persistCtx, task.UserID)
 		}
 	}
 	h.gatewayService.WritePPVideoForwardResult(c, result)
+}
+
+// ppVideoPersistRetryDelays 是上游已接受任务后写库失败时，两次重试之前的等待时间。
+// 总共最多尝试 3 次，等待合计不到 1 秒，不会明显拖慢响应。
+var ppVideoPersistRetryDelays = []time.Duration{200 * time.Millisecond, 600 * time.Millisecond}
+
+// markPPVideoTaskSubmittedWithRetry 把上游返回的任务 ID 写回本地任务，遇到瞬时错误时重试。
+// 上游此时已经创建并计费，写库失败会让这个任务丢失，所以值得多试几次。
+//
+// 不重试的情况：任务状态已经不符合写入条件（ErrPPVideoTaskNotFound）、幂等冲突，以及 ctx 已结束。
+// 重试前一次若其实已经提交成功、只是应答丢失，下一次会因状态不符返回 NotFound，
+// 这时按上游任务 ID 回查一次：查到了就当作成功，避免把已落库的任务当成失败去释放冻结。
+func (h *OpenAIGatewayHandler) markPPVideoTaskSubmittedWithRetry(
+	ctx context.Context,
+	reqLog *zap.Logger,
+	pending *service.PPVideoTask,
+	params service.MarkPPVideoTaskSubmittedParams,
+) (*service.PPVideoTask, error) {
+	var lastErr error
+	for attempt := 0; attempt <= len(ppVideoPersistRetryDelays); attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, lastErr
+			case <-time.After(ppVideoPersistRetryDelays[attempt-1]):
+			}
+		}
+		task, err := h.gatewayService.MarkPPVideoTaskSubmitted(ctx, params)
+		if err == nil {
+			if attempt > 0 {
+				reqLog.Warn("pp_video.persist_submitted_task_recovered_by_retry",
+					zap.String("local_task_id", params.LocalTaskID),
+					zap.String("upstream_task_id", params.TaskID),
+					zap.Int("attempts", attempt+1),
+				)
+			}
+			return task, nil
+		}
+		lastErr = err
+		if errors.Is(err, service.ErrPPVideoTaskNotFound) {
+			if attempt > 0 && pending != nil {
+				// 前一次可能已提交成功但应答丢失：已经带着这个上游任务 ID 落库就算成功。
+				if stored, lookupErr := h.gatewayService.GetPPVideoTaskForOwner(ctx, pending.UserID, pending.APIKeyID, params.TaskID); lookupErr == nil &&
+					stored != nil && stored.LocalTaskID == params.LocalTaskID {
+					reqLog.Warn("pp_video.persist_submitted_task_already_stored",
+						zap.String("local_task_id", params.LocalTaskID),
+						zap.String("upstream_task_id", params.TaskID),
+					)
+					return stored, nil
+				}
+			}
+			return nil, err
+		}
+		if errors.Is(err, service.ErrPPVideoIdempotencyConflict) || ctx.Err() != nil {
+			return nil, err
+		}
+		reqLog.Warn("pp_video.persist_submitted_task_retrying",
+			zap.String("local_task_id", params.LocalTaskID),
+			zap.String("upstream_task_id", params.TaskID),
+			zap.Int("attempt", attempt+1),
+			zap.Error(err),
+		)
+	}
+	return nil, lastErr
 }
 
 // recoverPPVideoTaskAfterPersistFailure 在上游已接受任务、但本地写回结果失败时收尾：
@@ -823,6 +1024,23 @@ func shouldReplayStoredPPVideoStatus(task *service.PPVideoTask) bool {
 
 func canFallbackToStoredPPVideoStatus(task *service.PPVideoTask) bool {
 	return task != nil && strings.TrimSpace(task.ResponseBody) != ""
+}
+
+// ppVideoSubmitFailureMessage 生成提交失败任务的失败原因。传输层失败（没拿到任何 HTTP 响应）时
+// err.Error() 只是 "upstream error: 502 (failover)"，看不出原因；这里改用不含上游地址的简短分类，
+// 例如 "upstream connection failed: connection reset by upstream"。这个文案会展示给客户，
+// 所以不能带上游域名、IP 和端口，完整错误只留在 Ops 错误日志里。
+func ppVideoSubmitFailureMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	var failoverErr *service.UpstreamFailoverError
+	if errors.As(err, &failoverErr) && failoverErr != nil {
+		if cause := strings.TrimSpace(failoverErr.TransportCause); cause != "" {
+			return "upstream connection failed: " + cause
+		}
+	}
+	return err.Error()
 }
 
 func writeStoredPPVideoResponse(c *gin.Context, task *service.PPVideoTask) {

@@ -409,6 +409,8 @@ type AdminRedeemCode struct {
 	RedeemCode
 
 	Notes string `json:"notes"`
+	// PayAmount 仅在生成折扣码的响应中返回；列表/详情接口不加载该列。
+	PayAmount *float64 `json:"pay_amount,omitempty"`
 }
 
 type NullableTimeField struct {

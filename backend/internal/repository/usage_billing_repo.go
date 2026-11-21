@@ -385,6 +385,17 @@ func captureUsageBillingBatchImageBalance(ctx context.Context, tx *sql.Tx, cmd *
 	if cmd.ActualAmount-cmd.HoldAmount > 0.00000001 {
 		return nil, service.ErrBatchImageSettlementCostExceedsHold
 	}
+	// 冻结已经释放过（钱已经退回用户）时不能再扣款：扣款会再次解冻同一笔金额，
+	// 从用户冻结池里拿走属于其他任务的钱。返回错误会回滚本事务，不留下任何 capture 记录。
+	if releaseRequestID := strings.TrimSpace(cmd.ReleaseRequestID); releaseRequestID != "" {
+		released, releasedErr := batchImageHoldClaimExists(ctx, tx, releaseRequestID, cmd.APIKeyID)
+		if releasedErr != nil {
+			return nil, releasedErr
+		}
+		if released {
+			return nil, service.ErrBatchImageHoldAlreadyReleased
+		}
+	}
 	if organizationID, memberUserID, ok, err := batchImageOrganizationBillingOwner(cmd); err != nil {
 		return nil, err
 	} else if ok {

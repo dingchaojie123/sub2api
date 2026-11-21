@@ -1259,10 +1259,30 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 		}
 	}
 
+	// 折扣码：实付金额只对余额类型有意义，且积分面值不能低于实付金额（折扣不会是溢价）。
+	var payStore RedeemCodePayAmountStore
+	if input.PayAmount != nil {
+		if input.Type != RedeemTypeBalance {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_PAY_AMOUNT_TYPE", "pay_amount is only supported for balance codes")
+		}
+		if *input.PayAmount <= 0 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_PAY_AMOUNT_INVALID", "pay_amount must be greater than zero")
+		}
+		if input.Value < *input.PayAmount {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_PAY_AMOUNT_EXCEEDS_VALUE", "credit value must not be less than pay_amount")
+		}
+		store, ok := s.redeemCodeRepo.(RedeemCodePayAmountStore)
+		if !ok {
+			return nil, infraerrors.InternalServer("REDEEM_CODE_PAY_AMOUNT_UNSUPPORTED", "redeem code repository does not support pay_amount")
+		}
+		payStore = store
+	}
+
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {
 		codeValue, err := GenerateRedeemCode()
 		if err != nil {
+			s.discardGeneratedRedeemCodes(ctx, codes, input.PayAmount != nil)
 			return nil, err
 		}
 		code := RedeemCode{
@@ -1270,6 +1290,7 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			Type:      input.Type,
 			Value:     input.Value,
 			Status:    StatusUnused,
+			Notes:     input.Notes,
 			ExpiresAt: input.ExpiresAt,
 		}
 		// 订阅类型专用字段
@@ -1281,11 +1302,37 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			}
 		}
 		if err := s.redeemCodeRepo.Create(ctx, &code); err != nil {
+			s.discardGeneratedRedeemCodes(ctx, codes, input.PayAmount != nil)
 			return nil, err
+		}
+		if payStore != nil {
+			if err := payStore.SetPayAmount(ctx, code.ID, *input.PayAmount); err != nil {
+				// 没有 pay_amount 的折扣码会被当作普通码按全额入账，必须连同本批已生成的码一起清掉。
+				s.discardGeneratedRedeemCodes(ctx, append(codes, code), true)
+				return nil, fmt.Errorf("set redeem code pay amount: %w", err)
+			}
+			payAmount := *input.PayAmount
+			code.PayAmount = &payAmount
 		}
 		codes = append(codes, code)
 	}
 	return codes, nil
+}
+
+// discardGeneratedRedeemCodes 在批量生成中途失败时删除本批已创建的兑换码（best-effort）。
+// 仅折扣码批次才清理：它们一旦缺少 pay_amount 就会变成"全额码"；普通批次保持原有的"保留已生成"行为。
+func (s *adminServiceImpl) discardGeneratedRedeemCodes(ctx context.Context, codes []RedeemCode, discard bool) {
+	if !discard {
+		return
+	}
+	for i := range codes {
+		if codes[i].ID == 0 {
+			continue
+		}
+		if err := s.redeemCodeRepo.Delete(ctx, codes[i].ID); err != nil {
+			logger.LegacyPrintf("service.admin", "[GenerateRedeemCodes] failed to discard code %d: %v", codes[i].ID, err)
+		}
+	}
 }
 
 func (s *adminServiceImpl) DeleteRedeemCode(ctx context.Context, id int64) error {

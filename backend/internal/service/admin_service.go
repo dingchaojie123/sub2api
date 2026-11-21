@@ -477,6 +477,9 @@ type GenerateRedeemCodesInput struct {
 	GroupID      *int64 // 订阅类型专用：关联的分组ID
 	ValidityDays int    // 订阅类型专用：有效天数
 	ExpiresAt    *time.Time
+	// PayAmount 余额类型专用：客户实付金额。非空时生成折扣码，Value 为积分面值。
+	PayAmount *float64
+	Notes     string
 }
 
 type ProxyBatchDeleteResult struct {

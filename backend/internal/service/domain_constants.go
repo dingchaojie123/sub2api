@@ -56,12 +56,25 @@ const (
 	PlatformCTMOSeedance       = domain.PlatformCTMOSeedance
 	PlatformXingAPISeedance    = domain.PlatformXingAPISeedance
 	PlatformJijiuSeedance      = domain.PlatformJijiuSeedance
+	PlatformMiaowuSeedance     = domain.PlatformMiaowuSeedance
+	PlatformPaisioSeedance     = domain.PlatformPaisioSeedance
+	PlatformApophisSeedance    = domain.PlatformApophisSeedance
+	PlatformXSNSeedance        = domain.PlatformXSNSeedance
+	PlatformFengyueSeedance    = domain.PlatformFengyueSeedance
+	PlatformHongpeiSeedance    = domain.PlatformHongpeiSeedance
+	PlatformVshiSeedance       = domain.PlatformVshiSeedance
+	PlatformHuahuoSeedance     = domain.PlatformHuahuoSeedance
+	PlatformZexiSeedance       = domain.PlatformZexiSeedance
+	PlatformXMSeedance         = domain.PlatformXMSeedance
+	PlatformNaiwaSeedance      = domain.PlatformNaiwaSeedance
+	PlatformV6KSeedance        = domain.PlatformV6KSeedance
 	PlatformMaiTokenSeedance   = domain.PlatformMaiTokenSeedance
 	PlatformSeedanceHub        = domain.PlatformSeedanceHub
 	PlatformGuangying          = domain.PlatformGuangying
 	PlatformOPONE              = domain.PlatformOPONE
 	PlatformByteDance          = domain.PlatformByteDance
 	PlatformWan3               = domain.PlatformWan3
+	PlatformKyyWan             = domain.PlatformKyyWan
 	PlatformMiniMaxH3          = domain.PlatformMiniMaxH3
 	PlatformMiniMaxH3CompShare = domain.PlatformMiniMaxH3CompShare
 	PlatformMiniMaxSpeech      = domain.PlatformMiniMaxSpeech
@@ -93,12 +106,25 @@ var AllowedQuotaPlatforms = []string{
 	PlatformCTMOSeedance,
 	PlatformXingAPISeedance,
 	PlatformJijiuSeedance,
+	PlatformMiaowuSeedance,
+	PlatformPaisioSeedance,
+	PlatformApophisSeedance,
+	PlatformXSNSeedance,
+	PlatformFengyueSeedance,
+	PlatformHongpeiSeedance,
+	PlatformVshiSeedance,
+	PlatformHuahuoSeedance,
+	PlatformZexiSeedance,
+	PlatformXMSeedance,
+	PlatformNaiwaSeedance,
+	PlatformV6KSeedance,
 	PlatformMaiTokenSeedance,
 	PlatformSeedanceHub,
 	PlatformGuangying,
 	PlatformOPONE,
 	PlatformByteDance,
 	PlatformWan3,
+	PlatformKyyWan,
 	PlatformMiniMaxH3,
 	PlatformMiniMaxH3CompShare,
 	PlatformMiniMaxSpeech,

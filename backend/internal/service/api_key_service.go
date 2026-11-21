@@ -759,6 +759,33 @@ func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) 
 	return apiKey, nil
 }
 
+// apiKeyDeletedLoader 由能读取软删除 API Key 的仓库实现。用可选接口而不是扩展 APIKeyRepository，
+// 避免所有仓库和测试桩都要跟着改。
+type apiKeyDeletedLoader interface {
+	GetByIDIncludingDeleted(ctx context.Context, id int64) (*APIKey, error)
+}
+
+// GetByIDIncludingDeleted 根据ID获取API Key，包括已被软删除的。只用于视频任务结算，
+// 不要用于认证。仓库不支持时返回 ErrAPIKeyNotFound，和普通 GetByID 的行为一致。
+func (s *APIKeyService) GetByIDIncludingDeleted(ctx context.Context, id int64) (*APIKey, error) {
+	loader, ok := s.apiKeyRepo.(apiKeyDeletedLoader)
+	if !ok {
+		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
+	}
+	apiKey, err := loader.GetByIDIncludingDeleted(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("get api key: %w", err)
+	}
+	if apiKey != nil {
+		keys := []APIKey{*apiKey}
+		if err := s.fillBillingSources(ctx, keys); err != nil {
+			return nil, fmt.Errorf("load api key billing source: %w", err)
+		}
+		apiKey.BillingSource = keys[0].BillingSource
+	}
+	return apiKey, nil
+}
+
 // GetByKey 根据Key字符串获取API Key（用于认证）
 func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, error) {
 	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {

@@ -31,6 +31,7 @@ const (
 	CTMOSeedanceDefaultBaseURL           = "https://video.ctmoai.com"
 	XingAPISeedanceDefaultBaseURL        = "https://xingapi.top/v1"
 	JijiuSeedanceDefaultBaseURL          = "https://newapi.jijiucanvas.com"
+	// MiaowuSeedanceDefaultBaseURL lives in pp_video_miaowu.go.
 	MaiTokenSeedanceDefaultBaseURL       = "https://api.mai-token.com"
 	GuangyingDefaultBaseURL              = "https://api.guangying.store"
 	OPONEDefaultBaseURL                  = "https://api.opone.cc"
@@ -60,6 +61,7 @@ const (
 var ctmoSeedanceSupportedModels = []string{
 	"seedance-2.0-930",
 	"seedance-2.0-903",
+	"seedance-2.0-933",
 	"seedance2.0-pro-720p",
 	"seedance2.5-pro-720p",
 	"seedance2.5-one-720p",
@@ -131,6 +133,10 @@ type PPVideoResponse struct {
 	RawBody                        []byte
 }
 
+// PPVideoBillingMetadata describes what a video request is billed on. HubLineRouted is set when a
+// request of a Seedance aggregate group is run by another line's upstream platform than the line
+// it asked for (a line route): Model then names the line the client asked for, which is the line
+// that is priced, although Platform is the platform that runs the request.
 type PPVideoBillingMetadata struct {
 	Platform                       string
 	Model                          string
@@ -144,6 +150,7 @@ type PPVideoBillingMetadata struct {
 	FrameRate                      float64
 	HasAudio                       bool
 	KlingMode                      string
+	HubLineRouted                  bool
 	ValidationError                error
 }
 
@@ -163,7 +170,7 @@ func IsPPVideoPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
 	case Platform88APIVideo:
 		return true
-	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
+	case PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMiaowuSeedance, PlatformPaisioSeedance, PlatformApophisSeedance, PlatformXSNSeedance, PlatformFengyueSeedance, PlatformHongpeiSeedance, PlatformVshiSeedance, PlatformHuahuoSeedance, PlatformZexiSeedance, PlatformXMSeedance, PlatformNaiwaSeedance, PlatformV6KSeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformKyyWan, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou:
 		return true
 	default:
 		return false
@@ -285,6 +292,110 @@ func preparePPVideoRequestBody(platform string, operation PPVideoOperation, body
 			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
 		payload, err = normalizeJijiuSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformMiaowuSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeMiaowuSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformPaisioSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizePaisioSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformApophisSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeApophisSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformXSNSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeXSNSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformFengyueSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeFengyueSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformHongpeiSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeHongpeiSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformVshiSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeVshiSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformHuahuoSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeHuahuoSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformZexiSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeZexiSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformXMSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeXMSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformKyyWan:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeKyyWanPayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformNaiwaSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeNaiwaSeedancePayload(body, &public)
+		if err != nil {
+			return nil, PPVideoPublicRequest{}, err
+		}
+	case PlatformV6KSeedance:
+		if operation != PPVideoOperationGeneric {
+			return nil, PPVideoPublicRequest{}, fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		payload, err = normalizeV6KSeedancePayload(body, &public)
 		if err != nil {
 			return nil, PPVideoPublicRequest{}, err
 		}
@@ -2143,7 +2254,7 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 
 	var path string
 	switch platform {
-	case Platform88APIVideo, PlatformCTMOSeedance, PlatformJijiuSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
+	case Platform88APIVideo, PlatformCTMOSeedance, PlatformJijiuSeedance, PlatformMiaowuSeedance, PlatformPaisioSeedance, PlatformApophisSeedance, PlatformXSNSeedance, PlatformFengyueSeedance, PlatformHongpeiSeedance, PlatformHuahuoSeedance, PlatformZexiSeedance, PlatformXMSeedance, PlatformNaiwaSeedance, PlatformV6KSeedance, PlatformMaiTokenSeedance, PlatformOPONE:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
 		}
@@ -2151,6 +2262,14 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 			return "/v1/videos/" + url.PathEscape(taskID), nil
 		}
 		return "/v1/videos", nil
+	case PlatformVshiSeedance:
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if taskID != "" {
+			return vshiUnifiedVideosPath + "/" + url.PathEscape(taskID), nil
+		}
+		return vshiUnifiedVideosPath, nil
 	case PlatformXingAPISeedance:
 		if operation != PPVideoOperationGeneric {
 			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
@@ -2167,6 +2286,14 @@ func ppVideoUpstreamPath(platform string, operation PPVideoOperation, taskID str
 			return "/v1/tasks/" + url.PathEscape(taskID), nil
 		}
 		return "/v1/video/generations", nil
+	case PlatformKyyWan:
+		if operation != PPVideoOperationGeneric {
+			return "", fmt.Errorf("platform %q does not support operation %q", platform, operation)
+		}
+		if taskID != "" {
+			return KyyWanTasksPath + "/" + url.PathEscape(taskID), nil
+		}
+		return KyyWanTasksPath, nil
 	case PlatformMiniMaxH3CompShare:
 		if operation == PPVideoOperationCancel && taskID != "" {
 			return "/minimax/v2/video_generation/" + url.PathEscape(taskID), nil
@@ -2408,6 +2535,42 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 	if platform == PlatformJijiuSeedance {
 		return finalizeJijiuSeedanceResponse(result, body), nil
 	}
+	if platform == PlatformMiaowuSeedance {
+		return finalizeMiaowuSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformPaisioSeedance {
+		return finalizePaisioSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformApophisSeedance {
+		return finalizeApophisSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformXSNSeedance {
+		return finalizeXSNSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformFengyueSeedance {
+		return finalizeFengyueSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformHongpeiSeedance {
+		return finalizeHongpeiSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformVshiSeedance {
+		return finalizeVshiSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformHuahuoSeedance {
+		return finalizeHuahuoSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformZexiSeedance {
+		return finalizeZexiSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformXMSeedance {
+		return finalizeXMSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformNaiwaSeedance {
+		return finalizeNaiwaSeedanceResponse(result, body), nil
+	}
+	if platform == PlatformV6KSeedance {
+		return finalizeV6KSeedanceResponse(result, body), nil
+	}
 	ctmoExplicitError := platform == PlatformCTMOSeedance && ppVideoResponseHasExplicitError(body)
 	if ctmoExplicitError && result.ErrorMessage == "" {
 		result.ErrorMessage = ppVideoCTMOErrorMessage(body)
@@ -2443,6 +2606,9 @@ func ParsePPVideoResponse(platform string, body []byte) (PPVideoResponse, error)
 		if result.Status == PPVideoTaskStatusSucceeded && !hasFinalVideo && platform != PlatformOPONE && platform != PlatformXingAPISeedance {
 			result.Status = PPVideoTaskStatusProcessing
 		}
+	}
+	if platform == PlatformKyyWan {
+		result = finalizeKyyWanResponse(result, body)
 	}
 	if result.VideoCount <= 0 {
 		result.VideoCount = 1
@@ -2504,7 +2670,7 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if platform == PlatformMaiTokenSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
 		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
-	if platform == PlatformJijiuSeedance && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
+	if (platform == PlatformJijiuSeedance || platform == PlatformMiaowuSeedance || platform == PlatformPaisioSeedance || platform == PlatformApophisSeedance || platform == PlatformXSNSeedance || platform == PlatformFengyueSeedance || platform == PlatformHongpeiSeedance || platform == PlatformVshiSeedance || platform == PlatformHuahuoSeedance || platform == PlatformZexiSeedance || platform == PlatformXMSeedance || platform == PlatformNaiwaSeedance || platform == PlatformV6KSeedance) && NormalizePPVideoTaskStatus(parsed.Status) != PPVideoTaskStatusSucceeded {
 		// The upstream may carry a result address while the task is still running.
 		raw = ppVideoWithoutPublicVideoURL(raw)
 	}
@@ -2539,6 +2705,12 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 	if model == "" {
 		model = ppVideoUpstreamModel(platform, public)
 	}
+	if platform == PlatformCTMOSeedance {
+		// Tasks recorded under the id of a model without "seedance" in it still show the public name.
+		if publicModel, ok := ppVideoCTMOPublicModel(model); ok {
+			model = publicModel
+		}
+	}
 	if platform == PlatformMaiTokenSeedance {
 		// Tasks recorded under the upstream name still show the public name.
 		if publicModel, ok := ppVideoMaiTokenPublicModel(model); ok {
@@ -2549,6 +2721,91 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 		if publicModel, ok := ppVideoJijiuPublicModel(model); ok {
 			model = publicModel
 		}
+	}
+	if platform == PlatformMiaowuSeedance {
+		if publicModel, ok := ppVideoMiaowuPublicModel(model); ok {
+			model = publicModel
+		}
+	}
+	if platform == PlatformPaisioSeedance {
+		if publicModel, ok := ppVideoPaisioPublicModel(model); ok {
+			model = publicModel
+		}
+		// The upstream reports what the task cost it, in yuan. That is the supplier's price,
+		// not ours, so it is never passed on to the client.
+		delete(payload, "cost")
+	}
+	if platform == PlatformApophisSeedance {
+		if publicModel, ok := ppVideoApophisPublicModel(model); ok {
+			model = publicModel
+		}
+		// A site-to-site upstream may echo its own accounting fields; none of them belongs in
+		// a client response.
+		delete(payload, "cost")
+	}
+	if platform == PlatformXSNSeedance {
+		if publicModel, ok := ppVideoXSNPublicModel(model); ok {
+			model = publicModel
+		}
+	}
+	if platform == PlatformFengyueSeedance {
+		if publicModel, ok := ppVideoFengyuePublicModel(model); ok {
+			model = publicModel
+		}
+	}
+	if platform == PlatformHongpeiSeedance {
+		if publicModel, ok := ppVideoHongpeiPublicModel(model); ok {
+			model = publicModel
+		}
+	}
+	if platform == PlatformVshiSeedance {
+		if publicModel, ok := ppVideoVshiPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object carries the upstream's own download addresses and cost figures.
+		ppVideoVshiRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformHuahuoSeedance {
+		if publicModel, ok := ppVideoHuahuoPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object carries the upstream's own credit figures, which are its price to us.
+		ppVideoHuahuoRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformZexiSeedance {
+		if publicModel, ok := ppVideoZexiPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object may carry the upstream's own usage and cost figures, which are its price to us.
+		ppVideoZexiRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformXMSeedance {
+		if publicModel, ok := ppVideoXMPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object may carry the upstream's own usage and cost figures, which are its price to us.
+		ppVideoXMRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformNaiwaSeedance {
+		if publicModel, ok := ppVideoNaiwaPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object may carry the upstream's own usage and cost figures, which are its price to us.
+		ppVideoNaiwaRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformV6KSeedance {
+		if publicModel, ok := ppVideoV6KPublicModel(model); ok {
+			model = publicModel
+		}
+		// The task object may carry the upstream's own usage and cost figures, which are its price to us.
+		ppVideoV6KRemoveUpstreamFields(payload)
+	}
+	if platform == PlatformKyyWan {
+		if spec, ok := kyyWanModelSpecFor(model); ok {
+			model = spec.Name
+		}
+		// The task object carries the upstream's own amount (its price to us) and time figure.
+		ppVideoKyyWanRemoveUpstreamFields(payload)
 	}
 	payload["model"] = model
 	videoURL := ppVideoExtractVideoURL(raw)
@@ -2564,11 +2821,19 @@ func NormalizePPVideoPublicResponse(platform string, raw []byte, public PPVideoP
 			}
 		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance || platform == PlatformJijiuSeedance || platform == PlatformMaiTokenSeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+	} else if (platform == PlatformCTMOSeedance || platform == PlatformXingAPISeedance || platform == PlatformJijiuSeedance || platform == PlatformMiaowuSeedance || platform == PlatformPaisioSeedance || platform == PlatformApophisSeedance || platform == PlatformXSNSeedance || platform == PlatformFengyueSeedance || platform == PlatformHongpeiSeedance || platform == PlatformVshiSeedance || platform == PlatformHuahuoSeedance || platform == PlatformZexiSeedance || platform == PlatformXMSeedance || platform == PlatformNaiwaSeedance || platform == PlatformV6KSeedance || platform == PlatformMaiTokenSeedance) && parsed.Status == PPVideoTaskStatusSucceeded && taskID != "" {
+		if platform == PlatformMiaowuSeedance {
+			// The upstream documents a direct result url that may be absent when the result
+			// needs authentication. Keep the direct address as a fallback for the content
+			// proxy (the authenticated /content endpoint is tried first), like OPONE does.
+			if _, kept := payload["provider_url"]; !kept && strings.HasPrefix(strings.ToLower(videoURL), "https://") {
+				payload["provider_url"] = videoURL
+			}
+		}
 		videoURL = "/v1/videos/" + url.PathEscape(taskID) + "/content"
 	}
 	if videoURL != "" {
-		if platform == PlatformMaiTokenSeedance || platform == PlatformJijiuSeedance {
+		if platform == PlatformMaiTokenSeedance || platform == PlatformJijiuSeedance || platform == PlatformMiaowuSeedance || platform == PlatformPaisioSeedance || platform == PlatformApophisSeedance || platform == PlatformXSNSeedance || platform == PlatformFengyueSeedance || platform == PlatformHongpeiSeedance || platform == PlatformVshiSeedance || platform == PlatformHuahuoSeedance || platform == PlatformZexiSeedance || platform == PlatformXMSeedance || platform == PlatformNaiwaSeedance || platform == PlatformV6KSeedance {
 			// Never expose the upstream's own address (full link, relative path or ticket).
 			ppVideoRemoveVideoURLFields(payload)
 		}
@@ -2809,6 +3074,66 @@ func PPVideoBillingMetadataFromRequest(platform string, body []byte) PPVideoBill
 		// Models with one fixed resolution do not send it upstream, but the task is still
 		// priced and recorded at that resolution.
 		if spec, ok := jijiuModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformMiaowuSeedance && metadata.VideoResolution == "" {
+		if spec, ok := miaowuModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformPaisioSeedance && metadata.VideoResolution == "" {
+		if spec, ok := paisioModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformApophisSeedance && metadata.VideoResolution == "" {
+		if spec, ok := apophisModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformXSNSeedance && metadata.VideoResolution == "" {
+		if spec, ok := xsnModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformFengyueSeedance && metadata.VideoResolution == "" {
+		if spec, ok := fengyueModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformHongpeiSeedance && metadata.VideoResolution == "" {
+		if spec, ok := hongpeiModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformVshiSeedance && metadata.VideoResolution == "" {
+		if spec, ok := vshiModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformHuahuoSeedance && metadata.VideoResolution == "" {
+		if spec, ok := huahuoModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformZexiSeedance && metadata.VideoResolution == "" {
+		if spec, ok := zexiModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformXMSeedance && metadata.VideoResolution == "" {
+		if spec, ok := xmModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformNaiwaSeedance && metadata.VideoResolution == "" {
+		if spec, ok := naiwaModelSpecFor(metadata.Model); ok {
+			metadata.VideoResolution = spec.defaultResolution()
+		}
+	}
+	if platform == PlatformV6KSeedance && metadata.VideoResolution == "" {
+		if spec, ok := v6kModelSpecFor(metadata.Model); ok {
 			metadata.VideoResolution = spec.defaultResolution()
 		}
 	}
@@ -3209,7 +3534,18 @@ func normalizeCTMOSeedancePayload(payload map[string]any, body []byte, public *P
 	}
 
 	if public.UpstreamModel != "" {
-		payload["model"] = public.UpstreamModel
+		upstreamModel := public.UpstreamModel
+		if upstream, ok := ppVideoCTMOUpstreamModel(upstreamModel); ok {
+			// An account mapping may carry the public name; only the upstream id is ever sent.
+			upstreamModel = upstream
+		}
+		payload["model"] = upstreamModel
+		if public.HasExplicitModel {
+			// The task is shown under the public name of a model that has one.
+			if publicName, ok := ppVideoCTMOPublicModel(public.Model); ok {
+				public.Model = publicName
+			}
+		}
 	} else {
 		delete(payload, "model")
 	}
@@ -3416,6 +3752,9 @@ func ppVideoUpstreamModel(platform string, public PPVideoPublicRequest) string {
 		}
 		return model
 	case PlatformCTMOSeedance:
+		if upstream, ok := ppVideoCTMOUpstreamModel(model); ok {
+			return upstream
+		}
 		return model
 	case PlatformXingAPISeedance:
 		return model
@@ -3590,6 +3929,30 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsXingAPISeedanceModel(model)
 	case PlatformJijiuSeedance:
 		return ppVideoIsJijiuSeedanceModel(model)
+	case PlatformMiaowuSeedance:
+		return ppVideoIsMiaowuSeedanceModel(model)
+	case PlatformPaisioSeedance:
+		return ppVideoIsPaisioSeedanceModel(model)
+	case PlatformApophisSeedance:
+		return ppVideoIsApophisSeedanceModel(model)
+	case PlatformXSNSeedance:
+		return ppVideoIsXSNSeedanceModel(model)
+	case PlatformFengyueSeedance:
+		return ppVideoIsFengyueSeedanceModel(model)
+	case PlatformHongpeiSeedance:
+		return ppVideoIsHongpeiSeedanceModel(model)
+	case PlatformVshiSeedance:
+		return ppVideoIsVshiSeedanceModel(model)
+	case PlatformHuahuoSeedance:
+		return ppVideoIsHuahuoSeedanceModel(model)
+	case PlatformZexiSeedance:
+		return ppVideoIsZexiSeedanceModel(model)
+	case PlatformXMSeedance:
+		return ppVideoIsXMSeedanceModel(model)
+	case PlatformNaiwaSeedance:
+		return ppVideoIsNaiwaSeedanceModel(model)
+	case PlatformV6KSeedance:
+		return ppVideoIsV6KSeedanceModel(model)
 	case PlatformMaiTokenSeedance:
 		_, ok := ppVideoMaiTokenPublicModel(model)
 		return ok
@@ -3601,6 +3964,8 @@ func ppVideoModelBelongsToPlatform(platform string, model string) bool {
 		return ppVideoIsByteDanceModel(model)
 	case PlatformWan3:
 		return ppVideoIsWan30Model(model)
+	case PlatformKyyWan:
+		return ppVideoIsKyyWanModel(model)
 	case PlatformMiniMaxH3:
 		return ppVideoIsMiniMaxModel(model)
 	case PlatformPixverseV6:
@@ -3628,7 +3993,7 @@ func ppVideoModelKnownForeignToPlatform(platform string, model string) bool {
 	if ppVideoIsJimengModel(model) {
 		return true
 	}
-	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformMaiTokenSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
+	for _, candidate := range []string{PlatformKling, PlatformHappyHourse, PlatformSeedance, PlatformCTMOSeedance, PlatformMaiTokenSeedance, PlatformMiaowuSeedance, PlatformPaisioSeedance, PlatformApophisSeedance, PlatformXSNSeedance, PlatformFengyueSeedance, PlatformHongpeiSeedance, PlatformVshiSeedance, PlatformHuahuoSeedance, PlatformZexiSeedance, PlatformXMSeedance, PlatformNaiwaSeedance, PlatformV6KSeedance, PlatformGuangying, PlatformOPONE, PlatformByteDance, PlatformWan3, PlatformKyyWan, PlatformMiniMaxH3, PlatformMiniMaxH3CompShare, PlatformPixverseV6, PlatformGrokImagineVideo, PlatformKuaishou} {
 		if candidate == platform {
 			continue
 		}
@@ -3657,6 +4022,59 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 	}
 	if platform == PlatformJijiuSeedance {
 		return ppVideoJijiuPublicModels(models)
+	}
+	if platform == PlatformMiaowuSeedance {
+		// The upstream publishes many models before their limits and prices are known here.
+		// Keep them discoverable; a request for one that is not in miaowuSeedanceModels is
+		// still refused by the request normalizer.
+		return models
+	}
+	if platform == PlatformPaisioSeedance {
+		// Same as miaowu: the upstream is a general video site whose other models are kept
+		// discoverable; a request for one that is not in paisioSeedanceModels is still refused.
+		return models
+	}
+	if platform == PlatformApophisSeedance {
+		// The upstream also sells models this platform does not take (the official-forward
+		// token-billed lines, MiniMax). They stay discoverable; a request for one that is not
+		// in apophisSeedanceModels is still refused by the request normalizer.
+		return models
+	}
+	if platform == PlatformXSNSeedance {
+		// A whitelist saved under an upstream name (即梦-Sd-2.5, ...) is listed under the public name.
+		return ppVideoXSNPublicModels(models)
+	}
+	if platform == PlatformFengyueSeedance {
+		// A whitelist saved under the upstream name (sd2.5pp) is listed under the public name.
+		return ppVideoFengyuePublicModels(models)
+	}
+	if platform == PlatformHongpeiSeedance {
+		// A whitelist saved under an upstream name (vs-sd2.5-L, ...) is listed under the public name.
+		return ppVideoHongpeiPublicModels(models)
+	}
+	if platform == PlatformVshiSeedance {
+		// A whitelist saved under an upstream name (NSFW-pro, vs-sd2.5-b, ...) is listed under the public name.
+		return ppVideoVshiPublicModels(models)
+	}
+	if platform == PlatformHuahuoSeedance {
+		// A whitelist saved under an upstream name (inmind/video/seedance2-5-...) is listed under the public name.
+		return ppVideoHuahuoPublicModels(models)
+	}
+	if platform == PlatformXMSeedance {
+		// A whitelist saved under an upstream id (seedance_2.5, bd-VIP-SD2.5..., ...) is listed under the public name.
+		return ppVideoXMPublicModels(models)
+	}
+	if platform == PlatformNaiwaSeedance {
+		// A whitelist saved under an upstream id (奶蛙sd2.5-V, ...) is listed under the public name.
+		return ppVideoNaiwaPublicModels(models)
+	}
+	if platform == PlatformV6KSeedance {
+		// A whitelist saved under an upstream id (官方按条SD2.0, ...) is listed under the public name.
+		return ppVideoV6KPublicModels(models)
+	}
+	if platform == PlatformKyyWan {
+		// The upstream's model list holds every model of its center; only the table's models stay.
+		return ppVideoKyyWanPublicModels(models)
 	}
 	if platform == PlatformGuangying {
 		filtered := make([]string, 0, len(models))
@@ -3688,6 +4106,10 @@ func filterPPVideoPublicModelsForPlatform(platform string, models []string) []st
 			filtered = append(filtered, model)
 		}
 	}
+	if platform == PlatformCTMOSeedance {
+		// A model whose id does not say "seedance" is listed under its public name.
+		return ppVideoCTMOPublicModels(filtered)
+	}
 	return filtered
 }
 
@@ -3706,6 +4128,10 @@ func ppVideoIsSeedanceModel(model string) bool {
 
 func ppVideoIsCTMOSeedanceModel(model string) bool {
 	model = strings.TrimSpace(model)
+	if _, ok := ppVideoCTMOUpstreamModel(model); ok {
+		// The public name of an aliased model (see ctmoSeedancePublicNames) is accepted like its id.
+		return true
+	}
 	for _, supported := range ctmoSeedanceSupportedModels {
 		if strings.EqualFold(model, supported) {
 			return true

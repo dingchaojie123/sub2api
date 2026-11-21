@@ -60,13 +60,11 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | 模型系列 | 模型 ID | 输入能力 | 时长 | 输出分辨率 | 调用说明 |
 | --- | --- | --- | --- | --- | --- |
 | Seedance（doubao 系列） | `doubao-seedance-2-0-260128`、`doubao-seedance-2-5-260628`、`doubao-seedance-2-5-260628-global` | 文生、首尾帧、参考图片/视频/音频 | 2.0：4-15 秒整数；2.5：4-30 秒整数 | 2.0：`480p`、`720p`、`1080p`、`4K`；2.5：`480p`、`720p`、`1080p` | [查看](video-api/doubao-seedance.md) |
-| Wan3.0 | `wan3.0-video`、`wan3.0-video-prime` | 文生、首尾帧、参考图片/视频/音频、文件或链接参考 | 2-30 秒整数 | `480P`、`720P`、`1080P` | [查看](video-api/wan.md) |
-| 综合视频模型 | `gemini-omni-flash`、`gemini-omni-flash-1.1`、`grok-imagine-video`、`grok-imagine-video-1.5`、`kling-3.0`、`seedance-2.0`、`seedance-2.0-fast`、`seedance-2.0-mini`、`seedance-2.5`、`veo-3.1`、`veo-3.1-fast`、`wan3.0-video` | 文生、图生及参考素材能力因模型而异 | 1-30 秒，按模型限制 | `480p`、`720p`、`1080p`、`4K`，按模型限制 | [查看](video-api/general-models.md) |
-| Seedance（其他型号） | `seedance-2.0-930`、`seedance-2.0-903`、`seedance-933`、`seedance2.0-933-C`、`seedance2.5-V`、`Seedance 2.5-全参720P`、`限时限量-Seedance 2.5 满参`、`Seedance 2.5-无视频`、`限时限量-Seedance 2.5 满参-备选`、`Seedance 2.0按次计费`、`Seedance 2.5-无参考视频 按秒计费`、`Seedance 2.0-无参考视频 按秒计费`、`竖屏-Seedance 2.0按次计费`、`竖屏-Seedance 2.0 Fast 按次计费`、`竖屏-Seedance 2.0 Mini 按次计费` | 文生、参考图片/视频/音频，部分模型支持首尾帧，按模型能力 | 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`，按模型限制 | [查看](video-api/seedance-series.md) |
+| Wan3.0（c3 型号） | `wan3.0-video-c3` | 文生、首尾帧、参考图片/视频/音频 | 2-30 秒整数 | `480p`、`720p`、`1080p`；默认 `1080p` | [查看](video-api/wan.md) |
+| Seedance（其他型号） | `seedance-2.0-930`、`seedance-2.0-903`、`seedance-2.0-933`、`seedance-933`、`seedance2.0-933-C`、`seedance2.5-V`、`Seedance 2.5-全参720P`、`限时限量-Seedance 2.5 满参`、`Seedance 2.5-无视频`、`限时限量-Seedance 2.5 满参-备选`、`Seedance 2.0按次计费`、`Seedance 2.5-无参考视频 按秒计费`、`Seedance 2.0-无参考视频 按秒计费`、`竖屏-Seedance 2.0按次计费`、`竖屏-Seedance 2.0 Fast 按次计费`、`竖屏-Seedance 2.0 Mini 按次计费` | 文生、参考图片/视频/音频，部分模型支持首尾帧，按模型能力 | 4-30 秒，按模型限制 | `480p`、`720p`、`1080p`，按模型限制 | [查看](video-api/seedance-series.md) |
 | Seedance 2.5 480P | `Seedance2.5-480全参` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | 固定 `480p` | [查看](video-api/seedance-series.md) |
 | Seedance 综合分组 | 名称形如 `Seedance2.5--720p--V--按次--X`，全部线路见调用说明 | 文生、参考图片/视频/音频，部分线路支持首尾帧 | 4-30 秒，按线路限制 | `480p`、`720p`、`1080p`，按线路限制 | [查看](video-api/seedance-hub.md) |
 | MiniMax-H3 | `MiniMax-H3`、`minimax-h3-lite` | 文生、首尾帧、参考图片/视频/音频 | 4-30 秒整数 | `480P`、`768P`、`1080P`、`2K`、`4K` | [查看](video-api/minimax-h3.md) |
-| Pixverse-V6 | `pixverse-v6` | 文生、首尾帧、参考图、视频延长 | 1-15 秒整数 | `360p`、`540p`、`720p`、`1080p` | [查看](video-api/pixverse.md) |
 
 所有模型仍使用统一的 `POST /v1/videos/generations` 创建任务和 `GET /v1/videos/{task_id}` 查询任务状态。各模型调用说明中的 JSON 结构是新增视频模型推荐使用的请求体格式。
 
@@ -77,14 +75,12 @@ API Key 所属视频平台同步到的模型，不同平台的模型不能混用
 | 模型系列 | 素材的写法 | 时长、分辨率、画幅 | 音频开关 |
 | --- | --- | --- | --- |
 | Seedance（doubao 系列） | `input.content[]`，元素为 `image_url` / `video_url` / `audio_url`，用 `role` 区分首帧、尾帧和参考 | `parameters.*` | `parameters.generate_audio` |
-| Wan3.0 | `input.media[]`，元素为 `{type, url}` | `parameters.*` | `parameters.audio` |
-| 综合视频模型 | 顶层 `images`、`videos`；参考音频放 `metadata.referenceAudios` | 顶层 `duration`、`resolution`、`ratio` | 顶层 `generate_audio`，仅部分型号支持 |
+| Wan3.0（c3 型号） | 顶层 `images`、`videos`、`audios`、`first_frame`、`last_frame` | 顶层 `duration`、`resolution`、`ratio`、`seed` | 没有音频开关 |
 | Seedance（其他型号） | 顶层 `images`、`videos`、`audios`；名称带中文的型号还可以用带 `name` 的 `assets[]` | 顶层 `duration`、`resolution`、`aspect_ratio` 或 `ratio` | 以各型号说明为准 |
 | Seedance2.5-480全参 | 顶层 `referenceImages`、`referenceVideos`、`referenceAudios`、`first_image`、`last_image` | 顶层 `duration`、固定 `resolution`、`ratio` | 顶层 `generate_audio` |
 | MiniMax-H3 | 顶层 `content[]` | 顶层 `duration`、`resolution`、`ratio` | `mute_audio`，传 `true` 表示关闭音频 |
-| Pixverse-V6 | `input.img_url`、`input.first_frame_url`、`input.last_frame_url`、`input.video_url` | `parameters.*` | `parameters.generate_audio` |
 
-如果不想为每个模型各写一套请求，可以使用 [统一请求格式（v2）](video-api/unified.md)：所有素材放在 `assets[]`，时长、分辨率、画幅和音频开关使用固定字段名。目前本节模型总览中的全部模型都支持统一请求格式：Seedance（doubao 系列）、Wan3.0、MiniMax-H3、Pixverse-V6、综合视频模型、Seedance（其他型号）（包括 `seedance-2.0-930`、`seedance-2.0-903`）、`Seedance2.5-480全参` 以及 [Seedance 综合分组](video-api/seedance-hub.md) 里的全部线路。个别写法仍只能用原生写法，例如 Wan3.0 的文件、链接参考和 `Seedance2.5-480全参` 的首帧图片文件上传，见各模型的调用说明。
+如果不想为每个模型各写一套请求，可以使用 [统一请求格式（v2）](video-api/unified.md)：所有素材放在 `assets[]`，时长、分辨率、画幅和音频开关使用固定字段名。目前本节模型总览中的全部模型都支持统一请求格式：Seedance（doubao 系列）、Wan3.0（c3 型号）、MiniMax-H3、Seedance（其他型号）（包括 `seedance-2.0-930`、`seedance-2.0-903`）、`Seedance2.5-480全参` 以及 [Seedance 综合分组](video-api/seedance-hub.md) 里的全部线路。个别写法仍只能用原生写法，例如 `Seedance2.5-480全参` 的首帧图片文件上传，见各模型的调用说明。
 
 ## 2. 创建视频任务（v1 写法）
 
@@ -116,7 +112,7 @@ POST /v1/videos/generations
 
 不同模型对参考图、参考视频、参考音频、首尾帧、时长、分辨率和音频生成的支持不完全相同。建议使用可公开访问的 HTTPS 资源 URL，并根据目标模型能力传入相应字段。
 
-模型总览中列出的 Seedance（doubao 系列）、Wan3.0、综合视频模型、MiniMax-H3 和 Pixverse-V6 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用各模型调用说明中的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
+模型总览中列出的 Seedance（doubao 系列）、Wan3.0（c3 型号）和 MiniMax-H3 模型也兼容上述部分统一字段，便于已有下游迁移；新接入时应优先使用各模型调用说明中的模型专用结构。本站不会透出对应上游的任务提交、状态查询地址或上游 API Key。
 
 MiniMax-H3 以其 [调用说明](video-api/minimax-h3.md) 为准：默认分辨率为 `768P`，`duration` 使用 JSON 整数，媒体通过 `content` 传入。不要直接套用上表中的 `images`、`videos`、`audios` 或 `generate_audio` 字段。
 
@@ -326,9 +322,7 @@ while True:
 
 - [Seedance（doubao 系列）](video-api/doubao-seedance.md)
 - [Seedance（其他型号）](video-api/seedance-series.md)
-- [Wan3.0](video-api/wan.md)
-- [综合视频模型](video-api/general-models.md)
+- [Wan3.0（c3 型号）](video-api/wan.md)
 - [MiniMax-H3](video-api/minimax-h3.md)（含取消任务）
-- [Pixverse-V6](video-api/pixverse.md)
 - [进阶说明](video-api/advanced.md)（兼容旧接口、更多请求字段、图片输入规则、签名 URL）
 - [Qwen TTS 语音合成接口](QWEN_TTS_API.md)

@@ -216,6 +216,14 @@
             </span>
           </template>
 
+          <template #cell-notes="{ value }">
+            <span
+              class="block max-w-[14rem] truncate text-sm text-gray-500 dark:text-dark-400"
+              :title="value || ''"
+              >{{ value || '-' }}</span
+            >
+          </template>
+
           <template #cell-actions="{ row }">
             <div class="flex items-center space-x-2">
               <button
@@ -346,13 +354,93 @@
           <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
             {{ t('admin.redeem.generateCodesTitle') }}
           </h2>
-          <form @submit.prevent="handleGenerateCodes" class="space-y-4">
+          <form data-test="generate-form" @submit.prevent="handleGenerateCodes" class="space-y-4">
             <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
               <Select v-model="generateForm.type" :options="typeOptions" />
             </div>
-            <!-- 余额/并发类型：显示数值输入 -->
-            <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
+            <!-- 余额类型：折扣码（按客户实付金额 + 折扣换算积分面值） -->
+            <div
+              v-if="generateForm.type === 'balance'"
+              class="rounded-lg border border-gray-200 p-3 dark:border-dark-600"
+            >
+              <label class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <input
+                  data-test="discount-mode-toggle"
+                  v-model="generateForm.discount_enabled"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  @change="handleDiscountToggle"
+                />
+                {{ t('admin.redeem.discount.enable') }}
+              </label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.redeem.discount.hint') }}
+              </p>
+              <div v-if="generateForm.discount_enabled" class="mt-3 space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="input-label">{{ t('admin.redeem.discount.payAmount') }}</label>
+                    <input
+                      data-test="discount-pay-amount"
+                      v-model.number="generateForm.pay_amount"
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      required
+                      class="input"
+                    />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('admin.redeem.discount.rate') }}</label>
+                    <input
+                      data-test="discount-rate"
+                      v-model.number="generateForm.discount"
+                      type="number"
+                      step="0.1"
+                      min="1"
+                      max="10"
+                      required
+                      class="input"
+                    />
+                    <p
+                      v-if="discountRatioWarning"
+                      data-test="discount-rate-warning"
+                      class="mt-1 text-xs text-red-600 dark:text-red-400"
+                    >
+                      {{ discountRatioWarning }}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label class="input-label">{{ t('admin.redeem.discount.credits') }}</label>
+                  <input
+                    data-test="discount-credits"
+                    v-model.number="generateForm.value"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    class="input"
+                  />
+                  <p
+                    v-if="discountSummary"
+                    data-test="discount-summary"
+                    class="mt-1 text-xs text-emerald-700 dark:text-emerald-300"
+                  >
+                    {{ discountSummary }}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <!-- 余额/并发类型：显示数值输入（折扣模式下由上面的积分面值输入替代） -->
+            <div
+              v-if="
+                generateForm.type !== 'subscription' &&
+                generateForm.type !== 'invitation' &&
+                !(generateForm.type === 'balance' && generateForm.discount_enabled)
+              "
+            >
               <label class="input-label">
                 {{
                   generateForm.type === 'balance'
@@ -458,6 +546,17 @@
                 max="100"
                 required
                 class="input"
+              />
+            </div>
+            <div>
+              <label class="input-label">{{ t('admin.redeem.generateNotes') }}</label>
+              <input
+                data-test="generate-notes"
+                v-model="generateForm.notes"
+                type="text"
+                maxlength="200"
+                class="input"
+                :placeholder="t('admin.redeem.generateNotesPlaceholder')"
               />
             </div>
             <div class="flex justify-end gap-3 pt-2">
@@ -629,6 +728,13 @@
           </div>
           <!-- Content -->
           <div class="p-5">
+            <p
+              v-if="generatedSummary"
+              data-test="generated-summary"
+              class="mb-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300"
+            >
+              {{ generatedSummary }}
+            </p>
             <div class="relative">
               <textarea
                 readonly
@@ -680,6 +786,14 @@ import { useTableSelection } from '@/composables/useTableSelection'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
+import {
+  buildDiscountNote,
+  creditsFromDiscount,
+  effectiveDiscount,
+  formatPlainNumber,
+  isValidDiscount,
+  looksLikeRatio
+} from '@/utils/redeemDiscount'
 import type {
   RedeemCode,
   RedeemCodeType,
@@ -755,10 +869,13 @@ const textareaHeight = computed(() => {
 })
 
 const copiedAll = ref(false)
+// 最近一次生成的折扣码摘要（实付 / 面值 / 折扣），用于结果弹窗提示；普通码为空
+const generatedSummary = ref('')
 
 const closeResultDialog = () => {
   showResultDialog.value = false
   generatedCodes.value = []
+  generatedSummary.value = ''
   copiedAll.value = false
 }
 
@@ -793,6 +910,7 @@ const columns = computed<Column[]>(() => [
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
   { key: 'expires_at', label: t('admin.redeem.columns.expiresAt'), sortable: true },
+  { key: 'notes', label: t('admin.redeem.columns.notes') },
   { key: 'actions', label: t('admin.redeem.columns.actions') }
 ])
 
@@ -917,13 +1035,59 @@ const generateForm = reactive({
   group_id: null as number | null,
   validity_days: 30,
   expiry_option: 'never' as RedeemCodeExpiryOption,
-  custom_expiry_days: 7
+  custom_expiry_days: 7,
+  // 折扣码（仅余额类型）：客户实付 pay_amount、折扣 discount（折），换算出积分面值写入 value
+  discount_enabled: false,
+  pay_amount: 0,
+  discount: 10,
+  notes: ''
+})
+
+// 折扣模式下，实付金额或折扣变化时重新换算积分面值；面值仍可手动微调
+const syncDiscountCredits = () => {
+  if (generateForm.discount_enabled) {
+    generateForm.value = creditsFromDiscount(generateForm.pay_amount, generateForm.discount)
+  }
+}
+
+watch(() => [generateForm.pay_amount, generateForm.discount], syncDiscountCredits)
+
+const handleDiscountToggle = () => {
+  if (generateForm.discount_enabled) {
+    syncDiscountCredits()
+  } else {
+    generateForm.value = 10
+  }
+}
+
+// 把六折填成 0.6 是最常见的误填：给出明确提示（同时 isValidDiscount 会拒绝提交）
+const discountRatioWarning = computed(() => {
+  if (!generateForm.discount_enabled || !looksLikeRatio(generateForm.discount)) return ''
+  return t('admin.redeem.discount.rateLooksLikeRatio', {
+    value: formatPlainNumber(generateForm.discount),
+    suggested: formatPlainNumber(generateForm.discount * 10)
+  })
+})
+
+const discountSummary = computed(() => {
+  const discount = effectiveDiscount(generateForm.pay_amount, generateForm.value)
+  if (!discount) return ''
+  return t('admin.redeem.discount.summary', {
+    pay: formatPlainNumber(generateForm.pay_amount),
+    credits: formatPlainNumber(generateForm.value),
+    discount: formatPlainNumber(discount)
+  })
 })
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
 watch(
   () => generateForm.type,
   (newType) => {
+    if (generateForm.discount_enabled && newType !== 'balance') {
+      // 折扣只适用于余额类型：关闭折扣并丢弃换算出的积分面值
+      generateForm.discount_enabled = false
+      generateForm.value = 10
+    }
     if (newType === 'invitation') {
       generateForm.value = 0
     } else if (generateForm.value === 0) {
@@ -1125,6 +1289,23 @@ const handleGenerateCodes = async () => {
     return
   }
 
+  // 折扣码：校验实付金额、折扣和积分面值（面值不能低于实付金额）
+  const useDiscount = generateForm.type === 'balance' && generateForm.discount_enabled
+  if (useDiscount) {
+    if (!(generateForm.pay_amount > 0)) {
+      appStore.showError(t('admin.redeem.discount.payAmountRequired'))
+      return
+    }
+    if (!isValidDiscount(generateForm.discount)) {
+      appStore.showError(t('admin.redeem.discount.rateInvalid'))
+      return
+    }
+    if (!(generateForm.value >= generateForm.pay_amount)) {
+      appStore.showError(t('admin.redeem.discount.creditsBelowPay'))
+      return
+    }
+  }
+
   generating.value = true
   try {
     const result = await adminAPI.redeem.generate(
@@ -1133,12 +1314,28 @@ const handleGenerateCodes = async () => {
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
       generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
-      expiresInDays
+      expiresInDays,
+      useDiscount
+        ? {
+            payAmount: generateForm.pay_amount,
+            // 备注里写明实付与折扣，便于在列表里对账；权威数据是 pay_amount 字段
+            notes: buildDiscountNote(generateForm.notes, generateForm.pay_amount, generateForm.value)
+          }
+        : { notes: generateForm.notes }
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
+    generatedSummary.value = useDiscount
+      ? t('admin.redeem.discount.resultSummary', {
+          pay: formatPlainNumber(generateForm.pay_amount),
+          credits: formatPlainNumber(generateForm.value),
+          discount: formatPlainNumber(effectiveDiscount(generateForm.pay_amount, generateForm.value))
+        })
+      : ''
     showResultDialog.value = true
-    // 重置表单
+    // 重置表单（客户相关的字段一并清空，避免带到下一个客户的码上）
+    generateForm.notes = ''
+    generateForm.pay_amount = 0
     generateForm.group_id = null
     generateForm.validity_days = 30
     generateForm.expiry_option = 'never'

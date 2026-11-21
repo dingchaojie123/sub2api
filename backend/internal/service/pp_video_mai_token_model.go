@@ -51,12 +51,38 @@ func ppVideoMaiTokenPublicModels(models []string) []string {
 // one their upstream request carries.
 func ppVideoPricingModelAliases(platform string, model string) []string {
 	switch platform {
+	case PlatformCTMOSeedance:
+		return ppVideoCTMOModelAliases(model)
 	case PlatformGuangying:
 		return ppVideoGuangyingModelAliases(model)
 	case PlatformMaiTokenSeedance:
 		return ppVideoMaiTokenModelAliases(model)
 	case PlatformJijiuSeedance:
 		return ppVideoJijiuModelAliases(model)
+	case PlatformMiaowuSeedance:
+		return ppVideoMiaowuModelAliases(model)
+	case PlatformPaisioSeedance:
+		return ppVideoPaisioModelAliases(model)
+	case PlatformApophisSeedance:
+		return ppVideoApophisModelAliases(model)
+	case PlatformXSNSeedance:
+		return ppVideoXSNModelAliases(model)
+	case PlatformFengyueSeedance:
+		return ppVideoFengyueModelAliases(model)
+	case PlatformHongpeiSeedance:
+		return ppVideoHongpeiModelAliases(model)
+	case PlatformVshiSeedance:
+		return ppVideoVshiModelAliases(model)
+	case PlatformHuahuoSeedance:
+		return ppVideoHuahuoModelAliases(model)
+	case PlatformZexiSeedance:
+		return ppVideoZexiModelAliases(model)
+	case PlatformXMSeedance:
+		return ppVideoXMModelAliases(model)
+	case PlatformNaiwaSeedance:
+		return ppVideoNaiwaModelAliases(model)
+	case PlatformV6KSeedance:
+		return ppVideoV6KModelAliases(model)
 	default:
 		return nil
 	}
@@ -67,6 +93,11 @@ func ppVideoPricingModelAliases(platform string, model string) []string {
 // for every other platform. Group settings saved under an upstream name use it to keep
 // matching after a model is renamed.
 func PPVideoPublicModelName(platform string, model string) string {
+	if platform == PlatformCTMOSeedance {
+		if publicModel, ok := ppVideoCTMOPublicModel(model); ok {
+			return publicModel
+		}
+	}
 	if platform == PlatformMaiTokenSeedance {
 		if publicModel, ok := ppVideoMaiTokenPublicModel(model); ok {
 			return publicModel
@@ -74,6 +105,66 @@ func PPVideoPublicModelName(platform string, model string) string {
 	}
 	if platform == PlatformJijiuSeedance {
 		if publicModel, ok := ppVideoJijiuPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformMiaowuSeedance {
+		if publicModel, ok := ppVideoMiaowuPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformPaisioSeedance {
+		if publicModel, ok := ppVideoPaisioPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformApophisSeedance {
+		if publicModel, ok := ppVideoApophisPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformXSNSeedance {
+		if publicModel, ok := ppVideoXSNPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformFengyueSeedance {
+		if publicModel, ok := ppVideoFengyuePublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformHongpeiSeedance {
+		if publicModel, ok := ppVideoHongpeiPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformVshiSeedance {
+		if publicModel, ok := ppVideoVshiPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformHuahuoSeedance {
+		if publicModel, ok := ppVideoHuahuoPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformZexiSeedance {
+		if publicModel, ok := ppVideoZexiPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformXMSeedance {
+		if publicModel, ok := ppVideoXMPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformNaiwaSeedance {
+		if publicModel, ok := ppVideoNaiwaPublicModel(model); ok {
+			return publicModel
+		}
+	}
+	if platform == PlatformV6KSeedance {
+		if publicModel, ok := ppVideoV6KPublicModel(model); ok {
 			return publicModel
 		}
 	}

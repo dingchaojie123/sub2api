@@ -250,7 +250,23 @@ export default {
         usedAt: '使用时间',
         expiresAt: '过期时间',
         createdAt: '创建时间',
+        notes: '备注',
         actions: '操作'
+      },
+      generateNotes: '备注（选填）',
+      generateNotesPlaceholder: '如客户名称',
+      discount: {
+        enable: '折扣码（按客户实付金额发码）',
+        hint: '填写客户实际支付的金额和折扣，自动换算积分面值。兑换后积分按面值到账；真实余额、累计充值、邀请返利、抽奖次数按实付金额计。',
+        payAmount: '实付金额',
+        rate: '折扣（折，六折填 6）',
+        credits: '积分面值',
+        summary: '客户支付 {pay}，到账 {credits} 积分（约 {discount} 折）',
+        resultSummary: '折扣码：客户实付 {pay}，到账 {credits} 积分（约 {discount} 折）',
+        payAmountRequired: '请输入大于 0 的实付金额',
+        rateInvalid: '折扣需在 1 到 10 之间（单位是折，六折请填 6，不是 0.6）',
+        rateLooksLikeRatio: '你填的是 {value} 折（仅为原价的 {suggested}%）。如果想打 {suggested} 折，请填 {suggested}。',
+        creditsBelowPay: '积分面值不能低于实付金额'
       },
       types: {
         balance: '余额',

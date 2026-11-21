@@ -17,6 +17,25 @@ var seedanceHubPlatformLetters = map[string]string{
 	PlatformXingAPISeedance:  "X",
 	PlatformMaiTokenSeedance: "M",
 	PlatformJijiuSeedance:    "J",
+	PlatformMiaowuSeedance:   "W",
+	PlatformPaisioSeedance:   "P",
+	PlatformApophisSeedance:  "A",
+	PlatformXSNSeedance:      "N",
+	PlatformFengyueSeedance:  "FY",
+	PlatformHongpeiSeedance:  "H",
+	PlatformHuahuoSeedance:   "HH",
+	PlatformVshiSeedance:     "V",
+	PlatformZexiSeedance:     "ZX",
+	PlatformXMSeedance:       "XM",
+	PlatformNaiwaSeedance:    "NW",
+	PlatformV6KSeedance:      "V6K",
+}
+
+// seedanceHubIrregularNames are lines whose public name the operator chose and which does not
+// follow the five-segment pattern. They are checked against a four-segment shape instead:
+// Seedance {version}--{resolutions}--{billing}--{platform tag}.
+var seedanceHubIrregularNames = map[string]bool{
+	"Seedance 2.5--720p--按次--FY": true,
 }
 
 // seedanceHubTestResolutions returns the resolutions a line's name must list, when they are
@@ -26,6 +45,54 @@ func seedanceHubTestResolutions(t *testing.T, line SeedanceHubLine) ([]string, b
 	switch line.Platform {
 	case PlatformJijiuSeedance:
 		spec, ok := jijiuModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformMiaowuSeedance:
+		spec, ok := miaowuModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformPaisioSeedance:
+		spec, ok := paisioModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformApophisSeedance:
+		spec, ok := apophisModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformXSNSeedance:
+		spec, ok := xsnModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformFengyueSeedance:
+		spec, ok := fengyueModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformHongpeiSeedance:
+		spec, ok := hongpeiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformHuahuoSeedance:
+		spec, ok := huahuoModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformVshiSeedance:
+		spec, ok := vshiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformZexiSeedance:
+		spec, ok := zexiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformXMSeedance:
+		spec, ok := xmModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformNaiwaSeedance:
+		spec, ok := naiwaModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.Resolutions, true
+	case PlatformV6KSeedance:
+		spec, ok := v6kModelSpecFor(line.Model)
 		require.True(t, ok, line.Name)
 		return spec.Resolutions, true
 	case PlatformMaiTokenSeedance:
@@ -52,6 +119,35 @@ func seedanceHubPlatformAcceptsModel(platform, model string) bool {
 	case PlatformJijiuSeedance:
 		_, ok := jijiuModelSpecFor(model)
 		return ok
+	case PlatformMiaowuSeedance:
+		_, ok := miaowuModelSpecFor(model)
+		return ok
+	case PlatformPaisioSeedance:
+		_, ok := paisioModelSpecFor(model)
+		return ok
+	case PlatformApophisSeedance:
+		_, ok := apophisModelSpecFor(model)
+		return ok
+	case PlatformXSNSeedance:
+		_, ok := xsnModelSpecFor(model)
+		return ok
+	case PlatformFengyueSeedance:
+		_, ok := fengyueModelSpecFor(model)
+		return ok
+	case PlatformHongpeiSeedance:
+		return ppVideoIsHongpeiSeedanceModel(model)
+	case PlatformHuahuoSeedance:
+		return ppVideoIsHuahuoSeedanceModel(model)
+	case PlatformVshiSeedance:
+		return ppVideoIsVshiSeedanceModel(model)
+	case PlatformZexiSeedance:
+		return ppVideoIsZexiSeedanceModel(model)
+	case PlatformXMSeedance:
+		return ppVideoIsXMSeedanceModel(model)
+	case PlatformNaiwaSeedance:
+		return ppVideoIsNaiwaSeedanceModel(model)
+	case PlatformV6KSeedance:
+		return ppVideoIsV6KSeedanceModel(model)
 	default:
 		return false
 	}
@@ -63,6 +159,54 @@ func seedanceHubTestDuration(t *testing.T, line SeedanceHubLine) int {
 	switch line.Platform {
 	case PlatformJijiuSeedance:
 		spec, ok := jijiuModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformMiaowuSeedance:
+		spec, ok := miaowuModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformPaisioSeedance:
+		spec, ok := paisioModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformApophisSeedance:
+		spec, ok := apophisModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformXSNSeedance:
+		spec, ok := xsnModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformFengyueSeedance:
+		spec, ok := fengyueModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformHongpeiSeedance:
+		spec, ok := hongpeiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformHuahuoSeedance:
+		spec, ok := huahuoModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformVshiSeedance:
+		spec, ok := vshiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformZexiSeedance:
+		spec, ok := zexiModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformXMSeedance:
+		spec, ok := xmModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformNaiwaSeedance:
+		spec, ok := naiwaModelSpecFor(line.Model)
+		require.True(t, ok, line.Name)
+		return spec.MinSeconds
+	case PlatformV6KSeedance:
+		spec, ok := v6kModelSpecFor(line.Model)
 		require.True(t, ok, line.Name)
 		return spec.MinSeconds
 	case PlatformCTMOSeedance, PlatformXingAPISeedance:
@@ -77,9 +221,10 @@ func TestSeedanceHubLineTable(t *testing.T) {
 	t.Parallel()
 
 	lines := SeedanceHubLines()
-	require.Len(t, lines, 24)
+	require.Len(t, lines, 96)
 
 	owner := map[string]string{}
+	irregularSeen := 0
 	for _, line := range lines {
 		require.True(t, IsSeedanceHubMemberPlatform(line.Platform), line.Name)
 		letter := seedanceHubPlatformLetters[line.Platform]
@@ -88,14 +233,23 @@ func TestSeedanceHubLineTable(t *testing.T) {
 
 		// Seedance{version}--{resolutions}--{model}--{billing}--{platform letter}
 		parts := strings.Split(line.Name, "--")
-		require.Len(t, parts, 5, line.Name)
-		require.Equal(t, "Seedance"+line.Version, parts[0], line.Name)
 		wantBilling := "按秒"
 		if line.Billing == BillingModePerRequest {
 			wantBilling = "按次"
 		}
-		require.Equal(t, wantBilling, parts[3], line.Name)
-		require.Equal(t, letter, parts[4], line.Name)
+		var billingPart, letterPart string
+		if seedanceHubIrregularNames[line.Name] {
+			irregularSeen++
+			require.Len(t, parts, 4, line.Name)
+			require.Equal(t, "Seedance "+line.Version, parts[0], line.Name)
+			billingPart, letterPart = parts[2], parts[3]
+		} else {
+			require.Len(t, parts, 5, line.Name)
+			require.Equal(t, "Seedance"+line.Version, parts[0], line.Name)
+			billingPart, letterPart = parts[3], parts[4]
+		}
+		require.Equal(t, wantBilling, billingPart, line.Name)
+		require.Equal(t, letter, letterPart, line.Name)
 		if resolutions, known := seedanceHubTestResolutions(t, line); known {
 			require.Equal(t, strings.Join(resolutions, "/"), parts[1], line.Name)
 		}
@@ -109,6 +263,9 @@ func TestSeedanceHubLineTable(t *testing.T) {
 			owner[key] = line.Name
 		}
 	}
+
+	// Every listed exception is a real line (no stale entries).
+	require.Equal(t, len(seedanceHubIrregularNames), irregularSeen)
 
 	// The jijiu lines are rewritten to the public name of the model, the one clients of that
 	// platform already send.
@@ -132,21 +289,124 @@ func TestSeedanceHubModelListOrder(t *testing.T) {
 		require.LessOrEqual(t, lines[i-1].rank(), lines[i].rank(), "%s before %s", lines[i-1].Name, lines[i].Name)
 	}
 
-	// Listed once although two names are given for the same line; names that are not a line
-	// are dropped; the order is 2.5 per request, 2.5 per second, then 2.0 per request.
+	// Listed once although two names are given for the same line; names that are not a line and
+	// hidden lines (seedance2.5-V of 星光) are dropped; the order is 2.5 per request, 2.5 per
+	// second, then 2.0 per request.
 	got := SeedanceHubPublicModels([]string{
-		"seedance-2.0-930",
-		"Seedance2.0--720p--930--按次--Z",
+		"seedance-2.0-933",
+		"Seedance2.0--720p--933--按次--Z",
+		"seedance-2.0-930", // hidden since 2026-11-19
 		MaiTokenSeedanceModel,
 		"gpt-4o",
 		"seedance2.5-V",
+		"seedance-2.5-pro",
 	})
 	require.Equal(t, []string{
-		"Seedance2.5--720p--V--按次--X",
+		"Seedance2.5--720p--pro--按次--W",
 		"Seedance2.5--480p--全参--按秒--M",
-		"Seedance2.0--720p--930--按次--Z",
+		"Seedance2.0--720p--933--按次--Z",
 	}, got)
 	require.Empty(t, SeedanceHubPublicModels(nil))
+}
+
+// The lines the site shows since the operator's final table of 2026-11-19. For the four platforms of
+// that table (XM, 喵呜, 浙创, HUAHUO) the visible lines are exactly the table's 13 models; the lines of
+// those platforms that are not in it (喵呜 fast-deal / fast / 2.0-tj / 2.0-pro / 2.5 flash-tj / tj /
+// wx, 浙创 930 / 903, HUAHUO flash) are hidden, and XM seedance_2.5 (stable-face) is visible again.
+// The other platforms keep what the 2026-11-17 sheet decided. A hidden line is out of the model
+// lists but still answered by name.
+func TestSeedanceHubVisibleLines(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		// The table's 13 models.
+		"Seedance2.0--480p/720p/1080p--sd2.0--按秒--XM",
+		"Seedance2.5--720p--稳定满参真人脸--按次--XM",
+		"Seedance2.5--480p/720p--flash--按秒--XM",
+		"Seedance2.0--720p--doubao-fast--按次--W",
+		"Seedance2.0--720p--doubao-mini--按次--W",
+		"Seedance2.5--480p/720p--特价满血--按秒--W",
+		"Seedance2.5--720p--pro--按次--W",
+		"Seedance2.5--480p/720p--flash--按次--W",
+		"Seedance2.5--480p/720p--flash-s--按秒--W",
+		"Seedance2.0--720p--933--按次--Z",
+		"Seedance2.5--720p--满参稳定--按秒--HH",
+		"Seedance2.5--720p--满参稳定--按次--HH",
+		"Seedance2.5--720p--shuliang1--按次--HH",
+		// Other platforms, unchanged.
+		"Seedance2.5--480p/720p/1080p--全参D--按秒--J",
+		"Seedance2.5--480p--参图参音F--按秒--J",
+		"Seedance2.5--480p/720p--即梦-Sd-2.5--按秒--N",
+		"Seedance2.5--720p--即梦-Sd-2.5-flash--按次--N",
+		"Seedance 2.5--720p--按次--FY",
+		"Seedance2.5--480p/720p/1080p--nsfw-95--按秒--ZX",
+		"Seedance2.5--480p/720p/1080p--nsfw--按秒--ZX",
+		"Seedance2.0--480p/720p/1080p/4k--nsfw-95--按秒--ZX",
+		"Seedance2.0--480p/720p/1080p/4k--nsfw--按秒--ZX",
+		"Seedance2.5--480p--全参--按秒--M",
+		// 2026-11-21, the operator's request: 喵呜 tj / fast-tj / mini-tj and the three V6K models.
+		"Seedance2.0--480p/720p/1080p/4k--tj--按次--W",
+		"Seedance2.0--480p/720p/1080p/4k--fast-tj--按次--W",
+		"Seedance2.0--480p/720p/1080p/4k--mini-tj--按次--W",
+		"Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K",
+		"Seedance2.0--480p/720p--官方fast--按次--V6K",
+		"Seedance2.0--480p/720p--mini--按次--V6K",
+		// 2026-11-21, the operator's request: 红佩 s / nh / X (the other H lines stay hidden).
+		"Seedance2.5--720p--s--按次--H",
+		"Seedance2.5--480p/720p/1080p--nh--按秒--H",
+		"Seedance2.5--720p--X--按次--H",
+	}
+	var visible []string
+	for _, line := range SeedanceHubLines() {
+		if !line.Hidden {
+			visible = append(visible, line.Name)
+		}
+	}
+	require.ElementsMatch(t, want, visible)
+
+	// The hidden lines of the four platforms are still served by name.
+	for _, name := range []string{
+		"Seedance2.0--720p--930--按次--Z", "Seedance2.0--720p--903--按次--Z",
+		"Seedance2.0--720p--fast-deal--按次--W", "Seedance2.0--480p/720p--fast--按次--W",
+		"Seedance2.0--720p/1080p/4k--pro--按秒--W",
+		"Seedance2.5--720p--flash-tj--按次--W", "Seedance2.5--480p/720p--tj--按次--W", "Seedance2.5--480p/720p--wx--按次--W",
+		"Seedance2.5--480p/720p--flash满参稳定--按秒--HH",
+	} {
+		line, ok := SeedanceHubLineByName(name)
+		require.True(t, ok, name)
+		require.True(t, line.Hidden, name)
+		_, _, err := ResolveSeedanceHubRequest([]byte(`{"model":"` + name + `","prompt":"p"}`))
+		require.NoError(t, err, name)
+	}
+	require.Empty(t, SeedanceHubPublicModels([]string{"seedance-2.0-930", "seedance-2.0-903", "seedance-2.5-tj", "seedance-2.5-wx"}))
+	// A hidden line is not listed, but a client that sends its name is still served.
+	require.Empty(t, SeedanceHubPublicModels([]string{"seedance2.5-V", "Seedance2.0--720p--标准--按次--G"}))
+	line, ok := SeedanceHubLineByName("Seedance2.5--720p--V--按次--X")
+	require.True(t, ok)
+	require.True(t, line.Hidden)
+	_, _, err := ResolveSeedanceHubRequest([]byte(`{"model":"Seedance2.5--720p--V--按次--X","prompt":"p"}`))
+	require.NoError(t, err)
+
+	// 喵呜 fast is per request now; the per-second name still finds the line.
+	fast, ok := SeedanceHubLineByName("Seedance2.0--480p/720p--fast--按秒--W")
+	require.True(t, ok)
+	require.Equal(t, "Seedance2.0--480p/720p--fast--按次--W", fast.Name)
+	require.Equal(t, BillingModePerRequest, fast.Billing)
+
+	// 933 of 浙创 is a line of its own next to 930 and 903.
+	z933, ok := SeedanceHubLineFor(PlatformCTMOSeedance, "seedance-2.0-933")
+	require.True(t, ok)
+	require.Equal(t, "Seedance2.0--720p--933--按次--Z", z933.Name)
+	require.False(t, z933.Hidden)
+	// The final table of 2026-11-19: 9 images / 3 videos / 3 audios, 5-15 seconds.
+	require.Equal(t, 9, z933.Limits.MaxImages)
+	require.Equal(t, 3, z933.Limits.MaxVideos)
+	require.Equal(t, 3, z933.Limits.MaxAudios)
+	require.Equal(t, 5, z933.Limits.MinSeconds)
+	require.Equal(t, 15, z933.Limits.MaxSeconds)
+	// kaopu-sd-2.0-mini was deleted on 2026-11-20 (not in the operator's table).
+	_, ok = SeedanceHubLineByName("kaopu-sd-2.0-mini")
+	require.False(t, ok)
 }
 
 func TestSeedanceHubLineLookup(t *testing.T) {
@@ -211,11 +471,23 @@ func TestSeedanceHubLinesRunThroughTheirPlatformPipeline(t *testing.T) {
 	for _, line := range SeedanceHubLines() {
 		quoted, err := json.Marshal(line.Name)
 		require.NoError(t, err)
-		request := []byte(fmt.Sprintf(`{"model":%s,"prompt":"p","duration":%d}`, quoted, seedanceHubTestDuration(t, line)))
+		head := fmt.Sprintf(`{"model":%s,"prompt":"p","duration":%d`, quoted, seedanceHubTestDuration(t, line))
+		v1Extra, v2Extra := "", ""
+		if line.Platform == PlatformNaiwaSeedance {
+			// The two M models of this platform need the resolution to be named; 720p suits every line.
+			head += `,"resolution":"720p"`
+		}
+		if line.Platform == PlatformFengyueSeedance {
+			// This platform refuses a request without a reference image or video.
+			v1Extra = `,"images":["https://example.com/1.png"]`
+			v2Extra = `,"assets":[{"type":"image","url":"https://example.com/1.png"}]`
+		}
 
-		resolved, body, err := ResolveSeedanceHubRequest(request)
+		resolved, body, err := ResolveSeedanceHubRequest([]byte(head + v1Extra + "}"))
 		require.NoError(t, err, line.Name)
 		require.Equal(t, line.Name, resolved.Name)
+		_, v2Body, err := ResolveSeedanceHubRequest([]byte(head + v2Extra + "}"))
+		require.NoError(t, err, line.Name)
 
 		// v1: the native body goes straight to the platform's request preparation.
 		prepared, _, err := PreparePPVideoRequestBody(resolved.Platform, PPVideoOperationGeneric, body)
@@ -224,7 +496,7 @@ func TestSeedanceHubLinesRunThroughTheirPlatformPipeline(t *testing.T) {
 
 		// v2: the unified body is translated for the platform first, then prepared the same way.
 		require.True(t, IsPPVideoUnifiedPlatform(resolved.Platform), line.Name)
-		translated, err := TranslatePPVideoUnifiedRequest(resolved.Platform, body)
+		translated, err := TranslatePPVideoUnifiedRequest(resolved.Platform, v2Body)
 		require.NoError(t, err, line.Name)
 		_, _, err = PreparePPVideoRequestBody(resolved.Platform, PPVideoOperationGeneric, translated)
 		require.NoError(t, err, line.Name)
@@ -245,7 +517,15 @@ func TestSeedanceHubPlatformHelpers(t *testing.T) {
 		require.True(t, PPVideoGroupServesPlatform(platform, platform), platform)
 	}
 	require.False(t, PPVideoGroupServesPlatform(PlatformSeedanceHub, PlatformOPONE))
-	require.False(t, PPVideoGroupServesPlatform(PlatformGuangying, PlatformJijiuSeedance))
+	// The ordinary group of one member platform serves the tasks of another member platform: a
+	// line route can have another platform's account run a request of that group.
+	require.True(t, PPVideoGroupServesPlatform(PlatformGuangying, PlatformJijiuSeedance))
+	require.True(t, PPVideoGroupServesPlatform(PlatformMiaowuSeedance, PlatformHuahuoSeedance))
+	// A platform that is no member never serves, and is never served by, the member platforms'
+	// groups, so the Videos API of those platforms stays separate.
+	require.False(t, PPVideoGroupServesPlatform(PlatformOPONE, PlatformJijiuSeedance))
+	require.False(t, PPVideoGroupServesPlatform(PlatformMiaowuSeedance, PlatformOPONE))
+	require.False(t, PPVideoGroupServesPlatform(PlatformKling, PlatformMiaowuSeedance))
 	require.False(t, IsSeedanceHubMemberPlatform(PlatformOPONE))
 	require.True(t, IsAllowedQuotaPlatform(PlatformSeedanceHub))
 }

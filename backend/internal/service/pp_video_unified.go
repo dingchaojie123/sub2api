@@ -44,7 +44,7 @@ func ppVideoUnifiedErr(param, format string, args ...any) error {
 // translation is implemented.
 func IsPPVideoUnifiedPlatform(platform string) bool {
 	switch strings.TrimSpace(platform) {
-	case PlatformGuangying, PlatformByteDance, PlatformWan3, PlatformPixverseV6, PlatformMiniMaxH3CompShare, Platform88APIVideo, PlatformMaiTokenSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformCTMOSeedance, PlatformSeedanceHub:
+	case PlatformGuangying, PlatformByteDance, PlatformWan3, PlatformKyyWan, PlatformPixverseV6, PlatformMiniMaxH3CompShare, Platform88APIVideo, PlatformMaiTokenSeedance, PlatformXingAPISeedance, PlatformJijiuSeedance, PlatformMiaowuSeedance, PlatformPaisioSeedance, PlatformApophisSeedance, PlatformXSNSeedance, PlatformFengyueSeedance, PlatformHongpeiSeedance, PlatformVshiSeedance, PlatformHuahuoSeedance, PlatformZexiSeedance, PlatformXMSeedance, PlatformNaiwaSeedance, PlatformV6KSeedance, PlatformCTMOSeedance, PlatformSeedanceHub:
 		return true
 	default:
 		return false
@@ -119,6 +119,8 @@ func TranslatePPVideoUnifiedRequest(platform string, body []byte) ([]byte, error
 		payload, err = request.toByteDance()
 	case PlatformWan3:
 		payload, err = request.toWan()
+	case PlatformKyyWan:
+		payload, err = request.toKyyWan()
 	case PlatformPixverseV6:
 		payload, err = request.toPixverse()
 	case PlatformMiniMaxH3CompShare:
@@ -131,6 +133,30 @@ func TranslatePPVideoUnifiedRequest(platform string, body []byte) ([]byte, error
 		payload, err = request.toXingAPI()
 	case PlatformJijiuSeedance:
 		payload, err = request.toJijiu()
+	case PlatformMiaowuSeedance:
+		payload, err = request.toMiaowu()
+	case PlatformPaisioSeedance:
+		payload, err = request.toPaisio()
+	case PlatformApophisSeedance:
+		payload, err = request.toApophis()
+	case PlatformXSNSeedance:
+		payload, err = request.toXSN()
+	case PlatformFengyueSeedance:
+		payload, err = request.toFengyue()
+	case PlatformHongpeiSeedance:
+		payload, err = request.toHongpei()
+	case PlatformVshiSeedance:
+		payload, err = request.toVshi()
+	case PlatformHuahuoSeedance:
+		payload, err = request.toHuahuo()
+	case PlatformZexiSeedance:
+		payload, err = request.toZexi()
+	case PlatformXMSeedance:
+		payload, err = request.toXM()
+	case PlatformNaiwaSeedance:
+		payload, err = request.toNaiwa()
+	case PlatformV6KSeedance:
+		payload, err = request.toV6K()
 	case PlatformCTMOSeedance:
 		payload, err = request.toCTMO()
 	default:

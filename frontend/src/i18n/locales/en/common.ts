@@ -206,6 +206,7 @@ export default {
     promptAudit: 'Prompt Audit',
     enterpriseReview: 'Enterprise Review',
     auditLogs: 'Audit Logs',
+    customerVideoTasks: 'Customer Video Tasks',
   },
 
   // Auth

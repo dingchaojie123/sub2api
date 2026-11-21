@@ -98,6 +98,19 @@ describe('billingModesForPlatform', () => {
     expect(billingModesForPlatform('ctmo-seedance')).toEqual(['per_request', 'video'])
 	expect(billingModesForPlatform('xingapi-seedance')).toEqual(['per_request', 'video'])
 	expect(billingModesForPlatform('jijiu-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('miaowu-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('paisio-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('apophis-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('xsn-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('fengyue-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('hongpei-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('vshi-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('huahuo-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('zexi-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('xm-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('naiwa-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('v6k-seedance')).toEqual(['per_request', 'video'])
+	expect(billingModesForPlatform('kyy-wan')).toEqual(['per_request', 'video'])
     expect(billingModesForPlatform('guangying')).toEqual(['per_request', 'video'])
     expect(billingModesForPlatform('opone')).toEqual(['per_request', 'video'])
   })
@@ -111,6 +124,10 @@ describe('billingModesForPlatform', () => {
     expect(billingModesForPlatform('pixverse-v6')).toEqual(['token', 'per_request', 'image'])
     expect(billingModesForPlatform('grok-imagine-video')).toEqual(['token', 'per_request', 'image'])
     expect(billingModesForPlatform('kuaishou')).toEqual(['token', 'per_request', 'image'])
+  })
+
+  it('offers per-second channel pricing for MiniMax-H3 CompShare', () => {
+    expect(billingModesForPlatform('minimax-h3-compshare')).toEqual(['token', 'per_request', 'image', 'video'])
   })
 
   it('keeps audio platforms on token-based channel pricing', () => {

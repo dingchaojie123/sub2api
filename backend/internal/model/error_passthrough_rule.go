@@ -50,12 +50,25 @@ const (
 	PlatformCTMOSeedance       = "ctmo-seedance"
 	PlatformXingAPISeedance    = "xingapi-seedance"
 	PlatformJijiuSeedance      = "jijiu-seedance"
+	PlatformMiaowuSeedance     = "miaowu-seedance"
+	PlatformPaisioSeedance     = "paisio-seedance"
+	PlatformApophisSeedance    = "apophis-seedance"
+	PlatformXSNSeedance        = "xsn-seedance"
+	PlatformFengyueSeedance    = "fengyue-seedance"
+	PlatformHongpeiSeedance    = "hongpei-seedance"
+	PlatformVshiSeedance       = "vshi-seedance"
+	PlatformHuahuoSeedance     = "huahuo-seedance"
+	PlatformZexiSeedance       = "zexi-seedance"
+	PlatformXMSeedance         = "xm-seedance"
+	PlatformNaiwaSeedance      = "naiwa-seedance"
+	PlatformV6KSeedance        = "v6k-seedance"
 	PlatformMaiTokenSeedance   = "mai-token-seedance"
 	PlatformSeedanceHub        = "seedance-hub"
 	PlatformGuangying          = "guangying"
 	PlatformOPONE              = "opone"
 	PlatformByteDance          = "bytedance"
 	PlatformWan3               = "wan3"
+	PlatformKyyWan             = "kyy-wan"
 	PlatformMiniMaxH3          = "minimax-h3"
 	PlatformMiniMaxH3CompShare = "minimax-h3-compshare"
 	PlatformMiniMaxSpeech      = "minimax-speech"
@@ -86,12 +99,25 @@ func AllPlatforms() []string {
 		PlatformCTMOSeedance,
 		PlatformXingAPISeedance,
 		PlatformJijiuSeedance,
+		PlatformMiaowuSeedance,
+		PlatformPaisioSeedance,
+		PlatformApophisSeedance,
+		PlatformXSNSeedance,
+		PlatformFengyueSeedance,
+		PlatformHongpeiSeedance,
+		PlatformVshiSeedance,
+		PlatformHuahuoSeedance,
+		PlatformZexiSeedance,
+		PlatformXMSeedance,
+		PlatformNaiwaSeedance,
+		PlatformV6KSeedance,
 		PlatformMaiTokenSeedance,
 		PlatformSeedanceHub,
 		PlatformGuangying,
 		PlatformOPONE,
 		PlatformByteDance,
 		PlatformWan3,
+		PlatformKyyWan,
 		PlatformMiniMaxH3,
 		PlatformMiniMaxH3CompShare,
 		PlatformMiniMaxSpeech,

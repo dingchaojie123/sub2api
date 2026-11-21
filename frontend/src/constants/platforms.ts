@@ -10,11 +10,24 @@ export const VIDEO_ACCOUNT_PLATFORMS = [
   'ctmo-seedance',
 	'xingapi-seedance',
 	'jijiu-seedance',
+	'miaowu-seedance',
+	'paisio-seedance',
+	'apophis-seedance',
+	'xsn-seedance',
+	'fengyue-seedance',
+	'hongpei-seedance',
+	'vshi-seedance',
+	'huahuo-seedance',
+	'zexi-seedance',
+	'xm-seedance',
+	'naiwa-seedance',
+	'v6k-seedance',
   'mai-token-seedance',
   'guangying',
   'opone',
   'bytedance',
   'wan3',
+  'kyy-wan',
   'minimax-h3',
   'minimax-h3-compshare',
   'pixverse-v6',
@@ -47,12 +60,25 @@ export const CHANNEL_PRICING_PLATFORMS = [
   'ctmo-seedance',
 	'xingapi-seedance',
 	'jijiu-seedance',
+	'miaowu-seedance',
+	'paisio-seedance',
+	'apophis-seedance',
+	'xsn-seedance',
+	'fengyue-seedance',
+	'hongpei-seedance',
+	'vshi-seedance',
+	'huahuo-seedance',
+	'zexi-seedance',
+	'xm-seedance',
+	'naiwa-seedance',
+	'v6k-seedance',
   'mai-token-seedance',
   'seedance-hub',
   'guangying',
   'opone',
   'bytedance',
   'wan3',
+  'kyy-wan',
   'minimax-h3',
   'minimax-h3-compshare',
   'minimax-speech',
@@ -207,6 +233,114 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
 		accountType: 'apikey',
 		authScheme: 'bearer'
 	},
+	'miaowu-seedance': {
+		id: 'miaowu-seedance',
+		label: '喵呜 API Seedance',
+		defaultBaseUrl: 'https://api.miaowuai.store/v1',
+		baseUrlPlaceholder: 'https://api.miaowuai.store/v1',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'paisio-seedance': {
+		id: 'paisio-seedance',
+		label: 'Paisio Seedance',
+		defaultBaseUrl: 'https://api.paisio.online',
+		baseUrlPlaceholder: 'https://api.paisio.online',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'apophis-seedance': {
+		id: 'apophis-seedance',
+		label: 'Apophis Seedance',
+		defaultBaseUrl: 'https://www.apophiscode.com',
+		baseUrlPlaceholder: 'https://www.apophiscode.com',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'xsn-seedance': {
+		id: 'xsn-seedance',
+		label: 'XSN Seedance',
+		defaultBaseUrl: 'https://xsn686.cn',
+		baseUrlPlaceholder: 'https://xsn686.cn',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'fengyue-seedance': {
+		id: 'fengyue-seedance',
+		label: '风月 Seedance',
+		defaultBaseUrl: 'https://api.nldw.online',
+		baseUrlPlaceholder: 'https://api.nldw.online',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'hongpei-seedance': {
+		id: 'hongpei-seedance',
+		label: '红佩 Seedance',
+		defaultBaseUrl: 'https://api.hongpei.click',
+		baseUrlPlaceholder: 'https://api.hongpei.click',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'vshi-seedance': {
+		id: 'vshi-seedance',
+		label: 'VSHI Seedance',
+		defaultBaseUrl: 'https://api.vshiai.com',
+		baseUrlPlaceholder: 'https://api.vshiai.com',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'huahuo-seedance': {
+		id: 'huahuo-seedance',
+		label: 'HUAHUO Seedance',
+		defaultBaseUrl: 'https://huahuo.ccwu.cc',
+		baseUrlPlaceholder: 'https://huahuo.ccwu.cc',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'zexi-seedance': {
+		id: 'zexi-seedance',
+		label: '泽西 Seedance',
+		defaultBaseUrl: 'https://zexitongxue.com',
+		baseUrlPlaceholder: 'https://zexitongxue.com',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'xm-seedance': {
+		id: 'xm-seedance',
+		label: 'XM Seedance',
+		defaultBaseUrl: 'https://ai.987xm.com',
+		baseUrlPlaceholder: 'https://ai.987xm.com',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'naiwa-seedance': {
+		id: 'naiwa-seedance',
+		label: '奶蛙 Seedance',
+		defaultBaseUrl: 'https://api.nailongapi.cc',
+		baseUrlPlaceholder: 'https://api.nailongapi.cc',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
+	'v6k-seedance': {
+		id: 'v6k-seedance',
+		label: 'V6K Seedance',
+		defaultBaseUrl: 'https://www.v6k.top',
+		baseUrlPlaceholder: 'https://www.v6k.top',
+		apiKeyPlaceholder: 'sk-...',
+		accountType: 'apikey',
+		authScheme: 'bearer'
+	},
   'mai-token-seedance': {
     id: 'mai-token-seedance',
     label: 'Mai Token Seedance',
@@ -248,6 +382,15 @@ export const VIDEO_ACCOUNT_PLATFORM_METADATA: Record<
     label: 'Wan3.0',
     defaultBaseUrl: 'https://api.modelverse.cn/v1',
     baseUrlPlaceholder: 'https://api.modelverse.cn/v1',
+    apiKeyPlaceholder: 'sk-...',
+    accountType: 'apikey',
+    authScheme: 'bearer'
+  },
+  'kyy-wan': {
+    id: 'kyy-wan',
+    label: '客易云 Wan3.0',
+    defaultBaseUrl: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
+    baseUrlPlaceholder: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
     apiKeyPlaceholder: 'sk-...',
     accountType: 'apikey',
     authScheme: 'bearer'
@@ -354,3 +497,34 @@ export function getAudioAccountPlatformMetadata(
 ): AudioAccountPlatformMetadata {
   return AUDIO_ACCOUNT_PLATFORM_METADATA[platform]
 }
+
+/**
+ * Seedance upstream platforms whose lines a Seedance aggregate group serves (and that can have a
+ * line route, see GroupLineRoutesModal). The accounts of these platforms can be bound to an
+ * aggregate group, and, as backup accounts for a line route, to the ordinary group of another of
+ * these platforms. Keep in sync with seedanceHubMemberPlatforms in the backend
+ * (service/pp_video_seedance_hub.go).
+ */
+export const SEEDANCE_HUB_MEMBER_PLATFORMS: readonly string[] = [
+  'ctmo-seedance',
+  'guangying',
+  'xingapi-seedance',
+  'mai-token-seedance',
+  'jijiu-seedance',
+  'miaowu-seedance',
+  'paisio-seedance',
+  'apophis-seedance',
+  'xsn-seedance',
+  'fengyue-seedance',
+  'hongpei-seedance',
+  'vshi-seedance',
+  'huahuo-seedance',
+  'zexi-seedance',
+  'xm-seedance',
+  'naiwa-seedance',
+  'v6k-seedance'
+]
+
+/** Whether a group of this platform can carry line routes: an aggregate group, or the ordinary group of a Seedance platform. */
+export const supportsLineRoutes = (groupPlatform: string): boolean =>
+  groupPlatform === 'seedance-hub' || SEEDANCE_HUB_MEMBER_PLATFORMS.includes(groupPlatform)

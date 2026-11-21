@@ -490,6 +490,18 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'ctmo-seedance':
 	case 'xingapi-seedance':
     case 'jijiu-seedance':
+    case 'miaowu-seedance':
+    case 'paisio-seedance':
+    case 'apophis-seedance':
+    case 'xsn-seedance':
+    case 'fengyue-seedance':
+    case 'hongpei-seedance':
+    case 'vshi-seedance':
+    case 'huahuo-seedance':
+    case 'zexi-seedance':
+    case 'xm-seedance':
+    case 'naiwa-seedance':
+    case 'v6k-seedance':
       return []
     case 'mai-token-seedance':
       return maiTokenSeedanceModels
@@ -501,6 +513,8 @@ export function getModelsByPlatform(platform: string): string[] {
       return bytedanceModels
     case 'wan3':
       return wan3Models
+    case 'kyy-wan':
+      return ['wan3.0-video-c3']
     case 'minimax-h3':
       return minimaxH3Models
     case 'minimax-h3-compshare':
@@ -648,6 +662,9 @@ export function getPresetMappingsByPlatform(platform: string) {
     platform === 'ctmo-seedance' ||
 	platform === 'xingapi-seedance' ||
     platform === 'jijiu-seedance' ||
+    platform === 'miaowu-seedance' ||
+    platform === 'paisio-seedance' || platform === 'apophis-seedance' || platform === 'xsn-seedance' || platform === 'fengyue-seedance' || platform === 'hongpei-seedance' || platform === 'vshi-seedance' || platform === 'huahuo-seedance' || platform === 'zexi-seedance' || platform === 'xm-seedance' || platform === 'naiwa-seedance' || platform === 'v6k-seedance' ||
+    platform === 'kyy-wan' ||
     platform === 'opone'
   ) return []
   if (platform === 'antigravity') return antigravityPresetMappings

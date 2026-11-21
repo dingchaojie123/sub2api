@@ -87,6 +87,98 @@ func (s *AccountTestService) FetchUpstreamSupportedModels(ctx context.Context, a
 		}
 		return []string{MiniMaxH3VideoDefaultModel, CompShareVideoLiteModel}, nil
 	}
+	if account.Platform == PlatformApophisSeedance {
+		// The upstream documents no model-list endpoint (its video models are not callable as
+		// chat models, and GET /v1/models answers a list without them), while the models this
+		// platform serves are all in the local table. Like CompShare, the list is local.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Apophis Seedance requires an API key account", nil)
+		}
+		return apophisModelNames(), nil
+	}
+	if account.Platform == PlatformXSNSeedance {
+		// The models this platform serves are all in the local table (one model whose limits and
+		// price are known); another upstream model cannot be called until a row is added. Like
+		// CompShare and Apophis, the list is local and needs no request.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("XSN Seedance requires an API key account", nil)
+		}
+		return xsnModelNames(), nil
+	}
+	if account.Platform == PlatformFengyueSeedance {
+		// Local table, like XSN: one model whose limits are known, no request needed.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Fengyue Seedance requires an API key account", nil)
+		}
+		return fengyueModelNames(), nil
+	}
+	if account.Platform == PlatformHongpeiSeedance {
+		// Local table, like XSN: the four models whose limits are known, no request needed.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Hongpei Seedance requires an API key account", nil)
+		}
+		return hongpeiModelNames(), nil
+	}
+	if account.Platform == PlatformVshiSeedance {
+		// Local table, like XSN: the models whose limits are known, no request needed.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("VSHI Seedance requires an API key account", nil)
+		}
+		return vshiModelNames(), nil
+	}
+	if account.Platform == PlatformHuahuoSeedance {
+		// Local table, like XSN: the models whose limits are known, no request needed. The
+		// upstream's own model list (GET /v1/market) needs a customer key and carries every
+		// product of the site, so it is not used here.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("HUAHUO Seedance requires an API key account", nil)
+		}
+		return huahuoModelNames(), nil
+	}
+	if account.Platform == PlatformZexiSeedance {
+		// Local table, like XSN: the four models whose limits are known, no request needed. Which of
+		// them a key may call depends on the key's group on the upstream, so the administrator removes
+		// the models the key cannot use from the whitelist.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Zexi Seedance requires an API key account", nil)
+		}
+		return zexiModelNames(), nil
+	}
+	if account.Platform == PlatformXMSeedance {
+		// Local table, like XSN: the three models whose limits are known, no request needed. Which of
+		// them a key may call depends on the key's group on the upstream, so the administrator removes
+		// the models the key cannot use from the whitelist.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("XM Seedance requires an API key account", nil)
+		}
+		return xmModelNames(), nil
+	}
+	if account.Platform == PlatformNaiwaSeedance {
+		// Local table, like XM: the three models whose limits are known, no request needed. Which of
+		// them a key may call depends on the key on the upstream, so the administrator removes the
+		// models the key cannot use from the whitelist.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Naiwa Seedance requires an API key account", nil)
+		}
+		return naiwaModelNames(), nil
+	}
+	if account.Platform == PlatformV6KSeedance {
+		// Local table, like XM: the three models whose limits are known, no request needed. Which of
+		// them a key may call depends on the key's group on the upstream, so the administrator removes
+		// the models the key cannot use from the whitelist.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("V6K Seedance requires an API key account", nil)
+		}
+		return v6kModelNames(), nil
+	}
+	if account.Platform == PlatformKyyWan {
+		// Local table: the model whose limits are known, no request needed. The upstream's center has
+		// more Wan3.0 models, but only those in kyyWanModels can be called through this platform.
+		if account.Type != AccountTypeAPIKey || strings.TrimSpace(account.GetOpenAIApiKey()) == "" {
+			return nil, newUpstreamModelSyncConfigError("Kyy Wan requires an API key account", nil)
+		}
+		return kyyWanModelNames(), nil
+	}
 	if account.Platform == PlatformByteDance || account.Platform == PlatformWan3 || account.Platform == PlatformMiniMaxH3 || account.Platform == PlatformPixverseV6 || account.Platform == PlatformGrokImagineVideo || account.Platform == PlatformKuaishou {
 		platformLabel := "ByteDance"
 		fixedModels := byteDanceModels()
@@ -338,6 +430,45 @@ func (s *AccountTestService) buildPPVideoUpstreamModelsRequest(ctx context.Conte
 	}
 	if baseURL == "" && account.Platform == PlatformJijiuSeedance {
 		baseURL = JijiuSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformMiaowuSeedance {
+		baseURL = MiaowuSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformPaisioSeedance {
+		baseURL = PaisioSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformApophisSeedance {
+		baseURL = ApophisSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformXSNSeedance {
+		baseURL = XSNSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformFengyueSeedance {
+		baseURL = FengyueSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformHongpeiSeedance {
+		baseURL = HongpeiSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformVshiSeedance {
+		baseURL = VshiSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformHuahuoSeedance {
+		baseURL = HuahuoSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformZexiSeedance {
+		baseURL = ZexiSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformXMSeedance {
+		baseURL = XMSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformNaiwaSeedance {
+		baseURL = NaiwaSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformV6KSeedance {
+		baseURL = V6KSeedanceDefaultBaseURL
+	}
+	if baseURL == "" && account.Platform == PlatformKyyWan {
+		baseURL = KyyWanDefaultBaseURL
 	}
 	if baseURL == "" && account.Platform == PlatformMaiTokenSeedance {
 		baseURL = MaiTokenSeedanceDefaultBaseURL
@@ -701,7 +832,7 @@ func dedupeAndSortModelIDs(models []string) []string {
 }
 
 func filterUpstreamModelsForPlatform(platform string, models []string) []string {
-	if platform == Platform88APIVideo || platform == PlatformOPONE {
+	if platform == Platform88APIVideo || platform == PlatformOPONE || platform == PlatformMiaowuSeedance || platform == PlatformPaisioSeedance || platform == PlatformApophisSeedance {
 		// Model discovery must remain open to new upstream names. Administrators
 		// select video models from the live list before saving the account.
 		return models
@@ -764,6 +895,10 @@ func filterUpstreamModelsForPlatform(platform string, models []string) []string 
 		case PlatformWan3:
 			if ppVideoIsWan30Model(model) {
 				filtered = append(filtered, model)
+			}
+		case PlatformKyyWan:
+			if spec, ok := kyyWanModelSpecFor(model); ok {
+				filtered = append(filtered, spec.Name)
 			}
 		case PlatformMiniMaxH3:
 			if ppVideoIsMiniMaxModel(model) {

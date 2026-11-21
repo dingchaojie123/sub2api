@@ -85,6 +85,10 @@ func PPVideoCapabilitiesForModel(platform string, model string) PPVideoModelCapa
 		if ppVideoIsWan30Model(model) {
 			fillPPVideoWanCapabilities(&capabilities)
 		}
+	case PlatformKyyWan:
+		if spec, ok := kyyWanModelSpecFor(model); ok {
+			fillPPVideoKyyWanCapabilities(&capabilities, spec)
+		}
 	case PlatformPixverseV6:
 		if ppVideoIsPixverseV6Model(model) {
 			fillPPVideoPixverseCapabilities(&capabilities)
@@ -102,6 +106,54 @@ func PPVideoCapabilitiesForModel(platform string, model string) PPVideoModelCapa
 	case PlatformJijiuSeedance:
 		if spec, ok := jijiuModelSpecFor(model); ok {
 			fillPPVideoJijiuCapabilities(&capabilities, spec)
+		}
+	case PlatformMiaowuSeedance:
+		if spec, ok := miaowuModelSpecFor(model); ok {
+			fillPPVideoMiaowuCapabilities(&capabilities, spec)
+		}
+	case PlatformPaisioSeedance:
+		if spec, ok := paisioModelSpecFor(model); ok {
+			fillPPVideoPaisioCapabilities(&capabilities, spec)
+		}
+	case PlatformApophisSeedance:
+		if spec, ok := apophisModelSpecFor(model); ok {
+			fillPPVideoApophisCapabilities(&capabilities, spec)
+		}
+	case PlatformXSNSeedance:
+		if spec, ok := xsnModelSpecFor(model); ok {
+			fillPPVideoXSNCapabilities(&capabilities, spec)
+		}
+	case PlatformFengyueSeedance:
+		if spec, ok := fengyueModelSpecFor(model); ok {
+			fillPPVideoFengyueCapabilities(&capabilities, spec)
+		}
+	case PlatformHongpeiSeedance:
+		if entry, ok := hongpeiModelFor(model); ok {
+			fillPPVideoHongpeiCapabilities(&capabilities, entry)
+		}
+	case PlatformVshiSeedance:
+		if spec, ok := vshiModelSpecFor(model); ok {
+			fillPPVideoVshiCapabilities(&capabilities, spec)
+		}
+	case PlatformHuahuoSeedance:
+		if spec, ok := huahuoModelSpecFor(model); ok {
+			fillPPVideoHuahuoCapabilities(&capabilities, spec)
+		}
+	case PlatformZexiSeedance:
+		if spec, ok := zexiModelSpecFor(model); ok {
+			fillPPVideoZexiCapabilities(&capabilities, spec)
+		}
+	case PlatformXMSeedance:
+		if spec, ok := xmModelSpecFor(model); ok {
+			fillPPVideoXMCapabilities(&capabilities, spec)
+		}
+	case PlatformNaiwaSeedance:
+		if spec, ok := naiwaModelSpecFor(model); ok {
+			fillPPVideoNaiwaCapabilities(&capabilities, spec)
+		}
+	case PlatformV6KSeedance:
+		if spec, ok := v6kModelSpecFor(model); ok {
+			fillPPVideoV6KCapabilities(&capabilities, spec)
 		}
 	case PlatformSeedanceHub:
 		if line, ok := SeedanceHubLineByName(model); ok {

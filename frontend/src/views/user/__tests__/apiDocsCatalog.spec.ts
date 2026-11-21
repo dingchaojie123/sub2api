@@ -24,7 +24,8 @@ describe('apiDocsCatalog', () => {
     expect(findApiDocPage('seedance-series')?.markdown).toContain('Seedance2.5-480全参')
     expect(findApiDocPage('unified')).toMatchObject({ group: 'video' })
     expect(findApiDocPage('seedance-hub')).toMatchObject({ group: 'video' })
-    expect(findApiDocPage('seedance-hub')?.markdown).toContain('Seedance2.5--720p--V--按次--X')
+    expect(findApiDocPage('seedance-hub')?.markdown).toContain('Seedance2.5--720p--pro--按次--W')
+    expect(findApiDocPage('seedance-hub')?.markdown).toContain('Seedance2.0--720p--933--按次--Z')
     expect(findApiDocPage('wan')).toMatchObject({ group: 'video-v1' })
   })
 
@@ -59,7 +60,7 @@ describe('apiDocsCatalog', () => {
   it('exposes no upstream or internal wording in any customer page', () => {
     const forbidden = [
       '浙创', 'OPC', '光影', 'OPONE', '88API', '88api', '优云智算', '火山', '方舟', 'ByteDance', 'bytedance',
-      '星光', 'CTMO', 'ctmo', 'xingapi', 'guangying', 'opone', 'compshare', 'ModelVerse', 'gy-model', 'sdtj', '极九', 'jijiu',
+      '星光', 'CTMO', 'ctmo', 'xingapi', 'guangying', 'opone', 'compshare', 'ModelVerse', 'gy-model', 'sdtj', '极九', 'jijiu', '喵呜', 'miaowu', 'paisio', 'Paisio', 'apophis', 'Apophis', 'apophiscode', 'xsn', 'XSN', 'xsn686', 'fengyue', 'Fengyue', '风月', 'nldw', 'hongpei', 'Hongpei', '红佩', 'vshi', 'VSHI', 'vshiai', 'huahuo', 'HUAHUO', 'zexi', 'Zexi', 'zexitongxue', '泽西', '987xm', 'ccwu', 'inmind', '奶蛙', 'naiwa', 'Naiwa', 'nailong', '奶龙', 'v6k.top', 'v6k-seedance', '客易云', 'keyiyun', 'Keyiyun', 'globalaiopc', 'GlobalAiOpc', 'aizfw', 'kyy-wan',
       '管理员', '后台', '渠道计费', '分组倍率', 'docs/internal', 'PLATFORM_ADMIN',
     ]
     apiDocPages.forEach((page) => {

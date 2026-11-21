@@ -231,6 +231,61 @@ func TestCompShareVideoResponseFailuresAndPendingOutput(t *testing.T) {
 	require.Equal(t, "job not found", ExtractUpstreamErrorMessage(upstreamErr.ResponseBody))
 }
 
+func TestCompShareChannelPerSecondPricing(t *testing.T) {
+	groupID := int64(931)
+	def, tier1080, tier768 := 0.1, 0.3, 0.2
+	cardPrice := 9.0
+	group := &Group{Platform: PlatformMiniMaxH3CompShare, RateMultiplier: 1, VideoPrice480P: &cardPrice, VideoPrice720P: &cardPrice, VideoPrice1080P: &cardPrice, VideoPrice2K: &cardPrice, VideoPrice4K: &cardPrice}
+	newService := func(pricing ChannelModelPricing) *OpenAIGatewayService {
+		pricing.Platform = PlatformMiniMaxH3CompShare
+		return &OpenAIGatewayService{resolver: newPPVideoResolverWithChannel(t, groupID, PlatformMiniMaxH3CompShare, []ChannelModelPricing{pricing})}
+	}
+	key := &APIKey{GroupID: &groupID, Group: group}
+	meta := func(resolution string) PPVideoBillingMetadata {
+		return PPVideoBillingMetadata{Platform: PlatformMiniMaxH3CompShare, Model: MiniMaxH3VideoDefaultModel, RequestedDurationMilliseconds: 10000, VideoCount: 1, VideoResolution: resolution}
+	}
+
+	t.Run("default price, ignores group card", func(t *testing.T) {
+		svc := newService(ChannelModelPricing{Models: []string{MiniMaxH3VideoDefaultModel}, BillingMode: BillingModeVideo, PerRequestPrice: &def})
+		cost, err := svc.CalculatePPVideoCost(context.Background(), key, nil, &Account{}, meta("1080p"))
+		require.NoError(t, err)
+		require.InDelta(t, 1.0, cost.ActualCost, 1e-9)
+		require.InDelta(t, def, cost.BillingFallbackUnitPrice, 1e-9)
+	})
+
+	t.Run("tier overrides default and 768p tier feeds downgrade price", func(t *testing.T) {
+		svc := newService(ChannelModelPricing{
+			Models: []string{MiniMaxH3VideoDefaultModel}, BillingMode: BillingModeVideo, PerRequestPrice: &def,
+			Intervals: []PricingInterval{{TierLabel: "1080P", PerRequestPrice: &tier1080}, {TierLabel: "768P", PerRequestPrice: &tier768}},
+		})
+		cost, err := svc.CalculatePPVideoCost(context.Background(), key, nil, &Account{}, meta("1080p"))
+		require.NoError(t, err)
+		require.InDelta(t, 3.0, cost.ActualCost, 1e-9)
+		task := &PPVideoTask{Platform: PlatformMiniMaxH3CompShare, BillingFormula: cost.BillingFormula, BillingUnitPrice: cost.BillingUnitPrice, BillingFallbackUnitPrice: cost.BillingFallbackUnitPrice, RequestedVideoDurationMilliseconds: 10000, GeneratedVideoDurationMilliseconds: 10000, VideoCount: 1, VideoResolution: "768p", EstimatedTotalCost: cost.TotalCost, HoldAmount: cost.ActualCost}
+		require.InDelta(t, 2.0, ppVideoActualSettlementCost(task), 1e-9)
+	})
+
+	t.Run("non-video channel entry keeps the group price card", func(t *testing.T) {
+		svc := newService(ChannelModelPricing{Models: []string{MiniMaxH3VideoDefaultModel}, BillingMode: BillingModePerRequest, PerRequestPrice: &def})
+		cost, err := svc.CalculatePPVideoCost(context.Background(), key, nil, &Account{}, meta("1080p"))
+		require.NoError(t, err)
+		require.InDelta(t, 90.0, cost.ActualCost, 1e-9)
+	})
+
+	t.Run("wildcard model is rejected", func(t *testing.T) {
+		svc := newService(ChannelModelPricing{Models: []string{"*"}, BillingMode: BillingModeVideo, PerRequestPrice: &def})
+		_, err := svc.CalculatePPVideoCost(context.Background(), key, nil, &Account{}, meta("1080p"))
+		require.ErrorContains(t, err, "wildcard prices are not supported")
+		require.ErrorContains(t, err, "group_id=931")
+	})
+
+	t.Run("missing price is rejected", func(t *testing.T) {
+		svc := newService(ChannelModelPricing{Models: []string{MiniMaxH3VideoDefaultModel}, BillingMode: BillingModeVideo, Intervals: []PricingInterval{{TierLabel: "1080p", PerRequestPrice: &tier1080}}})
+		_, err := svc.CalculatePPVideoCost(context.Background(), key, nil, &Account{}, meta("480p"))
+		require.ErrorContains(t, err, "no valid per-second price")
+	})
+}
+
 func TestCompShareVideoPricingAndDowngrade(t *testing.T) {
 	prices := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
 	group := &Group{RateMultiplier: 1, VideoPrice480P: &prices[0], VideoPrice720P: &prices[1], VideoPrice1080P: &prices[2], VideoPrice2K: &prices[3], VideoPrice4K: &prices[4]}

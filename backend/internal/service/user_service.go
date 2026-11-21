@@ -131,6 +131,15 @@ type RedeemUserAdjustmentRepository interface {
 	ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error
 }
 
+// RedeemPaidBalanceRepository credits a discounted balance redeem code, whose
+// real (settlement) amount differs from the credit value it grants.
+// credits go to the display (credit) balance; realAmount goes to balance and
+// total_recharged. It is kept separate from UserRepository so existing
+// implementations and test stubs are unaffected.
+type RedeemPaidBalanceRepository interface {
+	ApplyRedeemPaidBalanceCredit(ctx context.Context, id int64, credits, realAmount float64) error
+}
+
 type UserAuthIdentityRecord struct {
 	ProviderType    string
 	ProviderKey     string

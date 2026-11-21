@@ -31,11 +31,11 @@ type BalanceRechargeProduct struct {
 }
 
 var balanceRechargeProducts = []BalanceRechargeProduct{
-	{ID: "balance_12", PayAmount: 12, DisplayAmount: 18, OriginalAmount: 18, LotteryChances: 0, StockLabel: "库存一般"},
-	{ID: "balance_88", PayAmount: 88, DisplayAmount: 128, OriginalAmount: 128, LotteryChances: 1, StockLabel: "库存充足"},
-	{ID: "balance_258", PayAmount: 258, DisplayAmount: 388, OriginalAmount: 388, LotteryChances: 3, StockLabel: "库存一般"},
-	{ID: "balance_688", PayAmount: 688, DisplayAmount: 1088, OriginalAmount: 1088, LotteryChances: 14, StockLabel: "库存一般"},
-	{ID: "balance_1288", PayAmount: 1288, DisplayAmount: 2088, OriginalAmount: 2088, LotteryChances: 30, StockLabel: "库存一般"},
+	{ID: "balance_12", PayAmount: 12, DisplayAmount: 19, OriginalAmount: 19, LotteryChances: 0, StockLabel: "库存一般"},
+	{ID: "balance_88", PayAmount: 88, DisplayAmount: 118, OriginalAmount: 118, LotteryChances: 1, StockLabel: "库存充足"},
+	{ID: "balance_258", PayAmount: 258, DisplayAmount: 358, OriginalAmount: 358, LotteryChances: 3, StockLabel: "库存一般"},
+	{ID: "balance_688", PayAmount: 688, DisplayAmount: 988, OriginalAmount: 988, LotteryChances: 14, StockLabel: "库存一般"},
+	{ID: "balance_1288", PayAmount: 1288, DisplayAmount: 1888, OriginalAmount: 1888, LotteryChances: 30, StockLabel: "库存一般"},
 }
 
 // BalanceRechargeProducts returns a copy of the fixed product catalog.

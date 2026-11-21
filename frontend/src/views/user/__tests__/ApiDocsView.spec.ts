@@ -110,8 +110,8 @@ describe('ApiDocsView', () => {
   it('switches documents from the small-screen select', async () => {
     const wrapper = render()
 
-    await wrapper.get('[data-testid="api-docs-select"]').setValue('pixverse')
+    await wrapper.get('[data-testid="api-docs-select"]').setValue('minimax-h3')
 
-    expect(pushMock).toHaveBeenCalledWith('/api-docs/pixverse')
+    expect(pushMock).toHaveBeenCalledWith('/api-docs/minimax-h3')
   })
 })

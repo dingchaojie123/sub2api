@@ -262,7 +262,23 @@ export default {
         usedAt: 'Used At',
         createdAt: 'Created At',
         expiresAt: 'Expires At',
+        notes: 'Notes',
         actions: 'Actions'
+      },
+      generateNotes: 'Notes (optional)',
+      generateNotesPlaceholder: 'e.g. customer name',
+      discount: {
+        enable: 'Discount code (by amount paid)',
+        hint: 'Enter what the customer actually paid and the discount; the credit value is calculated for you. On redeem, credits are granted at the credit value, while the real balance, total recharged, referral rebate and lottery chances use the amount paid.',
+        payAmount: 'Amount paid',
+        rate: 'Discount (6 = 60% of price)',
+        credits: 'Credit value',
+        summary: 'Customer pays {pay} and receives {credits} credits ({discount} / 10 of list price)',
+        resultSummary: 'Discount code: customer paid {pay}, receives {credits} credits ({discount} / 10 of list price)',
+        payAmountRequired: 'Enter an amount paid greater than 0',
+        rateInvalid: 'Discount must be between 1 and 10 (6 means 60% of price, not 0.6)',
+        rateLooksLikeRatio: 'You entered {value}, which is only {suggested}% of the price. For a discount of {suggested} / 10, enter {suggested}.',
+        creditsBelowPay: 'Credit value must not be less than the amount paid'
       },
       userPrefix: 'User #{id}',
       exportCsv: 'Export CSV',

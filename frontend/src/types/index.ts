@@ -538,12 +538,25 @@ export type GroupPlatform =
   | 'ctmo-seedance'
 	| 'xingapi-seedance'
 	| 'jijiu-seedance'
+	| 'miaowu-seedance'
+	| 'paisio-seedance'
+	| 'apophis-seedance'
+	| 'xsn-seedance'
+	| 'fengyue-seedance'
+	| 'hongpei-seedance'
+	| 'vshi-seedance'
+	| 'huahuo-seedance'
+	| 'zexi-seedance'
+	| 'xm-seedance'
+	| 'naiwa-seedance'
+	| 'v6k-seedance'
   | 'mai-token-seedance'
   | 'seedance-hub'
   | 'guangying'
   | 'opone'
   | 'bytedance'
   | 'wan3'
+  | 'kyy-wan'
   | 'minimax-h3'
   | 'minimax-h3-compshare'
   | '88api-video'
@@ -830,12 +843,25 @@ export type AccountPlatform =
   | 'ctmo-seedance'
 	| 'xingapi-seedance'
 	| 'jijiu-seedance'
+	| 'miaowu-seedance'
+	| 'paisio-seedance'
+	| 'apophis-seedance'
+	| 'xsn-seedance'
+	| 'fengyue-seedance'
+	| 'hongpei-seedance'
+	| 'vshi-seedance'
+	| 'huahuo-seedance'
+	| 'zexi-seedance'
+	| 'xm-seedance'
+	| 'naiwa-seedance'
+	| 'v6k-seedance'
   | 'mai-token-seedance'
   | 'seedance-hub'
   | 'guangying'
   | 'opone'
   | 'bytedance'
   | 'wan3'
+  | 'kyy-wan'
   | 'minimax-h3'
   | 'minimax-h3-compshare'
   | '88api-video'
@@ -1634,6 +1660,7 @@ export interface RedeemCode {
   expires_at?: string | null
   updated_at?: string
   notes?: string
+  pay_amount?: number | null // 折扣码的客户实付金额；仅生成接口的响应会返回
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
   user?: User
@@ -1655,6 +1682,8 @@ export interface GenerateRedeemCodesRequest {
   validity_days?: number // 订阅类型专用
   expires_at?: string | null
   expires_in_days?: number
+  pay_amount?: number // 余额类型专用：客户实付金额，传入则生成折扣码（value 为积分面值）
+  notes?: string
 }
 
 export interface BatchUpdateRedeemCodeFields {

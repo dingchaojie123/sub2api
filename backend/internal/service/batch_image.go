@@ -62,6 +62,7 @@ var (
 	ErrBatchImageSettlementInvalidCounts    = infraerrors.New(http.StatusBadRequest, "BATCH_IMAGE_SETTLEMENT_INVALID_COUNTS", "batch image settlement counts are invalid")
 	ErrBatchImageSettlementCostExceedsHold  = infraerrors.New(http.StatusConflict, "BATCH_IMAGE_SETTLEMENT_COST_EXCEEDS_HOLD", "batch image settlement cost exceeds held balance")
 	ErrBatchImageHoldNotReserved            = infraerrors.New(http.StatusConflict, "BATCH_IMAGE_HOLD_NOT_RESERVED", "batch image hold was not reserved")
+	ErrBatchImageHoldAlreadyReleased        = infraerrors.New(http.StatusConflict, "BATCH_IMAGE_HOLD_ALREADY_RELEASED", "batch image hold was already released")
 	ErrBatchImageBillingHoldFailed          = infraerrors.New(http.StatusBadGateway, "BATCH_IMAGE_BILLING_HOLD_FAILED", "batch image balance hold failed")
 	ErrBatchImageInsufficientBalance        = infraerrors.New(http.StatusPaymentRequired, "BATCH_IMAGE_INSUFFICIENT_BALANCE", "insufficient balance for batch image hold")
 

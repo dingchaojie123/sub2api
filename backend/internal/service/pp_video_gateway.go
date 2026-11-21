@@ -21,15 +21,39 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"go.uber.org/zap"
 )
 
 const (
 	guangyingImageUploadLimit = int64(15 << 20)
 	guangyingMediaUploadLimit = int64(500 << 20)
 )
+
+// ppVideoStatusAttemptTimeout bounds one upstream status query (connect, TLS, headers and
+// body). Without it a stalled connection, for example a dead pooled HTTP/2 connection or a
+// stuck TLS handshake, holds the request until TCP gives up, which took minutes in production
+// (miaowu: 75-378s). A status query is a read-only GET, so it is safe to cut off and repeat.
+// It is a variable only so tests can shorten it.
+var ppVideoStatusAttemptTimeout = 20 * time.Second
+
+// ppVideoStatusMaxAttempts is how many times a status query is tried before the caller falls
+// back to the stored task state (customer requests) or waits for the next poll (poller).
+const ppVideoStatusMaxAttempts = 2
+
+// ppVideoTransportCause returns the short transport failure label (for example "connection reset by
+// upstream") carried by a failover error, or "" when err has none. The raw error text of a
+// transport failure is not logged by the poller, so this is the only hint of why a poll failed.
+func ppVideoTransportCause(err error) string {
+	var failoverErr *UpstreamFailoverError
+	if errors.As(err, &failoverErr) && failoverErr != nil {
+		return strings.TrimSpace(failoverErr.TransportCause)
+	}
+	return ""
+}
 
 var guangyingMediaDownloadClient = &http.Client{
 	Transport: &http.Transport{
@@ -156,6 +180,45 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformJijiuSeedance {
 		baseURLRaw = JijiuSeedanceDefaultBaseURL
 	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMiaowuSeedance {
+		baseURLRaw = MiaowuSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformPaisioSeedance {
+		baseURLRaw = PaisioSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformApophisSeedance {
+		baseURLRaw = ApophisSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformXSNSeedance {
+		baseURLRaw = XSNSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformFengyueSeedance {
+		baseURLRaw = FengyueSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformHongpeiSeedance {
+		baseURLRaw = HongpeiSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformVshiSeedance {
+		baseURLRaw = VshiSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformHuahuoSeedance {
+		baseURLRaw = HuahuoSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformZexiSeedance {
+		baseURLRaw = ZexiSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformXMSeedance {
+		baseURLRaw = XMSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformNaiwaSeedance {
+		baseURLRaw = NaiwaSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformV6KSeedance {
+		baseURLRaw = V6KSeedanceDefaultBaseURL
+	}
+	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformKyyWan {
+		baseURLRaw = KyyWanDefaultBaseURL
+	}
 	if strings.TrimSpace(baseURLRaw) == "" && account.Platform == PlatformMaiTokenSeedance {
 		baseURLRaw = MaiTokenSeedanceDefaultBaseURL
 	}
@@ -244,7 +307,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	if isSubmission && requestContentType != "" {
 		req.Header.Set("Content-Type", requestContentType)
 	}
-	if isSubmission && (account.Platform == PlatformGuangying || account.Platform == PlatformMaiTokenSeedance) {
+	if isSubmission && (account.Platform == PlatformGuangying || account.Platform == PlatformMaiTokenSeedance || account.Platform == PlatformHongpeiSeedance || account.Platform == PlatformVshiSeedance || account.Platform == PlatformHuahuoSeedance) {
 		idempotencyKey := strings.TrimSpace(publicRequest.UpstreamIdempotencyKey)
 		if idempotencyKey == "" {
 			idempotencyKey, err = NewPPVideoLocalTaskID()
@@ -256,18 +319,103 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 	}
 	account.ApplyHeaderOverrides(req.Header)
 	start := time.Now()
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-	if c != nil {
-		SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(start).Milliseconds())
+	// A status query is a read-only GET and is repeated freely; it gets a per-attempt deadline so a
+	// stalled connection cannot hold the request for minutes. A cancel is not worth a second try.
+	// A submission creates, and bills, a task upstream, so it is only repeated when the previous
+	// attempt provably never delivered the request (ppVideoSendProbe): the connection could not be
+	// established, or a stalled connect was cut off. A request that may have been written is never
+	// resent. A streamed (multipart) body cannot be replayed, so it is sent once.
+	maxAttempts := 1
+	if isStatus {
+		maxAttempts = ppVideoStatusMaxAttempts
+	} else if isSubmission && req.GetBody != nil {
+		maxAttempts = ppVideoSubmitMaxAttempts
 	}
-	if err != nil {
-		return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, err, false)
+	var resp *http.Response
+	var respBody []byte
+	for attempt := 1; ; attempt++ {
+		attemptReq := req
+		cancelAttempt := context.CancelFunc(func() {})
+		var sendProbe *ppVideoSendProbe
+		if isStatus {
+			var attemptCtx context.Context
+			attemptCtx, cancelAttempt = context.WithTimeout(upstreamCtx, ppVideoStatusAttemptTimeout)
+			attemptReq = req.WithContext(attemptCtx)
+		} else if isSubmission && maxAttempts > 1 {
+			var attemptCtx context.Context
+			sendProbe, attemptCtx, cancelAttempt = newPPVideoSendProbe(upstreamCtx, ppVideoSubmitConnectTimeout)
+			attemptReq = req.WithContext(attemptCtx)
+			// Every attempt needs its own copy of the body; the previous one may be partly read.
+			bodyCopy, bodyErr := req.GetBody()
+			if bodyErr != nil {
+				cancelAttempt()
+				return nil, bodyErr
+			}
+			attemptReq.Body = bodyCopy
+		}
+		attemptResp, doErr := s.httpUpstream.Do(attemptReq, proxyURL, account.ID, account.Concurrency)
+		if c != nil {
+			SetOpsLatencyMs(c, OpsUpstreamLatencyMsKey, time.Since(start).Milliseconds())
+		}
+		if doErr != nil && sendProbe != nil && sendProbe.connectTimedOut.Load() {
+			// The raw error is just "context canceled"; report what actually happened.
+			doErr = fmt.Errorf("timed out connecting to upstream after %s: %w", ppVideoSubmitConnectTimeout, context.DeadlineExceeded)
+		}
+		attemptErr := doErr
+		var attemptBody []byte
+		if doErr == nil {
+			// The body must be read before the attempt's context is cancelled.
+			attemptBody, attemptErr = ReadUpstreamResponseBody(attemptResp.Body, s.cfg, c, openAITooLargeError)
+			_ = attemptResp.Body.Close()
+		}
+		// Read before cancelAttempt: afterwards the context always reports Canceled.
+		attemptTimedOut := attemptReq.Context().Err() != nil
+		cancelAttempt()
+
+		if attemptErr == nil {
+			resp, respBody = attemptResp, attemptBody
+			break
+		}
+		// A transport failure or an attempt deadline is worth another try while the caller is still
+		// waiting and its own deadline has not passed. Anything else (for example a response that is
+		// too large) is final.
+		callerWaiting := (ctx == nil || ctx.Err() == nil) && upstreamCtx.Err() == nil
+		if isStatus && attempt < maxAttempts && callerWaiting && (doErr != nil || attemptTimedOut) {
+			logger.L().Warn("pp_video.status_retry",
+				zap.String("platform", account.Platform),
+				zap.Int64("account_id", account.ID),
+				zap.String("task_id", taskID),
+				zap.Int("attempt", attempt),
+				zap.Int64("elapsed_ms", time.Since(start).Milliseconds()),
+				zap.String("cause", openAITransportErrorLabel(attemptErr)),
+			)
+			continue
+		}
+		// A submission is repeated only when the request provably never left this process, and not
+		// for durable faults (dead proxy, DNS, refused connection) where another try is pointless.
+		if isSubmission && doErr != nil && attempt < maxAttempts && callerWaiting &&
+			sendProbe.provablyNotDelivered() && !classifyOpenAITransportError(doErr).Persistent {
+			logger.L().Warn("pp_video.submit_retry",
+				zap.String("platform", account.Platform),
+				zap.Int64("account_id", account.ID),
+				zap.Int("attempt", attempt),
+				zap.Int64("elapsed_ms", time.Since(start).Milliseconds()),
+				zap.Bool("connected", sendProbe.connected.Load()),
+				zap.Bool("connect_timed_out", sendProbe.connectTimedOut.Load()),
+				zap.String("cause", openAITransportErrorLabel(doErr)),
+			)
+			select {
+			case <-time.After(ppVideoSubmitRetryDelay):
+			case <-upstreamCtx.Done():
+			}
+			continue
+		}
+		if doErr != nil || (isStatus && attemptTimedOut) {
+			return nil, s.handleOpenAIUpstreamTransportError(ctx, c, account, attemptErr, false)
+		}
+		return nil, attemptErr
 	}
-	defer func() { _ = resp.Body.Close() }()
-	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
-	if err != nil {
-		return nil, err
-	}
+
 	if resp.StatusCode >= http.StatusBadRequest {
 		upstreamMessage := strings.TrimSpace(ExtractUpstreamErrorMessage(respBody))
 		if c != nil {
@@ -308,6 +456,9 @@ func (s *OpenAIGatewayService) ForwardPPVideoSubmissionBuffered(
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if account.Platform == PlatformMaiTokenSeedance && parsed.Status != PPVideoTaskStatusSucceeded {
+		respBody = ppVideoWithoutPublicVideoURL(respBody)
+	}
+	if account.Platform == PlatformKyyWan && parsed.Status != PPVideoTaskStatusSucceeded {
 		respBody = ppVideoWithoutPublicVideoURL(respBody)
 	}
 	if isStatus && account.Platform == PlatformPixverseV6 && parsed.Status == PPVideoTaskStatusSucceeded {
@@ -481,7 +632,7 @@ func (s *OpenAIGatewayService) ForwardPPVideoTaskContent(ctx context.Context, ac
 		return nil, fmt.Errorf("original video task account is required")
 	}
 	stored := ""
-	if task.Platform == PlatformOPONE {
+	if task.Platform == PlatformOPONE || task.Platform == PlatformMiaowuSeedance {
 		stored = PPVideoProviderURLFromResponse([]byte(task.ResponseBody))
 	}
 	if task.Platform == PlatformOPONE && task.Status == PPVideoTaskStatusSucceeded {
@@ -542,7 +693,7 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 	if s == nil || s.httpUpstream == nil {
 		return nil, fmt.Errorf("PP video upstream transport is unavailable")
 	}
-	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformJijiuSeedance && account.Platform != PlatformMaiTokenSeedance && account.Platform != PlatformOPONE) {
+	if account == nil || (account.Platform != PlatformCTMOSeedance && account.Platform != PlatformXingAPISeedance && account.Platform != PlatformJijiuSeedance && account.Platform != PlatformMiaowuSeedance && account.Platform != PlatformPaisioSeedance && account.Platform != PlatformApophisSeedance && account.Platform != PlatformXSNSeedance && account.Platform != PlatformFengyueSeedance && account.Platform != PlatformHongpeiSeedance && account.Platform != PlatformVshiSeedance && account.Platform != PlatformHuahuoSeedance && account.Platform != PlatformZexiSeedance && account.Platform != PlatformXMSeedance && account.Platform != PlatformNaiwaSeedance && account.Platform != PlatformV6KSeedance && account.Platform != PlatformMaiTokenSeedance && account.Platform != PlatformOPONE) {
 		return nil, fmt.Errorf("authenticated-content PP video account is required")
 	}
 	if method != http.MethodGet && method != http.MethodHead {
@@ -565,6 +716,30 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 			baseURLRaw = XingAPISeedanceDefaultBaseURL
 		case PlatformJijiuSeedance:
 			baseURLRaw = JijiuSeedanceDefaultBaseURL
+		case PlatformMiaowuSeedance:
+			baseURLRaw = MiaowuSeedanceDefaultBaseURL
+		case PlatformPaisioSeedance:
+			baseURLRaw = PaisioSeedanceDefaultBaseURL
+		case PlatformApophisSeedance:
+			baseURLRaw = ApophisSeedanceDefaultBaseURL
+		case PlatformXSNSeedance:
+			baseURLRaw = XSNSeedanceDefaultBaseURL
+		case PlatformFengyueSeedance:
+			baseURLRaw = FengyueSeedanceDefaultBaseURL
+		case PlatformHongpeiSeedance:
+			baseURLRaw = HongpeiSeedanceDefaultBaseURL
+		case PlatformVshiSeedance:
+			baseURLRaw = VshiSeedanceDefaultBaseURL
+		case PlatformHuahuoSeedance:
+			baseURLRaw = HuahuoSeedanceDefaultBaseURL
+		case PlatformZexiSeedance:
+			baseURLRaw = ZexiSeedanceDefaultBaseURL
+		case PlatformXMSeedance:
+			baseURLRaw = XMSeedanceDefaultBaseURL
+		case PlatformNaiwaSeedance:
+			baseURLRaw = NaiwaSeedanceDefaultBaseURL
+		case PlatformV6KSeedance:
+			baseURLRaw = V6KSeedanceDefaultBaseURL
 		case PlatformMaiTokenSeedance:
 			baseURLRaw = MaiTokenSeedanceDefaultBaseURL
 		case PlatformOPONE:
@@ -576,11 +751,24 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 		return nil, err
 	}
 	contentPath := "/v1/videos/" + url.PathEscape(taskID) + "/content"
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(baseURL, "/")+contentPath, nil)
+	if account.Platform == PlatformVshiSeedance {
+		contentPath = vshiUnifiedVideosPath + "/" + url.PathEscape(taskID) + "/content"
+	}
+	requestMethod := method
+	if account.Platform == PlatformXMSeedance || account.Platform == PlatformNaiwaSeedance {
+		// The upstream may answer this endpoint with JSON that holds the download address instead
+		// of the file; a HEAD request has no body to read it from, so the answer is fetched with
+		// GET and followed (the caller of a HEAD request closes the body without reading it).
+		requestMethod = http.MethodGet
+	}
+	req, err := http.NewRequestWithContext(ctx, requestMethod, strings.TrimRight(baseURL, "/")+contentPath, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9")
+	if account.Platform == PlatformXMSeedance || account.Platform == PlatformNaiwaSeedance {
+		req.Header.Set("Accept", "video/*,application/octet-stream;q=0.9,application/json;q=0.8")
+	}
 	req.Header.Set("Accept-Encoding", "identity")
 	req.Header.Set("Authorization", "Bearer "+token)
 	if rangeHeader = strings.TrimSpace(rangeHeader); rangeHeader != "" {
@@ -592,7 +780,10 @@ func (s *OpenAIGatewayService) forwardPPVideoContentWithMethod(ctx context.Conte
 	account.ApplyHeaderOverrides(req.Header)
 	proxyURL := ppVideoAccountProxyURL(account)
 	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
-	if account.Platform != PlatformOPONE || len(fallbackURLs) == 0 || strings.TrimSpace(fallbackURLs[0]) == "" {
+	if account.Platform == PlatformXMSeedance || account.Platform == PlatformNaiwaSeedance {
+		return s.followXMContentResponse(ctx, account, proxyURL, resp, err, rangeHeader, ifRangeHeader)
+	}
+	if (account.Platform != PlatformOPONE && account.Platform != PlatformMiaowuSeedance) || len(fallbackURLs) == 0 || strings.TrimSpace(fallbackURLs[0]) == "" {
 		if err != nil {
 			return nil, err
 		}

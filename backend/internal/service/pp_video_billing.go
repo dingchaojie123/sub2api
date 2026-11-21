@@ -50,8 +50,34 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		platformLabel = "XingAPI Seedance"
 	} else if meta.Platform == PlatformJijiuSeedance {
 		platformLabel = "Jijiu Seedance"
+	} else if meta.Platform == PlatformMiaowuSeedance {
+		platformLabel = "Miaowu Seedance"
+	} else if meta.Platform == PlatformPaisioSeedance {
+		platformLabel = "Paisio Seedance"
+	} else if meta.Platform == PlatformApophisSeedance {
+		platformLabel = "Apophis Seedance"
+	} else if meta.Platform == PlatformXSNSeedance {
+		platformLabel = "XSN Seedance"
+	} else if meta.Platform == PlatformFengyueSeedance {
+		platformLabel = "Fengyue Seedance"
+	} else if meta.Platform == PlatformHongpeiSeedance {
+		platformLabel = "Hongpei Seedance"
+	} else if meta.Platform == PlatformVshiSeedance {
+		platformLabel = "VSHI Seedance"
+	} else if meta.Platform == PlatformHuahuoSeedance {
+		platformLabel = "HUAHUO Seedance"
+	} else if meta.Platform == PlatformZexiSeedance {
+		platformLabel = "Zexi Seedance"
+	} else if meta.Platform == PlatformXMSeedance {
+		platformLabel = "XM Seedance"
+	} else if meta.Platform == PlatformNaiwaSeedance {
+		platformLabel = "Naiwa Seedance"
+	} else if meta.Platform == PlatformV6KSeedance {
+		platformLabel = "V6K Seedance"
 	} else if meta.Platform == PlatformMaiTokenSeedance {
 		platformLabel = "Mai Token Seedance"
+	} else if meta.Platform == PlatformKyyWan {
+		platformLabel = "Kyy Wan"
 	}
 	missing := func(reason string) error {
 		groupID := int64(0)
@@ -76,12 +102,14 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		// The prepared request carries the platform's own (or upstream) name of the model;
 		// the price is configured under the line's public name.
 		line, ok := SeedanceHubLineByName(pricingModel)
-		if !ok || (meta.Platform != PlatformSeedanceHub && line.Platform != meta.Platform) {
+		// The platform that runs the request is the line's platform, except for a routed line:
+		// the price of the line the client asked for applies whichever platform runs it.
+		if !ok || (meta.Platform != PlatformSeedanceHub && line.Platform != meta.Platform && !meta.HubLineRouted) {
 			return PPVideoBillingQuote{}, missing("the model is not a line of this group")
 		}
 		pricingPlatform = PlatformSeedanceHub
 		pricingModel = line.Name
-	} else if meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance {
+	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformHongpeiSeedance || meta.Platform == PlatformVshiSeedance || meta.Platform == PlatformHuahuoSeedance || meta.Platform == PlatformXMSeedance || meta.Platform == PlatformNaiwaSeedance || meta.Platform == PlatformV6KSeedance {
 		// The prepared request carries the upstream name; prices are looked up under the
 		// public name first, and the alias fallback below still finds upstream-name prices.
 		pricingModel = PPVideoPublicModelName(meta.Platform, pricingModel)
@@ -99,7 +127,7 @@ func (s *OpenAIGatewayService) calculateCTMOSeedanceCost(
 		}
 		return false
 	}
-	if !isHub && (meta.Platform == PlatformGuangying || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance) && !pricingMatchesExactly(p, pricingModel) {
+	if !isHub && (meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformGuangying || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformHongpeiSeedance || meta.Platform == PlatformVshiSeedance || meta.Platform == PlatformHuahuoSeedance || meta.Platform == PlatformXMSeedance || meta.Platform == PlatformNaiwaSeedance || meta.Platform == PlatformV6KSeedance) && !pricingMatchesExactly(p, pricingModel) {
 		for _, alias := range ppVideoPricingModelAliases(meta.Platform, pricingModel) {
 			if strings.EqualFold(alias, pricingModel) {
 				continue
@@ -173,7 +201,7 @@ func ppVideoChannelPriceForMetadata(pricing *ChannelModelPricing, meta PPVideoBi
 	// Models with a choice of resolution are priced per resolution tier (labels 480p / 720p /
 	// 1080p); a model without a matching tier uses the default price. Lines of the Seedance
 	// aggregate group are priced the same way.
-	if meta.Platform == PlatformOPONE || meta.Platform == PlatformJijiuSeedance || pricing.Platform == PlatformSeedanceHub {
+	if meta.Platform == PlatformOPONE || meta.Platform == PlatformKyyWan || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformMiaowuSeedance || meta.Platform == PlatformPaisioSeedance || meta.Platform == PlatformApophisSeedance || meta.Platform == PlatformXSNSeedance || meta.Platform == PlatformFengyueSeedance || meta.Platform == PlatformHongpeiSeedance || meta.Platform == PlatformVshiSeedance || meta.Platform == PlatformHuahuoSeedance || meta.Platform == PlatformZexiSeedance || meta.Platform == PlatformXMSeedance || meta.Platform == PlatformNaiwaSeedance || meta.Platform == PlatformV6KSeedance || pricing.Platform == PlatformSeedanceHub {
 		if tier := pricing.GetTierByLabel(meta.VideoResolution); tier != nil {
 			return tier.PerRequestPrice
 		}
@@ -335,8 +363,10 @@ func (s *OpenAIGatewayService) CalculatePPVideoCost(
 	var err error
 	if meta.Platform == Platform88APIVideo {
 		quote, err = s.calculate88APIVideoCost(ctx, meta, billingAPIKey)
-	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformXingAPISeedance || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformSeedanceHub || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
+	} else if meta.Platform == PlatformCTMOSeedance || meta.Platform == PlatformKyyWan || meta.Platform == PlatformXingAPISeedance || meta.Platform == PlatformJijiuSeedance || meta.Platform == PlatformMiaowuSeedance || meta.Platform == PlatformPaisioSeedance || meta.Platform == PlatformApophisSeedance || meta.Platform == PlatformXSNSeedance || meta.Platform == PlatformFengyueSeedance || meta.Platform == PlatformHongpeiSeedance || meta.Platform == PlatformVshiSeedance || meta.Platform == PlatformHuahuoSeedance || meta.Platform == PlatformZexiSeedance || meta.Platform == PlatformXMSeedance || meta.Platform == PlatformNaiwaSeedance || meta.Platform == PlatformV6KSeedance || meta.Platform == PlatformMaiTokenSeedance || meta.Platform == PlatformSeedanceHub || meta.Platform == PlatformGuangying || meta.Platform == PlatformOPONE {
 		quote, err = s.calculateCTMOSeedanceCost(ctx, meta, billingAPIKey)
+	} else if meta.Platform == PlatformMiniMaxH3CompShare {
+		quote, err = s.calculateCompShareVideoCost(ctx, meta, billingAPIKey)
 	} else {
 		quote, err = s.calculatePPVideoGroupVideoCost(meta, billingAPIKey)
 	}
@@ -387,6 +417,9 @@ func (s *OpenAIGatewayService) ReservePPVideoBalanceHold(ctx context.Context, ta
 	return nil
 }
 
+// ErrPPVideoHoldAlreadyReleased 表示这个任务的冻结已经释放过（钱已经退回用户），不能再扣款。
+var ErrPPVideoHoldAlreadyReleased = errors.New("pp video hold was already released")
+
 func (s *OpenAIGatewayService) CapturePPVideoBalanceHold(ctx context.Context, task *PPVideoTask, actualAmount float64, payloadHash string) error {
 	if s == nil || s.usageBillingRepo == nil || task == nil || (task.HoldAmount <= 0 && actualAmount <= 0) {
 		return nil
@@ -400,11 +433,15 @@ func (s *OpenAIGatewayService) CapturePPVideoBalanceHold(ctx context.Context, ta
 		OrganizationMemberID: task.BillingMemberUserID,
 		BatchID:              task.LocalTaskID,
 		HoldRequestID:        task.HoldID,
+		ReleaseRequestID:     task.ReleaseID,
 		HoldAmount:           task.HoldAmount,
 		ActualAmount:         actualAmount,
 		RequestPayloadHash:   strings.TrimSpace(payloadHash),
 	})
 	if err != nil {
+		if errors.Is(err, ErrBatchImageHoldAlreadyReleased) {
+			return ErrPPVideoHoldAlreadyReleased
+		}
 		return ErrPPVideoSettlementBillingFailed.WithCause(err)
 	}
 	return nil
@@ -520,6 +557,9 @@ func (s *OpenAIGatewayService) captureAndRecordPPVideoTask(ctx context.Context, 
 	if !isSubscription && task.HoldAmount > 0 &&
 		(task.BillingStatus == PPVideoBillingStatusHeld || task.BillingStatus == PPVideoBillingStatusSettling) {
 		if err := s.CapturePPVideoBalanceHold(ctx, task, ppVideoBalanceCaptureAmount(task, actualCost), in.RequestPayloadHash); err != nil {
+			if errors.Is(err, ErrPPVideoHoldAlreadyReleased) {
+				return s.closePPVideoTaskReleasedBeforeSuccess(ctx, task)
+			}
 			return err
 		}
 	}
@@ -533,6 +573,29 @@ func (s *OpenAIGatewayService) captureAndRecordPPVideoTask(ctx context.Context, 
 	_, err = repo.MarkPPVideoTaskSettled(ctx, MarkPPVideoTaskSettledParams{
 		TaskID: task.TaskID, Status: PPVideoTaskStatusSucceeded,
 		BillingStatus: PPVideoBillingStatusCaptured, ActualCost: actualCost,
+	})
+	return err
+}
+
+// closePPVideoTaskReleasedBeforeSuccess 收尾一个"先被释放、后来才成功"的任务。
+// 这类任务的冻结在任务成功之前就已经退回用户（例如处理超时后被释放），这时再扣款会重复解冻同一笔金额，
+// 从用户冻结池里拿走属于其他任务的钱。所以这里不再扣款、不记用量，只把任务标记为已结算（已释放），
+// 让轮询器不再反复重试。视频已经交付但没有收费，这个损失在这里只留下一条日志，由运营决定是否追收。
+func (s *OpenAIGatewayService) closePPVideoTaskReleasedBeforeSuccess(ctx context.Context, task *PPVideoTask) error {
+	repo, err := s.ppVideoTaskRepo()
+	if err != nil {
+		return err
+	}
+	logger.L().Warn("pp_video.settle_skipped_hold_already_released",
+		zap.String("local_task_id", task.LocalTaskID),
+		zap.String("task_id", task.TaskID),
+		zap.Int64("user_id", task.UserID),
+		zap.String("platform", task.Platform),
+		zap.Float64("hold_amount", task.HoldAmount),
+	)
+	_, err = repo.MarkPPVideoTaskSettled(ctx, MarkPPVideoTaskSettledParams{
+		TaskID: task.TaskID, Status: PPVideoTaskStatusSucceeded,
+		BillingStatus: PPVideoBillingStatusReleased,
 	})
 	return err
 }

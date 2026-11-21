@@ -83,7 +83,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoGeneration(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKyyWan, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMiaowuSeedance, service.PlatformPaisioSeedance, service.PlatformApophisSeedance, service.PlatformXSNSeedance, service.PlatformFengyueSeedance, service.PlatformHongpeiSeedance, service.PlatformVshiSeedance, service.PlatformHuahuoSeedance, service.PlatformZexiSeedance, service.PlatformXMSeedance, service.PlatformNaiwaSeedance, service.PlatformV6KSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoGeneration(c)
 			return
 		}
@@ -119,7 +119,7 @@ func RegisterGatewayRoutes(
 		case service.PlatformJimeng:
 			h.OpenAIGateway.JimengVideoStatus(c)
 			return
-		case service.Platform88APIVideo, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
+		case service.Platform88APIVideo, service.PlatformKyyWan, service.PlatformKling, service.PlatformHappyHourse, service.PlatformSeedance, service.PlatformCTMOSeedance, service.PlatformXingAPISeedance, service.PlatformJijiuSeedance, service.PlatformMiaowuSeedance, service.PlatformPaisioSeedance, service.PlatformApophisSeedance, service.PlatformXSNSeedance, service.PlatformFengyueSeedance, service.PlatformHongpeiSeedance, service.PlatformVshiSeedance, service.PlatformHuahuoSeedance, service.PlatformZexiSeedance, service.PlatformXMSeedance, service.PlatformNaiwaSeedance, service.PlatformV6KSeedance, service.PlatformMaiTokenSeedance, service.PlatformSeedanceHub, service.PlatformGuangying, service.PlatformOPONE, service.PlatformByteDance, service.PlatformWan3, service.PlatformMiniMaxH3, service.PlatformMiniMaxH3CompShare, service.PlatformPixverseV6, service.PlatformGrokImagineVideo, service.PlatformKuaishou:
 			h.OpenAIGateway.PPVideoStatus(c)
 			return
 		}
@@ -136,7 +136,7 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.GrokVideoContent(c)
 			return
 		}
-		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformJijiuSeedance || getGroupPlatform(c) == service.PlatformMaiTokenSeedance || getGroupPlatform(c) == service.PlatformOPONE || getGroupPlatform(c) == service.PlatformSeedanceHub {
+		if getGroupPlatform(c) == service.PlatformCTMOSeedance || getGroupPlatform(c) == service.PlatformXingAPISeedance || getGroupPlatform(c) == service.PlatformJijiuSeedance || getGroupPlatform(c) == service.PlatformMiaowuSeedance || getGroupPlatform(c) == service.PlatformPaisioSeedance || getGroupPlatform(c) == service.PlatformApophisSeedance || getGroupPlatform(c) == service.PlatformXSNSeedance || getGroupPlatform(c) == service.PlatformFengyueSeedance || getGroupPlatform(c) == service.PlatformHongpeiSeedance || getGroupPlatform(c) == service.PlatformVshiSeedance || getGroupPlatform(c) == service.PlatformHuahuoSeedance || getGroupPlatform(c) == service.PlatformZexiSeedance || getGroupPlatform(c) == service.PlatformXMSeedance || getGroupPlatform(c) == service.PlatformNaiwaSeedance || getGroupPlatform(c) == service.PlatformV6KSeedance || getGroupPlatform(c) == service.PlatformMaiTokenSeedance || getGroupPlatform(c) == service.PlatformOPONE || getGroupPlatform(c) == service.PlatformSeedanceHub {
 			h.OpenAIGateway.PPVideoContent(c)
 			return
 		}

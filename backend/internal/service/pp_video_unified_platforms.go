@@ -613,6 +613,85 @@ func (r *ppVideoUnifiedRequest) toCTMO() (map[string]any, error) {
 	return payload, nil
 }
 
+// toMiaowu translates a v2 request for the miaowu-seedance platform. The shape the native
+// normalizer accepts (model, prompt, duration, ratio, resolution, images / videos / audios) is
+// the same one jijiu takes, and the miaowu reader accepts those names too, so the rules are
+// shared: no frames, audio switch, seed, watermark, callback, metadata or options, prompt and
+// duration required. The normalizer then enforces the model's limits and writes the
+// upstream's own field names (image_urls / video_urls / audio_urls, ratio, seconds).
+func (r *ppVideoUnifiedRequest) toMiaowu() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toPaisio translates a v2 request for the paisio-seedance platform. toJijiu's output (model,
+// prompt, duration, ratio, resolution, images / videos / audios in the order they were sent) is
+// read by the paisio reader as aliases, so the rules are shared: no frames, audio switch, seed,
+// watermark, callback, metadata or options, prompt and duration required. The native
+// normalizer then enforces the model's limits and writes the upstream's own fields (the first
+// image as image_url, the others as extra_images, extra_videos, extra_audios). Asset names are
+// not forwarded: the upstream only knows the position (@Image1, @Video1, @Audio1), so a
+// reference by name in the prompt has no effect on this platform.
+func (r *ppVideoUnifiedRequest) toPaisio() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toXSN translates a v2 request for the xsn-seedance platform. toJijiu's output (model, prompt,
+// duration, ratio, resolution, images / videos / audios in the order they were sent) is read by
+// the xsn reader as aliases, so the rules are shared: no frames, audio switch, seed, watermark,
+// callback, metadata or options, prompt and duration required. The native normalizer then
+// enforces the model's limits (no reference videos) and writes the upstream's field names
+// (image_urls, audio_urls, seconds, ratio). Asset names are not forwarded: the upstream only
+// knows the position (@Image1, @Audio1), so a reference by name has no effect here.
+func (r *ppVideoUnifiedRequest) toXSN() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toFengyue translates a v2 request for the fengyue-seedance platform. toJijiu's output (model,
+// prompt, duration, ratio, resolution, images / videos / audios in the order they were sent) is
+// read by the fengyue reader as aliases, so the rules are shared: no frames, audio switch, seed,
+// watermark, callback, metadata or options, prompt and duration required. The native normalizer
+// then enforces the model's limits (at least one image or video, 5-30 seconds, 720p / 1080p) and
+// writes the upstream's `references` array and mode. Asset names are not forwarded: the upstream
+// only accepts kind and data per reference, so a reference by name has no effect here.
+func (r *ppVideoUnifiedRequest) toFengyue() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toHongpei translates a v2 request for the hongpei-seedance platform. toJijiu's output (model,
+// prompt, duration, ratio, resolution, images / videos / audios in the order they were sent) is
+// read by the hongpei reader as aliases, so the rules are shared: no frames, audio switch, seed,
+// watermark, callback, metadata or options, prompt and duration required. The native normalizer
+// then enforces the model's limits (ratios, prompt length, the audio rule, the longer minimum
+// length) and writes the upstream's fields (duration, aspect_ratio, image_urls, video_urls,
+// audio_urls). Asset names are not forwarded: the upstream only knows the position, so a
+// reference by name has no effect here.
+func (r *ppVideoUnifiedRequest) toHongpei() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toVshi translates a v2 request for the vshi-seedance platform. toJijiu's output (model, prompt,
+// duration, ratio, resolution, images / videos / audios in the order they were sent) is read by
+// the vshi reader as aliases, so the rules are shared: no frames, audio switch, seed, watermark,
+// callback, metadata or options, prompt and duration required. The native normalizer then
+// enforces the model's limits (length, resolution, reference counts) and writes the upstream's
+// fields (seconds, aspect_ratio, image_urls, video_urls, audio_urls). Asset names are not
+// forwarded: the upstream only knows the position, so a reference by name has no effect here.
+func (r *ppVideoUnifiedRequest) toVshi() (map[string]any, error) {
+	return r.toJijiu()
+}
+
+// toHuahuo translates a v2 request for the huahuo-seedance platform. toJijiu's output (model,
+// prompt, duration, ratio, resolution, images / videos / audios in the order they were sent) is
+// read by the huahuo reader as aliases, so the rules are shared: no frames, audio switch, seed,
+// watermark, callback, metadata or options, prompt and duration required. The native normalizer
+// then enforces the model's limits (length, resolution, ratio, reference counts) and writes the
+// upstream's fields (seconds as a string, size, resolution, input_reference, video_reference,
+// audio_references). Asset names are not forwarded: the upstream only knows the position
+// (@图片1, @视频1, @音频1), so a reference by name has no effect here.
+func (r *ppVideoUnifiedRequest) toHuahuo() (map[string]any, error) {
+	return r.toJijiu()
+}
+
 // toJijiu translates to the generic shape the jijiu-seedance normalizer accepts: model, prompt,
 // duration, ratio, resolution and the reference media as three URL arrays (images, videos,
 // audios) in the order they were sent. That normalizer then applies the per-model limits and
@@ -622,6 +701,22 @@ func (r *ppVideoUnifiedRequest) toCTMO() (map[string]any, error) {
 // Asset names are accepted but not forwarded because the upstream has no notion of named
 // references. The prompt is required even when reference media is sent.
 func (r *ppVideoUnifiedRequest) toJijiu() (map[string]any, error) {
+	return r.toJijiuShape(false)
+}
+
+// toApophis translates a v2 request for the apophis-seedance platform. It is toJijiu's shape plus
+// the first / last frame: the models that take frames get them as first_frame / last_frame (the
+// native normalizer writes first_frame / end_frame and refuses frames for the models that do not
+// support them). A first frame may be sent alone, a last frame needs a first one, and frames
+// cannot be combined with reference assets. Asset names are not forwarded: the upstream only
+// knows the position (@Image1, @Video1, @Audio1).
+func (r *ppVideoUnifiedRequest) toApophis() (map[string]any, error) {
+	return r.toJijiuShape(true)
+}
+
+// toJijiuShape is the body of toJijiu and toApophis; allowFrames lets first_frame and last_frame
+// assets through as first_frame / last_frame fields.
+func (r *ppVideoUnifiedRequest) toJijiuShape(allowFrames bool) (map[string]any, error) {
 	if err := r.rejectUnsupported(ppVideoUnifiedSupport{}); err != nil {
 		return nil, err
 	}
@@ -631,9 +726,11 @@ func (r *ppVideoUnifiedRequest) toJijiu() (map[string]any, error) {
 	if len(r.options) > 0 {
 		return nil, ppVideoUnifiedUnsupportedOption(r.options[0])
 	}
-	for _, asset := range r.assets {
-		if asset.Role == ppVideoUnifiedAssetRoleFirstFrame || asset.Role == ppVideoUnifiedAssetRoleLastFrame {
-			return nil, ppVideoUnifiedErr(fmt.Sprintf("assets[%d].role", asset.Index), "%s is not supported by this model", asset.Role)
+	if !allowFrames {
+		for _, asset := range r.assets {
+			if asset.Role == ppVideoUnifiedAssetRoleFirstFrame || asset.Role == ppVideoUnifiedAssetRoleLastFrame {
+				return nil, ppVideoUnifiedErr(fmt.Sprintf("assets[%d].role", asset.Index), "%s is not supported by this model", asset.Role)
+			}
 		}
 	}
 	if r.prompt == "" {
@@ -646,12 +743,24 @@ func (r *ppVideoUnifiedRequest) toJijiu() (map[string]any, error) {
 	}
 
 	media := r.groupAssets()
+	if media.lastFrame != nil && media.firstFrame == nil {
+		return nil, ppVideoUnifiedErr("assets", "last_frame requires a first_frame for this model")
+	}
+	if media.hasFrames() && media.referenceCount() > 0 {
+		return nil, errPPVideoUnifiedFramesWithReferences
+	}
 	payload := map[string]any{"model": r.model, "prompt": r.prompt, "duration": *r.duration}
 	if r.resolution != "" {
 		payload["resolution"] = r.resolution
 	}
 	if r.ratio != "" {
 		payload["ratio"] = r.ratio
+	}
+	if media.firstFrame != nil {
+		payload["first_frame"] = media.firstFrame.URL
+	}
+	if media.lastFrame != nil {
+		payload["last_frame"] = media.lastFrame.URL
 	}
 	if len(media.referenceImages) > 0 {
 		payload["images"] = ppVideoUnifiedURLs(media.referenceImages)

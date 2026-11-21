@@ -264,6 +264,10 @@
           </template>
 
           <template #cell-account_count="{ row }">
+            <GroupAccountsHover
+              :group-id="row.id"
+              :total="row.account_count || 0"
+            >
             <div class="space-y-0.5 text-xs">
               <div>
                 <span class="text-gray-500 dark:text-gray-400">{{
@@ -305,6 +309,7 @@
                 >
               </div>
             </div>
+            </GroupAccountsHover>
           </template>
 
           <template #cell-capacity="{ row }">
@@ -403,6 +408,15 @@
                 <span class="text-xs">{{
                   t("admin.groups.rpmOverrides")
                 }}</span>
+              </button>
+              <button
+                v-if="supportsLineRoutes(row.platform)"
+                data-testid="group-line-routes"
+                @click="handleLineRoutes(row)"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-sky-600 dark:hover:bg-dark-700 dark:hover:text-sky-400"
+              >
+                <Icon name="swap" size="sm" />
+                <span class="text-xs">{{ t("admin.groups.lineRoutes") }}</span>
               </button>
               <button
                 @click="handleDelete(row)"
@@ -1009,7 +1023,7 @@
             {{
               t(
                 videoPricingI18nKey(
-				  createForm.platform === "ctmo-seedance" || createForm.platform === "xingapi-seedance" || createForm.platform === "jijiu-seedance" || createForm.platform === "mai-token-seedance" || createForm.platform === "seedance-hub" || createForm.platform === "guangying" || createForm.platform === "opone"
+				  createForm.platform === "ctmo-seedance" || createForm.platform === "xingapi-seedance" || createForm.platform === "jijiu-seedance" || createForm.platform === "miaowu-seedance" || createForm.platform === "paisio-seedance" || createForm.platform === "apophis-seedance" || createForm.platform === "xsn-seedance" || createForm.platform === "fengyue-seedance" || createForm.platform === "hongpei-seedance" || createForm.platform === "vshi-seedance" || createForm.platform === "huahuo-seedance" || createForm.platform === "zexi-seedance" || createForm.platform === "xm-seedance" || createForm.platform === "naiwa-seedance" || createForm.platform === "v6k-seedance" || createForm.platform === "kyy-wan" || createForm.platform === "mai-token-seedance" || createForm.platform === "seedance-hub" || createForm.platform === "guangying" || createForm.platform === "opone"
                     ? "ctmoDescription"
                     : isPPVideoPricingPlatform(createForm.platform)
                       ? "ppDescription"
@@ -2545,7 +2559,7 @@
             {{
               t(
                 videoPricingI18nKey(
-				  editForm.platform === "ctmo-seedance" || editForm.platform === "xingapi-seedance" || editForm.platform === "jijiu-seedance" || editForm.platform === "mai-token-seedance" || editForm.platform === "seedance-hub" || editForm.platform === "guangying" || editForm.platform === "opone"
+				  editForm.platform === "ctmo-seedance" || editForm.platform === "xingapi-seedance" || editForm.platform === "jijiu-seedance" || editForm.platform === "miaowu-seedance" || editForm.platform === "paisio-seedance" || editForm.platform === "apophis-seedance" || editForm.platform === "xsn-seedance" || editForm.platform === "fengyue-seedance" || editForm.platform === "hongpei-seedance" || editForm.platform === "vshi-seedance" || editForm.platform === "huahuo-seedance" || editForm.platform === "zexi-seedance" || editForm.platform === "xm-seedance" || editForm.platform === "naiwa-seedance" || editForm.platform === "v6k-seedance" || editForm.platform === "kyy-wan" || editForm.platform === "mai-token-seedance" || editForm.platform === "seedance-hub" || editForm.platform === "guangying" || editForm.platform === "opone"
                     ? "ctmoDescription"
                     : isPPVideoPricingPlatform(editForm.platform)
                       ? "ppDescription"
@@ -3616,6 +3630,13 @@
       @success="loadGroups"
     />
 
+    <!-- Seedance aggregate group: line routes (upstream switch) -->
+    <GroupLineRoutesModal
+      :show="showLineRoutesModal"
+      :group="lineRoutesGroup"
+      @close="showLineRoutesModal = false"
+    />
+
     <!-- Group RPM Overrides Modal -->
     <GroupRPMOverridesModal
       :show="showRPMOverridesModal"
@@ -3645,6 +3666,9 @@ import Select from "@/components/common/Select.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
+import GroupLineRoutesModal from "@/components/admin/group/GroupLineRoutesModal.vue";
+import GroupAccountsHover from "@/components/admin/group/GroupAccountsHover.vue";
+import { supportsLineRoutes } from "@/constants/platforms";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
@@ -3878,12 +3902,25 @@ const platformOptions = computed(() => [
   { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
 	{ value: "xingapi-seedance", label: "星光 API Seedance" },
 	{ value: "jijiu-seedance", label: "极九 API Seedance" },
+	{ value: "miaowu-seedance", label: "喵呜 API Seedance" },
+	{ value: "paisio-seedance", label: "Paisio Seedance" },
+	{ value: "apophis-seedance", label: "Apophis Seedance" },
+	{ value: "xsn-seedance", label: "XSN Seedance" },
+    { value: "fengyue-seedance", label: "风月 Seedance" },
+    { value: "hongpei-seedance", label: "红佩 Seedance" },
+    { value: "vshi-seedance", label: "VSHI Seedance" },
+    { value: "huahuo-seedance", label: "HUAHUO Seedance" },
+    { value: "zexi-seedance", label: "泽西 Seedance" },
+    { value: "xm-seedance", label: "XM Seedance" },
+    { value: "naiwa-seedance", label: "奶蛙 Seedance" },
+    { value: "v6k-seedance", label: "V6K Seedance" },
   { value: "mai-token-seedance", label: "Mai Token Seedance" },
   { value: "seedance-hub", label: "Seedance 综合（聚合分组）" },
   { value: "guangying", label: "光影 AI Seedance" },
   { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
+  { value: "kyy-wan", label: "客易云 Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
   { value: "minimax-h3-compshare", label: "MiniMax-H3（优云智算）" },
   { value: "88api-video", label: "88API Video" },
@@ -3913,12 +3950,25 @@ const platformFilterOptions = computed(() => [
   { value: "ctmo-seedance", label: "浙创 OPC Seedance" },
 	{ value: "xingapi-seedance", label: "星光 API Seedance" },
 	{ value: "jijiu-seedance", label: "极九 API Seedance" },
+	{ value: "miaowu-seedance", label: "喵呜 API Seedance" },
+	{ value: "paisio-seedance", label: "Paisio Seedance" },
+	{ value: "apophis-seedance", label: "Apophis Seedance" },
+	{ value: "xsn-seedance", label: "XSN Seedance" },
+    { value: "fengyue-seedance", label: "风月 Seedance" },
+    { value: "hongpei-seedance", label: "红佩 Seedance" },
+    { value: "vshi-seedance", label: "VSHI Seedance" },
+    { value: "huahuo-seedance", label: "HUAHUO Seedance" },
+    { value: "zexi-seedance", label: "泽西 Seedance" },
+    { value: "xm-seedance", label: "XM Seedance" },
+    { value: "naiwa-seedance", label: "奶蛙 Seedance" },
+    { value: "v6k-seedance", label: "V6K Seedance" },
   { value: "mai-token-seedance", label: "Mai Token Seedance" },
   { value: "seedance-hub", label: "Seedance 综合（聚合分组）" },
   { value: "guangying", label: "光影 AI Seedance" },
   { value: "opone", label: "OPONE Seedance" },
   { value: "bytedance", label: "ByteDance" },
   { value: "wan3", label: "Wan3.0" },
+  { value: "kyy-wan", label: "客易云 Wan3.0" },
   { value: "minimax-h3", label: "MiniMax-H3" },
   { value: "minimax-h3-compshare", label: "MiniMax-H3（优云智算）" },
   { value: "88api-video", label: "88API Video" },
@@ -4091,6 +4141,8 @@ const deletingGroup = ref<AdminGroup | null>(null);
 const duplicatingGroupIds = reactive(new Set<number>());
 const showRateMultipliersModal = ref(false);
 const rateMultipliersGroup = ref<AdminGroup | null>(null);
+const showLineRoutesModal = ref(false);
+const lineRoutesGroup = ref<AdminGroup | null>(null);
 const showRPMOverridesModal = ref(false);
 const rpmOverridesGroup = ref<AdminGroup | null>(null);
 const sortableGroups = ref<AdminGroup[]>([]);
@@ -5260,6 +5312,11 @@ const removeEditMessagesDispatchMapping = (row: MessagesDispatchMappingRow) => {
 const handleRateMultipliers = (group: AdminGroup) => {
   rateMultipliersGroup.value = group;
   showRateMultipliersModal.value = true;
+};
+
+const handleLineRoutes = (group: AdminGroup) => {
+  lineRoutesGroup.value = group;
+  showLineRoutesModal.value = true;
 };
 
 const handleRPMOverrides = (group: AdminGroup) => {

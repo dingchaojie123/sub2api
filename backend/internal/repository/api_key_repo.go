@@ -87,6 +87,24 @@ func (r *apiKeyRepository) GetByID(ctx context.Context, id int64) (*service.APIK
 	return apiKeyEntityToService(m), nil
 }
 
+// GetByIDIncludingDeleted 读取 API Key，包括已被软删除的。
+// 只用于视频任务结算：客户可能在任务处理期间删除 key，任务生成成功后仍需要它来完成扣款和用量记录。
+// 其他场景不要使用，已删除的 key 不应该再用于认证或调用。
+func (r *apiKeyRepository) GetByIDIncludingDeleted(ctx context.Context, id int64) (*service.APIKey, error) {
+	m, err := r.client.APIKey.Query().
+		Where(apikey.IDEQ(id)).
+		WithUser().
+		WithGroup().
+		Only(mixins.SkipSoftDelete(ctx))
+	if err != nil {
+		if dbent.IsNotFound(err) {
+			return nil, service.ErrAPIKeyNotFound
+		}
+		return nil, err
+	}
+	return apiKeyEntityToService(m), nil
+}
+
 // GetKeyAndOwnerID 根据 API Key ID 获取其 key 与所有者（用户）ID。
 // 相比 GetByID，此方法性能更优，因为：
 //   - 使用 Select() 只查询必要字段，减少数据传输量

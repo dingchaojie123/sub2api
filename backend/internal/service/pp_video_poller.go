@@ -63,6 +63,11 @@ type PPVideoAPIKeyLoader interface {
 	GetByID(ctx context.Context, id int64) (*APIKey, error)
 }
 
+// ppVideoDeletedAPIKeyLoader 是可选能力：加载已被软删除的 API Key，只用于结算。
+type ppVideoDeletedAPIKeyLoader interface {
+	GetByIDIncludingDeleted(ctx context.Context, id int64) (*APIKey, error)
+}
+
 type PPVideoAccountLoader interface {
 	GetByID(ctx context.Context, id int64) (*Account, error)
 }
@@ -207,6 +212,8 @@ func (s *PPVideoPollerService) RunOnce(ctx context.Context) (PPVideoPollerRunSta
 				zap.String("local_task_id", task.LocalTaskID),
 				zap.String("task_id", task.TaskID),
 				zap.String("platform", task.Platform),
+				zap.Int64("account_id", task.AccountID),
+				zap.String("transport_cause", ppVideoTransportCause(processErr)),
 				zap.Error(processErr),
 			)
 		}
@@ -367,10 +374,22 @@ func (s *PPVideoPollerService) settleFromTask(ctx context.Context, task *PPVideo
 	}
 	account, err := s.loadAccount(ctx, task.AccountID)
 	if err != nil {
-		if finalStatus == PPVideoTaskStatusSucceeded {
+		switch {
+		case finalStatus != PPVideoTaskStatusSucceeded:
+			account = nil
+		case errors.Is(err, ErrAccountNotFound):
+			// 上游账号已经被删除（例如整个渠道下线），但任务早已生成成功。结算只需要账号的 ID 和类型，
+			// 费用由任务自己的计价字段决定，所以用任务信息构造一个只用于结算的账号，
+			// 否则任务会永远停在结算中，冻结的余额也不会被处理。
+			logger.L().Warn("pp_video.poller.settle_with_deleted_account",
+				zap.String("local_task_id", task.LocalTaskID),
+				zap.Int64("account_id", task.AccountID),
+				zap.String("platform", task.Platform),
+			)
+			account = ppVideoSettlementAccountForDeletedAccount(task)
+		default:
 			return PPVideoPollerTaskResult{Outcome: PPVideoPollerOutcomeRetry}, err
 		}
-		account = nil
 	}
 	subscription, err := s.loadSubscription(ctx, task, apiKey)
 	if err != nil {
@@ -426,6 +445,13 @@ func (s *PPVideoPollerService) settleFromTask(ctx context.Context, task *PPVideo
 func ppVideoAPIKeyQuotaUpdater(loader PPVideoAPIKeyLoader) APIKeyQuotaUpdater {
 	updater, _ := loader.(APIKeyQuotaUpdater)
 	return updater
+}
+
+// ppVideoSettlementAccountForDeletedAccount 为已被删除的上游账号构造一个只用于结算的账号。
+// 它没有倍率和额度限制，所以不会影响费用，也不会触发账号额度计费；
+// 用量记录里的 account_id 仍然指向原来的账号。
+func ppVideoSettlementAccountForDeletedAccount(task *PPVideoTask) *Account {
+	return &Account{ID: task.AccountID, Platform: task.Platform, Type: AccountTypeAPIKey}
 }
 
 func (s *PPVideoPollerService) releaseAndFail(ctx context.Context, task *PPVideoTask, code string, message string) (PPVideoPollerTaskResult, error) {
@@ -522,6 +548,16 @@ func (s *PPVideoPollerService) loadAPIKey(ctx context.Context, apiKeyID int64) (
 	}
 	apiKey, err := s.APIKeys.GetByID(ctx, apiKeyID)
 	if err != nil {
+		// 客户在任务处理期间删除了 key：视频已经生成，仍要用这把 key 完成扣款和用量记录，
+		// 否则任务会永远停在结算中，冻结的余额也不会被处理。
+		if errors.Is(err, ErrAPIKeyNotFound) {
+			if loader, ok := s.APIKeys.(ppVideoDeletedAPIKeyLoader); ok {
+				deleted, deletedErr := loader.GetByIDIncludingDeleted(ctx, apiKeyID)
+				if deletedErr == nil && deleted != nil {
+					return deleted, nil
+				}
+			}
+		}
 		return nil, err
 	}
 	if apiKey == nil {

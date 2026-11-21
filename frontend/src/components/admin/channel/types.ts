@@ -38,20 +38,21 @@ export function billingModesForPlatform(
 
   if (normalizedPlatform === '88api-video') {
     modes = ['video']
-  } else if (normalizedPlatform === 'ctmo-seedance' || normalizedPlatform === 'xingapi-seedance' || normalizedPlatform === 'jijiu-seedance' || normalizedPlatform === 'seedance-hub' || normalizedPlatform === 'guangying' || normalizedPlatform === 'opone') {
+  } else if (normalizedPlatform === 'ctmo-seedance' || normalizedPlatform === 'xingapi-seedance' || normalizedPlatform === 'jijiu-seedance' || normalizedPlatform === 'miaowu-seedance' || normalizedPlatform === 'paisio-seedance' || normalizedPlatform === 'apophis-seedance' || normalizedPlatform === 'xsn-seedance' || normalizedPlatform === 'fengyue-seedance' || normalizedPlatform === 'hongpei-seedance' || normalizedPlatform === 'vshi-seedance' || normalizedPlatform === 'huahuo-seedance' || normalizedPlatform === 'zexi-seedance' || normalizedPlatform === 'xm-seedance' || normalizedPlatform === 'naiwa-seedance' || normalizedPlatform === 'v6k-seedance' || normalizedPlatform === 'kyy-wan' || normalizedPlatform === 'seedance-hub' || normalizedPlatform === 'guangying' || normalizedPlatform === 'opone') {
     modes = ['per_request', 'video']
   } else if (normalizedPlatform === 'minimax-speech' || normalizedPlatform === 'qwen-tts') {
     // Audio providers return consumed text characters; expose only token
     // billing so each platform uses one consistent channel price unit.
     modes = ['token']
   } else if (
+    // minimax-h3-compshare is not listed here: it bills a channel per-second (video)
+    // price when one is configured, and falls back to the group video price card otherwise.
     normalizedPlatform === 'kling' ||
     normalizedPlatform === 'happyhourse' ||
     normalizedPlatform === 'seedance' ||
     normalizedPlatform === 'bytedance' ||
     normalizedPlatform === 'wan3' ||
     normalizedPlatform === 'minimax-h3' ||
-    normalizedPlatform === 'minimax-h3-compshare' ||
     normalizedPlatform === 'pixverse-v6' ||
     normalizedPlatform === 'grok-imagine-video' ||
     normalizedPlatform === 'kuaishou'

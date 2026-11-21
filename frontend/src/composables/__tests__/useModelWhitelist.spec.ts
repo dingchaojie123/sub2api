@@ -52,7 +52,19 @@ describe('useModelWhitelist', () => {
       'happyhourse',
 	  'seedance',
 	  'xingapi-seedance',
-	  'jijiu-seedance'
+	  'jijiu-seedance',
+	  'miaowu-seedance',
+	  'paisio-seedance',
+	  'apophis-seedance',
+	  'xsn-seedance',
+	  'fengyue-seedance',
+	  'hongpei-seedance',
+	  'vshi-seedance',
+	  'huahuo-seedance',
+	  'zexi-seedance',
+	  'xm-seedance',
+	  'naiwa-seedance',
+	  'v6k-seedance'
     ]) {
       expect(getModelsByPlatform(platform)).toEqual([])
       expect(getPresetMappingsByPlatform(platform)).toEqual([])
@@ -62,6 +74,9 @@ describe('useModelWhitelist', () => {
     expect(getPresetMappingsByPlatform('bytedance')).toEqual([
       ...BYTEDANCE_FIXED_MODELS.map(model => expect.objectContaining({ from: model, to: model }))
     ])
+    // The kyy-wan platform offers its one model and no preset mapping.
+    expect(getModelsByPlatform('kyy-wan')).toEqual(['wan3.0-video-c3'])
+    expect(getPresetMappingsByPlatform('kyy-wan')).toEqual([])
     expect(getModelsByPlatform('wan3')).toEqual(WAN3_FIXED_MODELS)
     expect(getPresetMappingsByPlatform('wan3')).toEqual(
       WAN3_FIXED_MODELS.map(model => expect.objectContaining({ from: model, to: model }))
