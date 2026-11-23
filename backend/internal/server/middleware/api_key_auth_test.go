@@ -1427,6 +1427,66 @@ func TestAPIKeyAuthRejectsExhaustedBalance(t *testing.T) {
 	requireAPIKeyAuthError(t, w, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 }
 
+func TestAPIKeyAuthVideoGenerationUsesTeamBalance(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	const path = "/v1/videos/generations"
+	for _, tc := range []struct {
+		name       string
+		active     bool
+		balance    float64
+		monthlyUse float64
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "funded team with zero personal balance", active: true, balance: 10, wantStatus: http.StatusOK},
+		{name: "exhausted team", active: true, wantStatus: http.StatusForbidden, wantCode: "ORGANIZATION_QUOTA_EXHAUSTED"},
+		{name: "member at monthly limit", active: true, balance: 10, monthlyUse: 5, wantStatus: http.StatusTooManyRequests, wantCode: "ORGANIZATION_MEMBER_QUOTA_EXHAUSTED"},
+		{name: "revoked team access", balance: 10, wantStatus: http.StatusForbidden, wantCode: "ORGANIZATION_ACCESS_REVOKED"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			user := &service.User{ID: 10, Role: service.RoleUser, Status: service.StatusActive, Balance: 0}
+			group := &service.Group{ID: 42, Platform: service.PlatformSeedanceHub, Status: service.StatusActive, Hydrated: true}
+			team := &service.OrganizationBillingSubject{
+				OrganizationID: 20, MemberUserID: user.ID, Active: tc.active,
+				Balance: tc.balance, MonthlyLimit: 5, MonthlyUsed: tc.monthlyUse,
+			}
+			apiKey := &service.APIKey{
+				ID: 105, UserID: user.ID, Key: "team-video-key", Status: service.StatusActive,
+				User: user, Group: group, GroupID: &group.ID, Organization: team,
+			}
+			repo := &stubApiKeyRepo{getByKey: func(_ context.Context, key string) (*service.APIKey, error) {
+				if key != apiKey.Key {
+					return nil, service.ErrAPIKeyNotFound
+				}
+				clone := *apiKey
+				return &clone, nil
+			}}
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			apiKeyService := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+			router := newAuthTestRouter(apiKeyService, nil, cfg)
+			router.POST(path, func(c *gin.Context) {
+				key, ok := GetAPIKeyFromContext(c)
+				require.True(t, ok)
+				require.Equal(t, team, key.Organization)
+				c.Status(http.StatusOK)
+			})
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("x-api-key", apiKey.Key)
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, tc.wantStatus, w.Code, w.Body.String())
+			if tc.wantCode != "" {
+				var resp ErrorResponse
+				require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+				require.Equal(t, tc.wantCode, resp.Code)
+			}
+		})
+	}
+}
+
 func TestAPIKeyAuthAllowsModelsListWithExhaustedBalance(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
