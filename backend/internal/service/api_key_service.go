@@ -985,8 +985,8 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 		apiKey.Name = html.EscapeString(*req.Name)
 	}
 
-	if req.GroupID != nil {
-		// 验证分组权限
+	if req.GroupID != nil && (apiKey.GroupID == nil || *apiKey.GroupID != *req.GroupID) {
+		// 验证分组权限（分组没变时不重复校验：团队共享副本的成员本人没有该专属分组授权，改个名字也不该被拒绝）
 		user, err := s.userRepo.GetByID(ctx, userID)
 		if err != nil {
 			return nil, fmt.Errorf("get user: %w", err)

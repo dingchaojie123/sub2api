@@ -27,6 +27,9 @@ const (
 	// seedance_2.5-flash (added 2026-11-19).
 	xmTestFlash       = "seedance_2.5-flash"
 	xmTestFlashPublic = "Seedance2.5-XM-flash"
+	// SD2.5-X-满参支持人脸 (added 2026-11-24).
+	xmTestX       = "SD2.5-X-满参支持人脸"
+	xmTestXPublic = "Seedance2.5-XM-X-full"
 )
 
 func TestXMSeedanceModelTable(t *testing.T) {
@@ -34,8 +37,8 @@ func TestXMSeedanceModelTable(t *testing.T) {
 
 	// The three models the operator asked for on 2026-11-17, in the order of the request, and the
 	// seedance_2.0 and seedance_2.5-flash models added on 2026-11-19.
-	require.Equal(t, []string{xmTestFacePublic, xmTestVIPPublic, xmTestFullPublic, xmTest20Public, xmTestFlashPublic}, xmModelNames())
-	require.Len(t, xmSeedanceModels, 5)
+	require.Equal(t, []string{xmTestFacePublic, xmTestVIPPublic, xmTestFullPublic, xmTest20Public, xmTestFlashPublic, xmTestXPublic}, xmModelNames())
+	require.Len(t, xmSeedanceModels, 6)
 
 	seen := make(map[string]string)
 	for _, spec := range xmSeedanceModels {
@@ -63,6 +66,9 @@ func TestXMSeedanceModelTable(t *testing.T) {
 		wantMin, wantMax := 4, 30
 		if spec.Name == xmTest20 {
 			wantMin, wantMax = 5, 15
+		}
+		if spec.Name == xmTestX {
+			wantMin, wantMax = 5, 30
 		}
 		require.Equal(t, wantMin, spec.MinSeconds, spec.Name)
 		require.Equal(t, wantMax, spec.MaxSeconds, spec.Name)
@@ -119,7 +125,23 @@ func TestXMSeedanceModelTable(t *testing.T) {
 	require.Equal(t, xmTestFace, face.Name)
 	require.Equal(t, []string{"720p"}, face.Resolutions)
 
-	// Public name first, so a channel price configured under it wins; the upstream id still works.
+	// SD2.5-X-满参支持人脸 (2026-11-24): 720p only, 5-30 seconds, 30 images / 10 videos / 10 audios,
+	// no audio switch (like its sibling M-full).
+	xSpec, ok := xmModelSpecFor(strings.ToLower(xmTestX))
+	require.True(t, ok)
+	require.Equal(t, xmTestX, xSpec.Name)
+	require.Equal(t, xmTestXPublic, xSpec.publicName())
+	require.Equal(t, []string{"720p"}, xSpec.Resolutions)
+	require.Equal(t, 30, xSpec.MaxImages)
+	require.Equal(t, 10, xSpec.MaxVideos)
+	require.Equal(t, 10, xSpec.MaxAudios)
+	require.True(t, xSpec.NoAudioSwitch)
+	require.Equal(t, []string{xmTestXPublic, xmTestX}, ppVideoXMModelAliases(xmTestXPublic))
+	// It is a model of its own: the M-full row keeps its name and does not answer to the X one.
+	xm, ok := xmModelSpecFor(xmTestXPublic)
+	require.True(t, ok)
+	require.NotEqual(t, full.Name, xm.Name)
+
 	require.Equal(t, []string{xmTestFacePublic, xmTestFace}, ppVideoXMModelAliases("seedance_2.5"))
 	require.Equal(t, []string{xmTestVIPPublic, xmTestVIP}, ppVideoPricingModelAliases(PlatformXMSeedance, "Seedance2.5-xm-720P-VIP"))
 
@@ -180,6 +202,80 @@ func TestXMSeedance25FlashRequest(t *testing.T) {
 		_, _, err := PreparePPVideoRequestBody(PlatformXMSeedance, PPVideoOperationGeneric, []byte(body))
 		require.Error(t, err, body)
 	}
+}
+
+// SD2.5-X-满参支持人脸 (2026-11-24): 720p only, 5-30 seconds, 30 images / 10 videos / 10 audios,
+// and no audio switch toward the upstream (like M-full).
+func TestXMSeedanceXFullRequest(t *testing.T) {
+	t.Parallel()
+
+	const (
+		a  = "https://example.com/a.png"
+		au = "https://example.com/au.mp3"
+		v  = "https://example.com/v.mp4"
+	)
+	for _, tc := range []struct{ body, want string }{
+		{
+			// Public name, no resolution: 720p is filled in and the id is what goes upstream.
+			`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5}`,
+			`{"model":"` + xmTestX + `","prompt":"x","duration":5,"resolution":"720p"}`,
+		},
+		{
+			// The upstream id works too; enable_audio: true is the upstream default, so it is left out.
+			`{"model":"` + xmTestX + `","prompt":"x","duration":30,"resolution":"720P","enable_audio":true,` +
+				`"images":["` + a + `"],"videos":["` + v + `"],"audios":["` + au + `"]}`,
+			`{"model":"` + xmTestX + `","prompt":"x","duration":30,"resolution":"720p","media":[` +
+				`{"type":"reference_image","url":"` + a + `"},{"type":"reference_video","url":"` + v + `"},` +
+				`{"type":"reference_audio","url":"` + au + `"}]}`,
+		},
+	} {
+		prepared, public, err := PreparePPVideoRequestBody(PlatformXMSeedance, PPVideoOperationGeneric, []byte(tc.body))
+		require.NoError(t, err, tc.body)
+		require.JSONEq(t, tc.want, string(prepared))
+		require.Equal(t, xmTestXPublic, public.Model)
+		require.Equal(t, xmTestX, public.UpstreamModel)
+	}
+
+	// The limits are reachable: 30 images, 10 videos and 10 audios in one request.
+	rep := func(item string, n int) string { return strings.TrimSuffix(strings.Repeat(`"`+item+`",`, n), ",") }
+	_, _, err := PreparePPVideoRequestBody(PlatformXMSeedance, PPVideoOperationGeneric, []byte(
+		`{"model":"`+xmTestXPublic+`","prompt":"x","duration":10,"images":[`+rep(a, 30)+`],"videos":[`+rep(v, 10)+`],"audios":[`+rep(au, 10)+`]}`))
+	require.NoError(t, err)
+
+	// Billing sees the requested seconds and 720p.
+	prepared, _, err := PreparePPVideoRequestBody(PlatformXMSeedance, PPVideoOperationGeneric, []byte(
+		`{"model":"`+xmTestXPublic+`","prompt":"x","duration":12}`))
+	require.NoError(t, err)
+	meta := PPVideoBillingMetadataFromRequest(PlatformXMSeedance, prepared)
+	require.Equal(t, xmTestX, meta.Model)
+	require.Equal(t, "720p", meta.VideoResolution)
+	require.Equal(t, 12, meta.RequestedDurationSeconds)
+
+	// Outside the limits: 4 and 31 seconds (this row starts at 5), 480p, 1080p, an 11th video, a 31st
+	// image, an 11th audio, and turning the audio off (the upstream refuses the switch for the
+	// sibling model, so it is not forwarded here either).
+	for _, body := range []string{
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":4}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":31}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"resolution":"480p"}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"resolution":"1080p"}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"videos":[` + rep(v, 11) + `]}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"images":[` + rep(a, 31) + `]}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"audios":[` + rep(au, 11) + `]}`,
+		`{"model":"` + xmTestXPublic + `","prompt":"x","duration":5,"generate_audio":false}`,
+	} {
+		_, _, err := PreparePPVideoRequestBody(PlatformXMSeedance, PPVideoOperationGeneric, []byte(body))
+		require.Error(t, err, body)
+	}
+
+	// Capabilities come from the same table: 5-30 s, 720p, 30/10/10, no audio switch.
+	caps := PPVideoCapabilitiesForModel(PlatformXMSeedance, xmTestXPublic)
+	require.Equal(t, &PPVideoDurationRange{Min: 5, Max: 30}, caps.Duration)
+	require.Equal(t, []string{"720p"}, caps.Resolutions)
+	require.Equal(t, 30, *caps.Assets.ReferenceImages)
+	require.Equal(t, 10, *caps.Assets.ReferenceVideos)
+	require.Equal(t, 10, *caps.Assets.ReferenceAudios)
+	require.False(t, *caps.GenerateAudio)
 }
 
 func TestXMSeedance20Request(t *testing.T) {
@@ -245,7 +341,7 @@ func TestXMSeedanceModelListAndRouting(t *testing.T) {
 	require.True(t, IsSeedanceHubMemberPlatform(PlatformXMSeedance))
 	require.True(t, PPVideoGroupServesPlatform(PlatformSeedanceHub, PlatformXMSeedance))
 
-	for _, model := range []string{xmTestFace, xmTestVIP, xmTestFull, xmTestFacePublic, xmTestVIPPublic, xmTestFullPublic} {
+	for _, model := range []string{xmTestFace, xmTestVIP, xmTestFull, xmTestFacePublic, xmTestVIPPublic, xmTestFullPublic, xmTestX, xmTestXPublic} {
 		require.True(t, ppVideoModelBelongsToPlatform(PlatformXMSeedance, model), model)
 		// A model of this platform is never foreign to it, even though the upstream id seedance_2.5
 		// starts with "seedance" and so also looks like a model of the generic Seedance platform.
@@ -255,11 +351,13 @@ func TestXMSeedanceModelListAndRouting(t *testing.T) {
 	// This platform's models are foreign to the others.
 	require.True(t, ppVideoModelKnownForeignToPlatform(PlatformZexiSeedance, xmTestVIPPublic))
 	require.True(t, ppVideoModelKnownForeignToPlatform(PlatformHuahuoSeedance, xmTestFullPublic))
+	require.True(t, ppVideoModelKnownForeignToPlatform(PlatformHuahuoSeedance, xmTestXPublic))
 
 	// A whitelist saved under either name is listed once, under the public name.
-	require.Equal(t, []string{xmTestFacePublic, xmTestFullPublic},
-		filterPPVideoPublicModelsForPlatform(PlatformXMSeedance, []string{xmTestFace, xmTestFacePublic, "other", xmTestFull}))
+	require.Equal(t, []string{xmTestFacePublic, xmTestFullPublic, xmTestXPublic},
+		filterPPVideoPublicModelsForPlatform(PlatformXMSeedance, []string{xmTestFace, xmTestFacePublic, "other", xmTestFull, xmTestX, xmTestXPublic}))
 	require.Equal(t, xmTestVIPPublic, PPVideoPublicModelName(PlatformXMSeedance, xmTestVIP))
+	require.Equal(t, xmTestXPublic, PPVideoPublicModelName(PlatformXMSeedance, xmTestX))
 	require.Equal(t, "other", PPVideoPublicModelName(PlatformXMSeedance, "other"))
 }
 
@@ -768,6 +866,7 @@ func TestXMSeedanceCapabilitiesQuoteAndHubLines(t *testing.T) {
 		xmTestFull:  "Seedance2.5--720p--M满参--按次--XM",
 		xmTest20:    "Seedance2.0--480p/720p/1080p--sd2.0--按秒--XM",
 		xmTestFlash: "Seedance2.5--480p/720p--flash--按秒--XM",
+		xmTestX:     "Seedance2.5--720p--X满参--按次--XM",
 	}
 	wantBilling := map[string]BillingMode{
 		xmTestFace:  BillingModePerRequest,
@@ -775,6 +874,7 @@ func TestXMSeedanceCapabilitiesQuoteAndHubLines(t *testing.T) {
 		xmTestFull:  BillingModePerRequest,
 		xmTest20:    BillingModeVideo,
 		xmTestFlash: BillingModeVideo,
+		xmTestX:     BillingModePerRequest,
 	}
 	count := 0
 	for _, line := range SeedanceHubLines() {
@@ -812,11 +912,13 @@ func TestXMSeedanceCapabilitiesQuoteAndHubLines(t *testing.T) {
 	require.Equal(t, len(xmSeedanceModels), count)
 
 	// The operator's final table of 2026-11-19 lists seedance_2.0, seedance_2.5 and seedance_2.5-flash
-	// of XM: those three lines are visible, the other two (vip, M-full) stay hidden.
+	// of XM: those three lines are visible, the other two (vip, M-full) stay hidden. SD2.5-X-满参
+	// (2026-11-24, the operator's request, with a price) is visible too.
 	for name, wantHidden := range map[string]bool{
 		"Seedance2.0--480p/720p/1080p--sd2.0--按秒--XM": false,
 		"Seedance2.5--720p--稳定满参真人脸--按次--XM":             false,
 		"Seedance2.5--480p/720p--flash--按秒--XM":      false,
+		"Seedance2.5--720p--X满参--按次--XM":            false,
 		"Seedance2.5--720p--01--按次--XM":              true,
 		"Seedance2.5--720p--M满参--按次--XM":            true,
 	} {

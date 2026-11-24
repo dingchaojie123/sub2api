@@ -88,6 +88,19 @@ describe('ModelListView', () => {
     ]))
   })
 
+  it('lists 喵呜 seedance-2.5-deal (visible again on 2026-11-24) as a per-second 720p model', () => {
+    const model = modelSquareCatalog.find((item) => item.name === 'Seedance2.5--720p--deal--按秒--W')
+
+    expect(model).toMatchObject({ category: 'video', billing: '按秒' })
+    expect(model?.prices).toEqual([
+      expect.objectContaining({ label: '720P', amount: '1.2', suffix: '积分 / 秒' }),
+    ])
+    expect(model?.specs).toEqual(expect.arrayContaining([
+      { label: '时长', value: '4–30 秒' },
+      { label: '参考图片', value: '最多 30 张' },
+    ]))
+  })
+
   it('shows the lines of the 2026-11-17 operations sheet and hides the withdrawn ones', () => {
     const names = modelSquareCatalog.map((item) => item.name)
 
@@ -165,6 +178,8 @@ describe('ModelListView', () => {
       ['Seedance2.0--480p/720p--mini--按次--V6K', '4', ['9', '0', '3'], '4–15 秒'],
       // 2026-11-23: V6K 活动 (seedanco2.5-720)
       ['Seedance2.5--720p--活动--按次--V6K', '19', ['30', '10', '10'], '4–30 秒'],
+      // 2026-11-24: XM SD2.5-X-满参支持人脸
+      ['Seedance2.5--720p--X满参--按次--XM', '19', ['30', '10', '10'], '5–30 秒'],
     ]
     const refValue = (item: (typeof modelSquareCatalog)[number], label: string) =>
       item.specs.find((row) => row.label === label)?.value ?? ''

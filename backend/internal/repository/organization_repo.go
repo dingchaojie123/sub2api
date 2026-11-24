@@ -716,7 +716,13 @@ func (r *organizationRepository) GetBillingSubjectByAPIKey(ctx context.Context, 
 	err := r.db.QueryRowContext(ctx, `SELECT ok.organization_id,ok.member_user_id,o.balance,o.frozen_balance,m.monthly_limit,
 		CASE WHEN m.usage_period_start < date_trunc('month',NOW()) THEN 0 ELSE m.monthly_used END,
 		CASE WHEN m.usage_period_start < date_trunc('month',NOW()) THEN 0 ELSE m.monthly_frozen END,
-		o.status,m.status,ok.status FROM organization_api_keys ok JOIN organizations o ON o.id=ok.organization_id JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id WHERE ok.api_key_id=$1 AND ok.status <> 'detached'`, apiKeyID).Scan(&s.OrganizationID, &s.MemberUserID, &s.Balance, &s.FrozenBalance, &s.MonthlyLimit, &s.MonthlyUsed, &s.MonthlyFrozen, &orgStatus, &memberStatus, &keyStatus)
+		o.status,m.status,ok.status,
+		(ok.source_api_key_id IS NOT NULL AND EXISTS (
+			SELECT 1 FROM organization_api_keys src
+			JOIN api_keys sk ON sk.id=src.api_key_id AND sk.deleted_at IS NULL AND sk.status='active'
+			WHERE src.api_key_id=ok.source_api_key_id AND src.organization_id=ok.organization_id
+			AND src.shared_with_team AND src.status='active'))
+		FROM organization_api_keys ok JOIN organizations o ON o.id=ok.organization_id JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id WHERE ok.api_key_id=$1 AND ok.status <> 'detached'`, apiKeyID).Scan(&s.OrganizationID, &s.MemberUserID, &s.Balance, &s.FrozenBalance, &s.MonthlyLimit, &s.MonthlyUsed, &s.MonthlyFrozen, &orgStatus, &memberStatus, &keyStatus, &s.SharedFromTeam)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

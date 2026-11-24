@@ -467,6 +467,11 @@ func validateAPIKeyGroupAllowed(apiKey *service.APIKey) bool {
 	if group.IsSubscriptionType() {
 		return true
 	}
+	// 创建者共享给团队成员的副本：授权的是创建者，成员本人不需要被授权该专属分组。
+	// 源 Key 取消共享 / 失效后这里的标记随之消失（副本也会被停用）。
+	if apiKey.Organization != nil && apiKey.Organization.SharedFromTeam {
+		return true
+	}
 	return apiKey.User.CanBindGroup(group.ID, group.IsExclusive)
 }
 

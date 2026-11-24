@@ -18,7 +18,7 @@ const (
 	lineRouteXM  = "Seedance2.5--720p--稳定满参真人脸--按次--XM"
 	lineRouteW20 = "Seedance2.0--720p--doubao-fast--按次--W"
 	// A line withdrawn from the site (Hidden): it cannot be the target of a route.
-	lineRouteHidden = "Seedance2.5--720p--deal--按秒--W"
+	lineRouteHidden = "Seedance2.5--720p--flash-tj--按次--W"
 )
 
 // lineRouteStoreStub is the route storage and the group lookup; it is the usage billing

@@ -1622,6 +1622,51 @@ func TestAPIKeyAuthTeamKeyIgnoresPersonalBalanceWhenTeamHasQuota(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+// 创建者把绑定专属分组的 Key 共享给团队：成员本人没有该分组授权，副本也能调用；
+// 同分组的普通团队 Key（不是共享副本）仍然按成员本人授权校验。
+func TestAPIKeyAuthSharedTeamKeyMayUseCreatorsExclusiveGroup(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name       string
+		shared     bool
+		wantStatus int
+	}{
+		{"shared copy is allowed", true, http.StatusOK},
+		{"ordinary team key is still checked", false, http.StatusForbidden},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			user := &service.User{ID: 23, Role: service.RoleUser, Status: service.StatusActive, Balance: 0}
+			group := &service.Group{ID: 12, Platform: service.PlatformOpenAI, Status: service.StatusActive, IsExclusive: true}
+			apiKey := &service.APIKey{
+				ID: 108, UserID: user.ID, Key: "team-key-exclusive-" + tc.name, Status: service.StatusAPIKeyActive,
+				User: user, Group: group, GroupID: &group.ID,
+				Organization: &service.OrganizationBillingSubject{OrganizationID: 1, MemberUserID: user.ID, Balance: 100, Active: true, SharedFromTeam: tc.shared},
+			}
+			apiKeyRepo := &stubApiKeyRepo{getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+				if key != apiKey.Key {
+					return nil, service.ErrAPIKeyNotFound
+				}
+				clone := *apiKey
+				userClone := *user
+				orgClone := *apiKey.Organization
+				clone.User = &userClone
+				clone.Organization = &orgClone
+				return &clone, nil
+			}}
+
+			cfg := &config.Config{RunMode: config.RunModeStandard}
+			router := newAuthTestRouter(service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg), nil, cfg)
+			w := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			req.Header.Set("x-api-key", apiKey.Key)
+			router.ServeHTTP(w, req)
+			require.Equal(t, tc.wantStatus, w.Code)
+		})
+	}
+}
+
 func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg)))

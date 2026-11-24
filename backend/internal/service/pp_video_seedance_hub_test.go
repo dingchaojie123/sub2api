@@ -221,7 +221,7 @@ func TestSeedanceHubLineTable(t *testing.T) {
 	t.Parallel()
 
 	lines := SeedanceHubLines()
-	require.Len(t, lines, 97)
+	require.Len(t, lines, 98)
 
 	owner := map[string]string{}
 	irregularSeen := 0
@@ -351,12 +351,18 @@ func TestSeedanceHubVisibleLines(t *testing.T) {
 		"Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K",
 		"Seedance2.0--480p/720p--官方fast--按次--V6K",
 		"Seedance2.0--480p/720p--mini--按次--V6K",
+		// 2026-11-24, the operator's request: 喵呜 seedance-2.5-deal is visible again.
+		"Seedance2.5--720p--deal--按秒--W",
 		// 2026-11-23, the operator's request: V6K 活动 (seedanco2.5-720).
 		"Seedance2.5--720p--活动--按次--V6K",
 		// 2026-11-21, the operator's request: 红佩 s / nh / X (the other H lines stay hidden).
 		"Seedance2.5--720p--s--按次--H",
 		"Seedance2.5--480p/720p/1080p--nh--按秒--H",
 		"Seedance2.5--720p--X--按次--H",
+		// 2026-11-24, the operator's request: 红佩 L is not hidden (still in use).
+		"Seedance2.5--720p--L--按次--H",
+		// 2026-11-24, the operator's request: XM SD2.5-X-满参支持人脸 (按次 19, 5-30 s).
+		"Seedance2.5--720p--X满参--按次--XM",
 	}
 	var visible []string
 	for _, line := range SeedanceHubLines() {

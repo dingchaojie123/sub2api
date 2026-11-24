@@ -241,15 +241,18 @@ func (r *organizationRepository) restoreSharedCopies(ctx context.Context, tx *sq
 // onlyMemberUserID 传 0 表示团队里所有在团成员。
 //
 // 跳过的成员：源 Key 的创建者本人、已停用 / 已移除成员、已有副本的成员（含已停用副本，由 restore 负责恢复）、
-// 账号非正常状态的用户、没有权限使用源 Key 所绑专属分组的用户（否则副本调用时会被 GROUP_NOT_ALLOWED 拒绝）。
+// 账号非正常状态的用户。
+//
+// 不再按「是否被授权专属分组」过滤：专属分组授权的是创建者，创建者主动把这把 Key 共享给团队，
+// 就是把这把 Key 的使用权给了成员。成员只能通过这把副本使用该分组（调用时的分组校验对副本放行，见
+// middleware validateAPIKeyGroupAllowed 与 OrganizationBillingSubject.SharedFromTeam），
+// 不会因此获得该分组的授权，也不能用它新建别的 Key；创建者取消共享后副本立即停用。
 func (r *organizationRepository) cloneSharedKey(ctx context.Context, tx *sql.Tx, organizationID, sourceAPIKeyID, onlyMemberUserID int64) (int, error) {
 	rows, err := tx.QueryContext(ctx, `SELECT m.user_id FROM organization_members m
 		JOIN users u ON u.id=m.user_id AND u.deleted_at IS NULL AND u.status='active'
 		JOIN api_keys k ON k.id=$2 AND k.deleted_at IS NULL AND k.status='active' AND (k.expires_at IS NULL OR k.expires_at>NOW())
-		LEFT JOIN groups g ON g.id=k.group_id
 		WHERE m.organization_id=$1 AND m.status='active' AND m.user_id<>k.user_id
 		AND ($3::bigint=0 OR m.user_id=$3::bigint)
-		AND (g.id IS NULL OR g.is_exclusive=FALSE OR EXISTS (SELECT 1 FROM user_allowed_groups ug WHERE ug.user_id=m.user_id AND ug.group_id=g.id))
 		AND NOT EXISTS (SELECT 1 FROM organization_api_keys c WHERE c.source_api_key_id=k.id AND c.member_user_id=m.user_id)
 		ORDER BY m.user_id`, organizationID, sourceAPIKeyID, onlyMemberUserID)
 	if err != nil {

@@ -98,13 +98,15 @@ func newDefaultKeysTestService() (*APIKeyService, *defaultKeysRepoStub, *default
 	}, repo, groups
 }
 
-func TestDefaultVideoAPIKeyUsesTTSeedanceGroup(t *testing.T) {
+func TestDefaultVideoAPIKeyUsesTTSeedanceSpecialGroup(t *testing.T) {
 	t.Parallel()
 
 	name, ok := defaultAPIKeyGroupName("video")
 	require.True(t, ok)
-	require.Equal(t, "TT--Seedance", name)
-	require.Contains(t, signupAPIKeyGroupNames, "TT--Seedance")
+	require.Equal(t, "TT--Seedance【特惠】", name)
+	require.Contains(t, signupAPIKeyGroupNames, "TT--Seedance【特惠】")
+	// The plain TT--Seedance group is no longer provisioned at signup.
+	require.NotContains(t, signupAPIKeyGroupNames, "TT--Seedance")
 	require.NotContains(t, signupAPIKeyGroupNames, "TikTok--Seedance")
 	require.NotContains(t, signupAPIKeyGroupNames, "视频【聚合】")
 }

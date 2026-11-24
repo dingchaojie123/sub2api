@@ -48,6 +48,8 @@ import (
 // 9 images / 0 videos / 3 audios. A fifth model, seedance_2.5-flash (public name
 // Seedance2.5-XM-flash), followed the same day: per second (480p 0.6 / 720p 1 credit since 2026-11-20; it was 0.4 / 0.7), 480p or
 // 720p, 4-30 seconds, 10 images / 0 videos / 5 audios.
+// A sixth model, SD2.5-X-满参支持人脸 (public name Seedance2.5-XM-X-full), was added on 2026-11-24:
+// per request (19 credits), 720p, 5-30 seconds, 30 images / 10 videos / 10 audios.
 // The mapping of the operator's descriptions to the upstream ids follows the order in which the
 // operator gave them (the three ids were given in the same order as the three descriptions, and
 // the 720P in the second id agrees with the 720p-only second description); correct a row here if
@@ -136,6 +138,18 @@ var xmSeedanceModels = []jijiuModelSpec{
 		Name: "seedance_2.5-flash", PublicName: "Seedance2.5-XM-flash", MinSeconds: 4, MaxSeconds: 30,
 		Resolutions: []string{"480p", "720p"}, DefaultResolution: "720p", ForwardResolution: true,
 		MaxImages: 10, MaxVideos: 0, MaxAudios: 5, FirstLastFrame: true,
+	},
+	{
+		// SD2.5-X-满参支持人脸 (added 2026-11-24 by the operator), per request (19 credits): 720p,
+		// 5-30 seconds (this row starts at 5, the other 2.5 rows at 4), 30 images / 10 videos / 10
+		// audios. The public name and the NoAudioSwitch flag are MY choices: the id carries Chinese text
+		// and no "seedance", so clients get Seedance2.5-XM-X-full; and the sibling SD2.5-M-满参支持人脸
+		// (same description) answers HTTP 400 to enable_audio, so the switch is left out here too
+		// (true -> omitted, false -> local 400). Drop NoAudioSwitch if the upstream turns out to accept
+		// it. First / last frames are ASSUMED to be offered as on the other rows.
+		Name: "SD2.5-X-满参支持人脸", PublicName: "Seedance2.5-XM-X-full", MinSeconds: 5, MaxSeconds: 30,
+		Resolutions: []string{"720p"}, DefaultResolution: "720p", ForwardResolution: true,
+		MaxImages: 30, MaxVideos: 10, MaxAudios: 10, FirstLastFrame: true, NoAudioSwitch: true,
 	},
 }
 

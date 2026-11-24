@@ -148,6 +148,9 @@ type OrganizationBillingSubject struct {
 	MonthlyUsed    float64 `json:"monthly_used"`
 	MonthlyFrozen  float64 `json:"monthly_frozen"`
 	Active         bool    `json:"active"`
+	// SharedFromTeam：这把 Key 是创建者「共享给团队成员」后系统发给成员的副本，且源 Key 仍处于共享且有效状态。
+	// 这类副本可以使用源 Key 所绑的专属分组，即使成员本人没有被授权该分组（授权的是创建者）。
+	SharedFromTeam bool `json:"shared_from_team"`
 }
 
 type BillingSourceSnapshot struct {

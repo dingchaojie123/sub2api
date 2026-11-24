@@ -136,8 +136,9 @@ var seedanceHubLines = []SeedanceHubLine{
 	{Name: "Seedance2.5--720p--301010--按次--J", Platform: PlatformJijiuSeedance, Model: "Seedance2.5按次收费J2", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
 	{Name: "Seedance2.5--720p--30-10--按次--J", Platform: PlatformJijiuSeedance, Model: "Seedance2.5 按次收费J1", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
 	// 喵呜 (W)
-	// 2026-11-19 final table: the visible 喵呜 lines are exactly slow (特价满血), pro, flash, flash-s,
-	// doubao-fast and doubao-mini. fast-deal, fast, 2.0-tj, 2.0-pro, 2.5 flash-tj / tj / wx are hidden
+	// 2026-11-19 final table: the visible 喵呜 lines were exactly slow (特价满血), pro, flash, flash-s,
+	// doubao-fast and doubao-mini; deal was added back on 2026-11-24. fast-deal, fast, 2.0-tj, 2.0-pro,
+	// 2.5 flash-tj / tj / wx are hidden
 	// (still answered by name; to show one again delete its Hidden flag).
 	// slow takes 480p or 720p since 2026-11-12 (the name used to say 720p only; the old name is
 	// kept as a legacy name, but its channel price must be re-entered under the new name).
@@ -146,7 +147,9 @@ var seedanceHubLines = []SeedanceHubLine{
 	// seedance-2.5-特价满血). The previous name is NOT kept as a legacy name (operator's decision),
 	// and its channel price must be re-entered under the new name.
 	{Name: "Seedance2.5--480p/720p--特价满血--按秒--W", Platform: PlatformMiaowuSeedance, Model: "seedance-2.5-slow", Version: seedanceHubVersion25, Billing: BillingModeVideo, LegacyNames: []string{"Seedance2.5--720p--slow--按秒--W"}},
-	{Name: "Seedance2.5--720p--deal--按秒--W", Platform: PlatformMiaowuSeedance, Model: "seedance-2.5-deal", Version: seedanceHubVersion25, Billing: BillingModeVideo, Hidden: true},
+	// deal was hidden by the 2026-11-19 sweep and is VISIBLE again since 2026-11-24 (the operator's
+	// request): 720p only, per second (1.2 credits), 4-30 seconds, 30 images / no videos / 10 audios.
+	{Name: "Seedance2.5--720p--deal--按秒--W", Platform: PlatformMiaowuSeedance, Model: "seedance-2.5-deal", Version: seedanceHubVersion25, Billing: BillingModeVideo},
 	{Name: "Seedance2.5--480p/720p--flash--按次--W", Platform: PlatformMiaowuSeedance, Model: "seedance-2.5-flash", Version: seedanceHubVersion25, Billing: BillingModePerRequest},
 	{Name: "Seedance2.5--720p--pro--按次--W", Platform: PlatformMiaowuSeedance, Model: "seedance-2.5-pro", Version: seedanceHubVersion25, Billing: BillingModePerRequest},
 	// Seedance 2.0 lines of 喵呜 (2026-11-13). deal is per request but priced per resolution
@@ -227,7 +230,8 @@ var seedanceHubLines = []SeedanceHubLine{
 	// flash takes 480p or 720p at one price. Ratios, prompt limits and reference limits differ per
 	// model and are enforced by the platform's own table (pp_video_hongpei.go).
 	// Model is the public name; the upstream names (vs-sd2.5-L, ...) are still accepted in the hub.
-	{Name: "Seedance2.5--720p--L--按次--H", Platform: PlatformHongpeiSeedance, Model: "Seedance2.5-vs-L", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
+	// L is VISIBLE since 2026-11-24 (the operator's request: "不要隐藏", still in use); v, Y and flash stay hidden.
+	{Name: "Seedance2.5--720p--L--按次--H", Platform: PlatformHongpeiSeedance, Model: "Seedance2.5-vs-L", Version: seedanceHubVersion25, Billing: BillingModePerRequest},
 	{Name: "Seedance2.5--720p--v--按次--H", Platform: PlatformHongpeiSeedance, Model: "Seedance2.5-vs-v", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
 	{Name: "Seedance2.5--720p--Y--按次--H", Platform: PlatformHongpeiSeedance, Model: "Seedance2.5-vs-Y", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
 	{Name: "Seedance2.5--480p/720p--flash--按次--H", Platform: PlatformHongpeiSeedance, Model: "Seedance2.5-vs-flash", Version: seedanceHubVersion25, Billing: BillingModePerRequest, Hidden: true},
@@ -286,6 +290,9 @@ var seedanceHubLines = []SeedanceHubLine{
 	// seedance_2.5-flash (2026-11-19, from the operator), visible: per second (480p 0.6 / 720p 1
 	// credit since 2026-11-20; 0.4 / 0.7 before), 4-30 seconds, 10 images / no videos / 5 audios. The public name is mine.
 	{Name: "Seedance2.5--480p/720p--flash--按秒--XM", Platform: PlatformXMSeedance, Model: "Seedance2.5-XM-flash", Version: seedanceHubVersion25, Billing: BillingModeVideo},
+	// SD2.5-X-满参支持人脸 (2026-11-24, from the operator), visible: per request (19 credits), 720p,
+	// 5-30 seconds, 30 images / 10 videos / 10 audios. The model segment X满参 follows M满参; the public name is mine.
+	{Name: "Seedance2.5--720p--X满参--按次--XM", Platform: PlatformXMSeedance, Model: "Seedance2.5-XM-X-full", Version: seedanceHubVersion25, Billing: BillingModePerRequest},
 	// 奶蛙 (NW, 2026-11-17): three Seedance 2.5 models, all billed per request (the prices live in the
 	// channel; the two M models are priced per resolution). The model segment is the part of the
 	// upstream id after "奶蛙sd2.5-" (V / flash-M / M). The letter N is taken by XSN, so the platform tag

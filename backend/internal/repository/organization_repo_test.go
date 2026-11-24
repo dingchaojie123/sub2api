@@ -44,7 +44,7 @@ func TestGetBillingSubjectTreatsDetachedBindingAsPersonal(t *testing.T) {
 	mock.ExpectQuery(`WHERE ok.api_key_id=\$1 AND ok.status <> 'detached'`).WithArgs(int64(205)).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"organization_id", "member_user_id", "balance", "frozen_balance", "monthly_limit",
-			"monthly_used", "monthly_frozen", "organization_status", "member_status", "key_status",
+			"monthly_used", "monthly_frozen", "organization_status", "member_status", "key_status", "shared_from_team",
 		}))
 
 	subject, err := (&organizationRepository{db: db}).GetBillingSubjectByAPIKey(context.Background(), 205)
