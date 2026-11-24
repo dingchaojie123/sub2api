@@ -112,7 +112,7 @@
 
         <section v-else-if="tab === 'members'" class="overflow-x-auto">
           <table class="data-table"><thead><tr><th>成员</th><th>角色</th><th>状态</th><th>本月用量 / 限额</th><th v-if="canManage">操作</th></tr></thead><tbody>
-            <tr v-for="member in members" :key="member.user_id"><td><div class="font-medium">{{ member.username }}</div><div class="text-xs text-gray-500">{{ member.email }}</div></td><td><div v-if="canManage && member.role !== 'owner'" class="role-select-wrap" :class="{ 'opacity-60': busy }"><Icon :name="member.role === 'admin' ? 'shield' : 'user'" size="sm" class="role-icon" /><select :value="member.role" class="role-select" aria-label="成员角色" :disabled="busy" @change="changeRole(member, $event)"><option value="member">成员</option><option v-if="current?.role === 'owner'" value="admin">管理员</option></select><Icon name="chevronDown" size="xs" class="role-chevron" /></div><span v-else class="role-badge" :class="`role-${member.role}`"><Icon :name="member.role === 'owner' || member.role === 'admin' ? 'shield' : 'user'" size="xs" />{{ roleLabel(member.role) }}</span></td><td><span class="status-dot"><span></span>正常</span></td><td>{{ money(member.monthly_used) }} / {{ member.monthly_limit > 0 ? money(member.monthly_limit) : '不限' }}</td><td v-if="canManage"><div v-if="member.role !== 'owner'" class="flex gap-3"><button class="link-button" @click="setLimit(member)">设置限额</button><button class="link-button text-red-600 dark:text-red-400" @click="removeMember(member)">移除</button></div></td></tr>
+            <tr v-for="member in members" :key="member.user_id"><td><div class="font-medium">{{ member.username }}</div><div class="text-xs text-gray-500">{{ member.email }}</div></td><td><div v-if="canManage && member.role !== 'owner'" class="role-select-wrap" :class="{ 'opacity-60': busy }"><Icon :name="member.role === 'admin' ? 'shield' : 'user'" size="sm" class="role-icon" /><select :value="member.role" class="role-select" aria-label="成员角色" :disabled="busy" @change="changeRole(member, $event)"><option value="member">成员</option><option v-if="current?.role === 'owner'" value="admin">管理员</option></select><Icon name="chevronDown" size="xs" class="role-chevron" /></div><span v-else class="role-badge" :class="`role-${member.role}`"><Icon :name="member.role === 'owner' || member.role === 'admin' ? 'shield' : 'user'" size="xs" />{{ roleLabel(member.role) }}</span></td><td><span class="status-dot"><span></span>正常</span></td><td>{{ money(member.monthly_used) }} / {{ member.monthly_limit > 0 ? money(member.monthly_limit) : '不限' }}</td><td v-if="canManage"><div v-if="member.role !== 'owner'" class="flex gap-3"><button class="link-button" @click="setLimit(member)">设置限额</button><button class="link-button" @click="openMemberDetail(member)">查看明细</button><button class="link-button text-red-600 dark:text-red-400" @click="removeMember(member)">移除</button></div></td></tr>
           </tbody></table>
         </section>
 
@@ -143,6 +143,9 @@
           </div>
           <Pagination v-if="fundTotal > 0" :page="fundPage" :page-size="fundPageSize" :total="fundTotal" @update:page="loadFundRecords" @update:pageSize="changeFundPageSize" />
         </section>
+
+        <!-- 成员明细：某个成员具体用了哪些模型、提交了哪些视频 / 批量图片任务，并可预览视频成果；仅超级管理员和管理员可见 -->
+        <OrganizationMemberDetail v-else-if="tab === 'detail'" v-model:user-id="detailUserId" :organization-id="current?.id || 0" :members="members" :active="tab === 'detail'" />
 
         <section v-else-if="tab === 'usage'" class="overflow-x-auto"><table class="data-table"><thead><tr><th>模型</th><th>请求</th><th>Token</th><th>费用</th></tr></thead><tbody><tr v-for="row in usage?.models || []" :key="row.model"><td>{{ row.model }}</td><td>{{ row.total_requests }}</td><td>{{ row.total_tokens }}</td><td>{{ money(row.total_cost) }}</td></tr></tbody></table></section>
         <section v-else class="space-y-2"><div v-for="item in auditLogs" :key="item.id" class="flex flex-col gap-1 border-b border-gray-100 py-3 text-sm dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between"><div><span class="font-medium">{{ item.action }}</span><span class="ml-2 text-gray-500">{{ item.target_type }} #{{ item.target_id }}</span></div><time class="text-xs text-gray-500">{{ dateTime(item.created_at) }}</time></div></section>
@@ -221,11 +224,13 @@ import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import { Icon } from '@/components/icons'
 import EnterpriseStatusBadge from '@/components/enterprise/EnterpriseStatusBadge.vue'
+import OrganizationMemberDetail from '@/components/organization/OrganizationMemberDetail.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useWorkspaceAccessStore } from '@/stores/workspaceAccess'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
+import { confirmDialog, promptDialog } from '@/composables/useDialog'
 import { extractInviteToken } from '@/utils/organizationInvite'
 import { organizationsAPI, type Organization, type OrganizationAuditLog, type OrganizationFundRecord, type OrganizationInvitation, type OrganizationMember, type OrganizationUsageReport } from '@/api/organizations'
 
@@ -241,7 +246,7 @@ const enterprise = computed(() => workspaceAccess.enterprise)
 const organizations=ref<Organization[]>([]),selectedId=ref(0),members=ref<OrganizationMember[]>([]),invitations=ref<OrganizationInvitation[]>([]),usage=ref<OrganizationUsageReport|null>(null),auditLogs=ref<OrganizationAuditLog[]>([])
 const loading=ref(true),busy=ref(false),tab=ref('overview'),showCreate=ref(false),showAccept=ref(false),showDelete=ref(false),showLeave=ref(false),createName=ref(''),createSeats=ref(5),acceptToken=ref(''),fundAmount=ref<number>(),withdrawAmount=ref<number>(),inviteEmail=ref(''),inviteRole=ref('member'),inviteLink=ref('')
 // 「资金记录」「审计日志」只对超级管理员和管理员有意义；普通成员不展示该标签
-const tabs=computed(()=>[{key:'overview',label:'概览'},{key:'members',label:'成员'},{key:'invitations',label:'邀请'},{key:'usage',label:'模型用量'},...(canManage.value?[{key:'funds',label:'资金记录'}]:[]),{key:'audit',label:'审计日志'}])
+const tabs=computed(()=>[{key:'overview',label:'概览'},{key:'members',label:'成员'},{key:'invitations',label:'邀请'},{key:'usage',label:'模型用量'},...(canManage.value?[{key:'detail',label:'成员明细'},{key:'funds',label:'资金记录'}]:[]),{key:'audit',label:'审计日志'}])
 const fundRecords=ref<OrganizationFundRecord[]>([]),fundTotal=ref(0),fundPage=ref(1),fundPageSize=ref(20),fundLoading=ref(false)
 async function loadFundRecords(page=fundPage.value){
   if(!current.value||!canManage.value)return
@@ -251,6 +256,9 @@ async function loadFundRecords(page=fundPage.value){
   finally{fundLoading.value=false}
 }
 function changeFundPageSize(size:number){fundPageSize.value=size;return loadFundRecords(1)}
+// 成员明细标签（OrganizationMemberDetail 组件）当前选中的成员；「成员」页的「查看明细」会直接设置它
+const detailUserId=ref(0)
+function openMemberDetail(member:OrganizationMember){detailUserId.value=member.user_id;tab.value='detail'}
 const current=computed(()=>organizations.value.find(item=>item.id===selectedId.value)),canManage=computed(()=>current.value?.role==='owner'||current.value?.role==='admin')
 const organizationOptions=computed(()=>organizations.value.map(item=>({value:item.id,label:item.name,role:item.role,seatUsed:item.seat_used,seatLimit:item.seat_limit})))
 const money=(value:number)=>Number(value||0).toFixed(4),dateTime=(value:string)=>new Date(value).toLocaleString(),roleLabel=(role?:string)=>({owner:'超级管理员',admin:'管理员',member:'成员'}[role||'']||role||'')
@@ -264,7 +272,7 @@ async function fund(){if(!current.value||!fundAmount.value)return;busy.value=tru
 async function withdraw(){
   if(!current.value||!withdrawAmount.value||busy.value)return
   const amount=withdrawAmount.value
-  if(!window.confirm(`确认将 ${money(amount)} 额度从“${current.value.name}”转出到你的个人余额？`))return
+  if(!(await confirmDialog(`确认将 ${money(amount)} 额度从“${current.value.name}”转出到你的个人余额？`,{title:'转出额度'})))return
   busy.value=true
   try{const item=await organizationsAPI.withdraw(current.value.id,amount);organizations.value=organizations.value.map(org=>org.id===item.id?item:org);withdrawAmount.value=undefined;await authStore.refreshUser().catch(()=>undefined);appStore.showSuccess('已转出到个人余额')}
   catch(error){appStore.showError(withdrawErrorMessage(error))}
@@ -279,15 +287,15 @@ function withdrawErrorMessage(error:unknown){
 async function createInvitation(){if(!current.value)return;busy.value=true;try{const item=await organizationsAPI.invite(current.value.id,{email:inviteEmail.value||undefined,role:inviteRole.value,max_uses:inviteEmail.value?1:20,expires_in_hours:168});inviteLink.value=item.token?`${window.location.origin}/organizations?invite=${encodeURIComponent(item.token)}`:'';inviteEmail.value='';invitations.value=await organizationsAPI.invitations(current.value.id)}finally{busy.value=false}}
 async function copyInvite(){await navigator.clipboard.writeText(inviteLink.value)}
 async function changeRole(member:OrganizationMember,event:Event){if(!current.value)return;await organizationsAPI.updateMember(current.value.id,member.user_id,{role:(event.target as HTMLSelectElement).value});await loadWorkspace()}
-async function setLimit(member:OrganizationMember){if(!current.value)return;const raw=window.prompt('输入每月额度（USD），0 表示不限',String(member.monthly_limit));if(raw===null)return;const value=Number(raw);if(!Number.isFinite(value)||value<0)return;await organizationsAPI.updateMember(current.value.id,member.user_id,{monthly_limit:value});await loadWorkspace()}
-async function removeMember(member:OrganizationMember){if(!current.value||!window.confirm(`确认移除 ${member.username||member.email}？其团队 Key 将立即停用。`))return;await organizationsAPI.removeMember(current.value.id,member.user_id);await loadWorkspace()}
+async function setLimit(member:OrganizationMember){if(!current.value)return;const raw=await promptDialog('输入每月额度（USD），0 表示不限',{title:'设置每月限额',defaultValue:String(member.monthly_limit),inputType:'number'});if(raw===null)return;const value=Number(raw);if(raw.trim()===''||!Number.isFinite(value)||value<0){appStore.showError('请输入大于等于 0 的数字');return}await organizationsAPI.updateMember(current.value.id,member.user_id,{monthly_limit:value});await loadWorkspace()}
+async function removeMember(member:OrganizationMember){if(!current.value)return;const ok=await confirmDialog(`确认移除 ${member.username||member.email}？其团队 Key 将立即停用。`,{title:'移除成员',confirmText:'移除',danger:true});if(!ok)return;await organizationsAPI.removeMember(current.value.id,member.user_id);await loadWorkspace()}
 // 退出团队：创建者不可退出（只能删除团队）。退出后若不再有任何团队访问权限（个人账号），回到个人资料页，那里有「加入团队」入口。
 async function leaveOrganization(){const id=current.value?.id,uid=authStore.user?.id;if(!id||!uid||busy.value)return;busy.value=true;try{await organizationsAPI.leave(id,uid);showLeave.value=false;selectedId.value=0;members.value=[];invitations.value=[];usage.value=null;auditLogs.value=[];tab.value='overview';await workspaceAccess.fetch(true);if(!workspaceAccess.hasTeamAccess){await router.replace('/profile');return}await refresh()}finally{busy.value=false}}
 function closeDialogs(){showCreate.value=false;showAccept.value=false;showDelete.value=false;showLeave.value=false}
 watch(tab,async(value)=>{if(value==='audit'&&canManage.value&&current.value)auditLogs.value=await organizationsAPI.auditLogs(current.value.id);if(value==='funds')await loadFundRecords(1)})
 // 在资金记录页切换团队，或角色变化导致标签消失时同步
-watch(selectedId,()=>{if(tab.value==='funds')void loadFundRecords(1)})
-watch(canManage,(ok)=>{if(!ok&&(tab.value==='funds'||tab.value==='audit'))tab.value='overview'})
+watch(selectedId,()=>{detailUserId.value=0;if(tab.value==='funds')void loadFundRecords(1)})
+watch(canManage,(ok)=>{if(!ok&&(tab.value==='funds'||tab.value==='audit'||tab.value==='detail'))tab.value='overview'})
 onMounted(async()=>{
   await Promise.all([refresh(),workspaceAccess.fetch(true)])
   // 通过邀请链接进入：自动打开「加入团队」并填入令牌

@@ -112,6 +112,15 @@ export default {
     teamSharedBalance: 'Team shared balance',
     teamBalanceHint: 'You manage this key, while usage is charged to the selected team balance.',
     personalBalanceHint: 'Usage is charged to your personal balance.',
+    shareWithTeam: 'Share with team members',
+    shareWithTeamHint: 'Every team member automatically gets their own key with the same settings (group, quota, rate limits and IP rules). Members who join later receive it on joining. Usage counts against the team balance and is tracked per member.',
+    sharedWithTeamBadge: 'Shared with members',
+    sharedFromTeamBadge: 'Team shared',
+    sharedFromTeamHint: 'This key was shared by the team owner and issued to you when you joined the team.',
+    teamShareEnabledSuccess: 'Shared with team members. {issued} key(s) issued',
+    teamShareDisabledSuccess: 'Sharing stopped. Member copies of this key have been disabled',
+    teamShareSkipped: '{skipped} member(s) did not get a copy (for example, no access to the key\'s exclusive group)',
+    failedToUpdateTeamShare: 'Failed to update team sharing',
     groupLabel: 'Group',
     selectGroup: 'Select a group',
     statusLabel: 'Status',
@@ -656,6 +665,7 @@ export default {
       rebateRate: 'My Rebate Rate',
       rebateRateHint: 'What you earn each time an invitee recharges',
       invitedUsers: 'Invited Users',
+      secondLevelUsers: 'Second-level: {count}',
       availableQuota: 'Available Rebate Quota',
       frozenQuota: 'Frozen',
       frozenQuotaHint: 'Recently earned rebates pending release',
@@ -677,6 +687,16 @@ export default {
         username: 'Username',
         rebate: 'Rebate',
         joinedAt: 'Joined At'
+      }
+    },
+    secondLevel: {
+      tabFirst: 'Level 1',
+      tabSecond: 'Level 2',
+      hint: 'Level-2 users are people invited by your level-1 users. This list is view-only and does not earn rebates.',
+      empty: 'No level-2 users yet',
+      truncated: 'Showing the latest {shown} of {total} level-2 users',
+      columns: {
+        via: 'Invited By (Level 1)'
       }
     },
     tips: {

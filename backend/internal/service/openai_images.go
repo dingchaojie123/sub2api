@@ -484,9 +484,15 @@ func isOpenAIImageGenerationModel(model string) bool {
 }
 
 // IsGPTImageGenerationModel identifies the GPT native image-generation model family.
+//
+// Third-party relays commonly expose the same family under a vendor prefix
+// (e.g. "zzs-gpt-image-2.6-flare"), and admins map public names onto those
+// upstream names. Matching "gpt-image-" anywhere in the name (not only as a
+// prefix) keeps such models on the images endpoint instead of being rejected
+// with "images endpoint requires an image model".
 func IsGPTImageGenerationModel(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "gpt-image-")
+	return strings.HasPrefix(model, "gpt-image-") || strings.Contains(model, "-gpt-image-")
 }
 
 func isDoubaoSeedreamImageGenerationModel(model string) bool {

@@ -8,7 +8,7 @@ vi.mock('@/api/client', () => ({
   apiClient: { put },
 }))
 
-import { setBillingSource } from '@/api/keys'
+import { setBillingSource, setTeamShare } from '@/api/keys'
 
 describe('API key billing source API', () => {
   beforeEach(() => {
@@ -42,5 +42,22 @@ describe('API key billing source API', () => {
     await setBillingSource(205, 'personal')
 
     expect(put.mock.calls[0][1]).toEqual({ api_key_id: 205, type: 'personal' })
+  })
+
+  it('sends the team share toggle with an idempotency key', async () => {
+    put.mockResolvedValue({ data: { key: { id: 205 }, issued: 2, skipped: 0 } })
+
+    const result = await setTeamShare(205, true)
+
+    expect(put).toHaveBeenCalledWith(
+      '/keys/team-share',
+      { api_key_id: 205, shared: true },
+      {
+        headers: {
+          'Idempotency-Key': 'key-team-share-205-11111111-1111-4111-8111-111111111111',
+        },
+      }
+    )
+    expect(result.issued).toBe(2)
   })
 })

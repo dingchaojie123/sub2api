@@ -6,6 +6,11 @@ const apiMocks = vi.hoisted(() => ({
   getPlatformQuotas: vi.fn(),
   updatePlatformQuotas: vi.fn(),
   resetPlatformQuotaWindow: vi.fn(),
+  confirmDialog: vi.fn(),
+}))
+
+vi.mock('@/composables/useDialog', () => ({
+  confirmDialog: apiMocks.confirmDialog,
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -130,7 +135,7 @@ describe('UserPlatformQuotaModal', () => {
   })
 
   it('全部清空把所有 limit 置 null（确认通过）', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const confirmSpy = apiMocks.confirmDialog.mockResolvedValue(true)
     apiMocks.getPlatformQuotas.mockResolvedValueOnce({
       platform_quotas: [
         { platform: 'anthropic', daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 100,
@@ -148,11 +153,10 @@ describe('UserPlatformQuotaModal', () => {
     for (const inp of inputs) {
       expect((inp.element as HTMLInputElement).value).toBe('')
     }
-    confirmSpy.mockRestore()
   })
 
   it('全部清空 confirm 取消则保持原值', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const confirmSpy = apiMocks.confirmDialog.mockResolvedValue(false)
     apiMocks.getPlatformQuotas.mockResolvedValueOnce({
       platform_quotas: [
         { platform: 'anthropic', daily_limit_usd: 10, weekly_limit_usd: 50, monthly_limit_usd: 100,
@@ -168,28 +172,25 @@ describe('UserPlatformQuotaModal', () => {
     const inputs = w.findAll('input[type=number]')
     const dailyVal = (inputs[0].element as HTMLInputElement).value
     expect(dailyVal).toBe('10')
-    confirmSpy.mockRestore()
   })
 
   it('重置按钮 confirm 取消则不调用 API', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    apiMocks.confirmDialog.mockResolvedValue(false)
     const w = await mountAndOpen()
     const resetBtns = w.findAll('button').filter((b) => b.text() === '↻')
     expect(resetBtns.length).toBeGreaterThan(0)
     await resetBtns[0].trigger('click')
     await flushPromises()
     expect(apiMocks.resetPlatformQuotaWindow).not.toHaveBeenCalled()
-    confirmSpy.mockRestore()
   })
 
   it('重置按钮 confirm 确认则调用 API', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    apiMocks.confirmDialog.mockResolvedValue(true)
     const w = await mountAndOpen()
     const resetBtns = w.findAll('button').filter((b) => b.text() === '↻')
     await resetBtns[0].trigger('click') // 第一个是 anthropic.daily
     await flushPromises()
     expect(apiMocks.resetPlatformQuotaWindow).toHaveBeenCalledWith(99, 'anthropic', 'daily')
-    confirmSpy.mockRestore()
   })
 
   describe('subscription warning banner', () => {

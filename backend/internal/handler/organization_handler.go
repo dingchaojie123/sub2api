@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -208,7 +209,30 @@ func (h *OrganizationHandler) AcceptInvitation(c *gin.Context) {
 		writeOrganizationError(c, err)
 		return
 	}
+	// 入团后把默认 Key 切到团队计费：新注册用户个人余额为 0，否则默认 Key 会全部因余额不足不可用。
+	// 失败只记日志，不影响入团结果（成员仍可在密钥页手动切换计费来源）。
+	h.bindDefaultKeysToTeam(c, item.ID, userID)
 	response.Success(c, item)
+}
+
+func (h *OrganizationHandler) bindDefaultKeysToTeam(c *gin.Context, organizationID, userID int64) {
+	ctx := c.Request.Context()
+	if h.apiKeys != nil {
+		// 先补齐可能还没创建的默认 Key，再一起绑定。
+		if _, err := h.apiKeys.EnsureDefaultAPIKeys(ctx, userID); err != nil {
+			logger.LegacyPrintf("handler.organization", "[Organization] ensure default keys before team bind failed: user_id=%d org_id=%d err=%v", userID, organizationID, err)
+		}
+	}
+	credentials, err := h.organizations.BindDefaultKeys(ctx, organizationID, userID)
+	if err != nil {
+		logger.LegacyPrintf("handler.organization", "[Organization] bind default keys to team failed: user_id=%d org_id=%d err=%v", userID, organizationID, err)
+		return
+	}
+	if h.apiKeys != nil {
+		for _, credential := range credentials {
+			h.apiKeys.InvalidateAuthCacheByKey(ctx, credential)
+		}
+	}
 }
 
 func (h *OrganizationHandler) UpdateMember(c *gin.Context) {

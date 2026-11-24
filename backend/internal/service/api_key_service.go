@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/dgraph-io/ristretto"
@@ -196,6 +197,8 @@ type CreateAPIKeyRequest struct {
 	RateLimit1d    float64 `json:"rate_limit_1d"`
 	RateLimit7d    float64 `json:"rate_limit_7d"`
 	OrganizationID *int64  `json:"organization_id"`
+	// ShareWithTeam 创建团队 Key 的同时共享给团队成员（仅团队创建者可用，需同时指定 OrganizationID）。
+	ShareWithTeam bool `json:"share_with_team"`
 }
 
 // UpdateAPIKeyRequest 更新API Key请求
@@ -275,6 +278,70 @@ type SetAPIKeyBillingSourceInput struct {
 	OrganizationID *int64
 }
 
+// apiKeyTeamSharer 是团队 Key 共享能力。用可选接口而不是扩展 organizationBilling，
+// 这样已有的测试桩（只实现计费相关方法）不用跟着改；生产环境里的团队仓库实现了它。
+type apiKeyTeamSharer interface {
+	SetAPIKeyShared(ctx context.Context, apiKeyID, actorUserID int64, shared bool) (*APIKeyShareResult, error)
+	RevokeSharedCopies(ctx context.Context, apiKeyID int64) ([]string, error)
+}
+
+func (s *APIKeyService) teamSharer() (apiKeyTeamSharer, bool) {
+	if s == nil || s.organizationBilling == nil {
+		return nil, false
+	}
+	sharer, ok := s.organizationBilling.(apiKeyTeamSharer)
+	return sharer, ok
+}
+
+// SetTeamShare 团队创建者开启 / 关闭某把团队 Key 的「共享给团队成员」。
+// 开启后：现有成员立即拿到副本，之后加入的成员加入时自动拿到；副本是成员名下的独立 Key，按成员单独统计用量。
+func (s *APIKeyService) SetTeamShare(ctx context.Context, userID, apiKeyID int64, shared bool) (*APIKey, *APIKeyShareResult, error) {
+	if apiKeyID <= 0 {
+		return nil, nil, ErrAPIKeyNotFound
+	}
+	sharer, ok := s.teamSharer()
+	if !ok {
+		return nil, nil, ErrServiceUnavailable
+	}
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, apiKeyID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if apiKey.UserID != userID {
+		return nil, nil, ErrAPIKeyNotFound
+	}
+	result, err := sharer.SetAPIKeyShared(ctx, apiKeyID, userID, shared)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, credential := range result.RevokedKeys {
+		s.InvalidateAuthCacheByKey(ctx, credential)
+	}
+	keys := []APIKey{*apiKey}
+	if err := s.fillBillingSources(ctx, keys); err != nil {
+		return nil, nil, fmt.Errorf("load api key billing source: %w", err)
+	}
+	apiKey.BillingSource = keys[0].BillingSource
+	return apiKey, result, nil
+}
+
+// revokeTeamShare 源 Key 不再是「该团队的共享 Key」时（删除、改个人计费、换团队），停用它发出去的所有成员副本。
+// 尽力而为：Key 本身的操作已经成功，这里失败只记日志，不回滚主操作。
+func (s *APIKeyService) revokeTeamShare(ctx context.Context, apiKeyID int64) {
+	sharer, ok := s.teamSharer()
+	if !ok {
+		return
+	}
+	credentials, err := sharer.RevokeSharedCopies(ctx, apiKeyID)
+	if err != nil {
+		logger.LegacyPrintf("service.api_key", "revoke shared team copies failed: key_id=%d err=%v", apiKeyID, err)
+		return
+	}
+	for _, credential := range credentials {
+		s.InvalidateAuthCacheByKey(ctx, credential)
+	}
+}
+
 func (s *APIKeyService) SetBillingSource(ctx context.Context, userID int64, input SetAPIKeyBillingSourceInput) (*APIKey, error) {
 	if input.APIKeyID <= 0 {
 		return nil, ErrAPIKeyNotFound
@@ -296,9 +363,22 @@ func (s *APIKeyService) SetBillingSource(ctx context.Context, userID int64, inpu
 	if apiKey.UserID != userID {
 		return nil, ErrAPIKeyNotFound
 	}
+	// 记下切换前是否共享给了团队成员、属于哪个团队，切换成功后据此决定是否收回成员副本。
+	var previousSharedOrganizationID *int64
+	if previous, perr := s.organizationBilling.GetAPIKeyBillingSources(ctx, []int64{input.APIKeyID}); perr == nil {
+		if source, found := previous[input.APIKeyID]; found && source.SharedWithTeam {
+			previousSharedOrganizationID = source.OrganizationID
+		}
+	}
 	source, credential, err := s.organizationBilling.SetAPIKeyBillingSource(ctx, input.APIKeyID, userID, input.Type, input.OrganizationID)
 	if err != nil {
 		return nil, err
+	}
+	if previousSharedOrganizationID != nil {
+		sameTeam := input.Type == APIKeyBillingSourceOrganization && input.OrganizationID != nil && *input.OrganizationID == *previousSharedOrganizationID
+		if !sameTeam {
+			s.revokeTeamShare(ctx, input.APIKeyID)
+		}
 	}
 	apiKey.BillingSource = source
 	s.InvalidateAuthCacheByKey(ctx, credential)
@@ -453,6 +533,10 @@ func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group 
 
 // Create 创建API Key
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
+	// 「共享给团队成员」只对计费来源为团队的 Key 有意义。
+	if req.ShareWithTeam && (req.OrganizationID == nil || *req.OrganizationID <= 0) {
+		return nil, ErrAPIKeyNotTeamBilled
+	}
 	// 验证用户存在
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -554,6 +638,18 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		if err := s.organizationBilling.AttachAPIKey(ctx, *req.OrganizationID, userID, apiKey.ID); err != nil {
 			_ = s.apiKeyRepo.DeleteWithAudit(ctx, apiKey.ID)
 			return nil, fmt.Errorf("attach api key to organization: %w", err)
+		}
+		if req.ShareWithTeam {
+			sharer, ok := s.teamSharer()
+			if !ok {
+				_ = s.apiKeyRepo.DeleteWithAudit(ctx, apiKey.ID)
+				return nil, ErrServiceUnavailable
+			}
+			if _, err := sharer.SetAPIKeyShared(ctx, apiKey.ID, userID, true); err != nil {
+				// 创建者以外的人（管理员 / 普通成员）不能共享：回滚刚建的 Key，把原因原样返回。
+				_ = s.apiKeyRepo.DeleteWithAudit(ctx, apiKey.ID)
+				return nil, err
+			}
 		}
 	}
 
@@ -1010,6 +1106,8 @@ func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) erro
 	}
 	s.InvalidateAuthCacheByKey(ctx, key)
 	s.lastUsedTouchL1.Delete(id)
+	// 如果这是创建者共享给团队成员的 Key，同时停用已发给成员的副本。
+	s.revokeTeamShare(ctx, id)
 
 	return nil
 }

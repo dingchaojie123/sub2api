@@ -221,7 +221,7 @@ func TestSeedanceHubLineTable(t *testing.T) {
 	t.Parallel()
 
 	lines := SeedanceHubLines()
-	require.Len(t, lines, 96)
+	require.Len(t, lines, 97)
 
 	owner := map[string]string{}
 	irregularSeen := 0
@@ -351,6 +351,8 @@ func TestSeedanceHubVisibleLines(t *testing.T) {
 		"Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K",
 		"Seedance2.0--480p/720p--官方fast--按次--V6K",
 		"Seedance2.0--480p/720p--mini--按次--V6K",
+		// 2026-11-23, the operator's request: V6K 活动 (seedanco2.5-720).
+		"Seedance2.5--720p--活动--按次--V6K",
 		// 2026-11-21, the operator's request: 红佩 s / nh / X (the other H lines stay hidden).
 		"Seedance2.5--720p--s--按次--H",
 		"Seedance2.5--480p/720p/1080p--nh--按秒--H",

@@ -16,6 +16,8 @@ type User struct {
 	Balance        float64    `json:"balance"`
 	DisplayBalance float64    `json:"display_balance"`
 	FrozenBalance  float64    `json:"frozen_balance"`
+	// FrozenDisplayBalance 是冻结中的积分，与 display_balance 同口径；frozen_balance 是真实余额口径。
+	FrozenDisplayBalance float64 `json:"frozen_display_balance"`
 	Concurrency    int        `json:"concurrency"`
 	Status         string     `json:"status"`
 	AllowedGroups  []int64    `json:"allowed_groups"`
@@ -93,6 +95,8 @@ type APIKeyBillingSource struct {
 	OrganizationID   *int64  `json:"organization_id"`
 	OrganizationName *string `json:"organization_name"`
 	Status           string  `json:"status"`
+	SharedWithTeam   bool    `json:"shared_with_team"`
+	SharedFromTeam   bool    `json:"shared_from_team"`
 }
 
 type Group struct {

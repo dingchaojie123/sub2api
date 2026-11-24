@@ -3,10 +3,15 @@ import { flushPromises, mount } from '@vue/test-utils'
 
 import BulkEditUserModal from '../BulkEditUserModal.vue'
 
-const { batchUpdateLimits, showSuccess, showError } = vi.hoisted(() => ({
+const { batchUpdateLimits, showSuccess, showError, confirmDialog } = vi.hoisted(() => ({
   batchUpdateLimits: vi.fn(),
   showSuccess: vi.fn(),
-  showError: vi.fn()
+  showError: vi.fn(),
+  confirmDialog: vi.fn()
+}))
+
+vi.mock('@/composables/useDialog', () => ({
+  confirmDialog
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -52,6 +57,7 @@ describe('BulkEditUserModal', () => {
     batchUpdateLimits.mockReset()
     showSuccess.mockReset()
     showError.mockReset()
+    confirmDialog.mockReset()
     batchUpdateLimits.mockResolvedValue({ affected: 2 })
   })
 
@@ -82,7 +88,7 @@ describe('BulkEditUserModal', () => {
   })
 
   it('submits only the enabled RPM field and preserves zero as unlimited', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    confirmDialog.mockResolvedValue(true)
     const wrapper = mountModal()
 
     await wrapper.get('[data-test="enable-rpm-limit"]').trigger('click')
@@ -96,14 +102,14 @@ describe('BulkEditUserModal', () => {
       all: false,
       rpm_limit: 0
     })
-    expect(confirm).toHaveBeenCalledWith(
+    expect(confirmDialog).toHaveBeenCalledWith(
       expect.stringContaining('admin.users.bulkLimits.rpmUnlimitedValue')
     )
     expect(wrapper.emitted('success')).toEqual([[2]])
   })
 
   it('omits disabled fields from the request', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    confirmDialog.mockResolvedValue(true)
     const wrapper = mountModal()
 
     await wrapper.get('[data-test="enable-concurrency"]').trigger('click')
@@ -119,7 +125,7 @@ describe('BulkEditUserModal', () => {
   })
 
   it('does not call the API when overwrite confirmation is cancelled', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    confirmDialog.mockResolvedValue(false)
     const wrapper = mountModal()
 
     await wrapper.get('[data-test="enable-concurrency"]').trigger('click')

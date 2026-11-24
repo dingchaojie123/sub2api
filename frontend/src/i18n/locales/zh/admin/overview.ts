@@ -385,6 +385,7 @@ export default {
 
     affiliates: {
       invitesDescription: '查看全站邀请关系和被邀请用户累计返利',
+      secondLevelDescription: '查看全站二级邀请链路（顶级邀请人 → 一级用户 → 二级用户）；二级用户不产生返利',
       rebatesDescription: '查看每一笔产生返利的充值订单',
       transfersDescription: '查看返利额度转入账户余额的提取流水',
       errors: {
@@ -397,6 +398,9 @@ export default {
         endAt: '结束日期',
         inviter: '邀请人',
         invitee: '被邀请人',
+        root: '顶级邀请人',
+        via: '一级用户',
+        secondLevelInvitee: '二级用户',
         user: '用户',
         affCode: '邀请码',
         order: '订单',
@@ -420,6 +424,7 @@ export default {
         affCode: '邀请码',
         rebateRate: '返利比例',
         invitedCount: '邀请人数',
+        secondLevelCount: '二级用户数',
         rebatedInviteeCount: '已产生返利人数',
         availableQuota: '可提余额',
         historyQuota: '历史返利'

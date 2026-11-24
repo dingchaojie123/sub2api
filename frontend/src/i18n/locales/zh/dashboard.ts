@@ -112,6 +112,15 @@ export default {
     teamSharedBalance: '团队共享额度',
     teamBalanceHint: '此密钥由你管理，调用费用从所选团队的共享额度中扣除。',
     personalBalanceHint: '调用费用从你的个人余额中扣除。',
+    shareWithTeam: '共享给团队成员',
+    shareWithTeamHint: '开启后，团队里的每位成员都会自动获得一把同配置的专属 Key（分组、额度、限速、IP 规则与此 Key 一致），之后加入的成员加入时自动获得。成员用量计入团队额度，并按成员单独统计。',
+    sharedWithTeamBadge: '已共享给成员',
+    sharedFromTeamBadge: '团队共享',
+    sharedFromTeamHint: '这把 Key 由团队创建者共享，加入团队时自动发放给你。',
+    teamShareEnabledSuccess: '已共享给团队成员，本次发放 {issued} 把 Key',
+    teamShareDisabledSuccess: '已停止共享，成员名下的副本 Key 已停用',
+    teamShareSkipped: '有 {skipped} 位成员未获得副本（例如无权使用该 Key 所绑的专属分组）',
+    failedToUpdateTeamShare: '更新团队共享失败',
     groupLabel: '分组',
     selectGroup: '选择分组',
     statusLabel: '状态',
@@ -661,6 +670,7 @@ export default {
       rebateRate: '我的返利比例',
       rebateRateHint: '被邀请用户每次充值后你可获得的返利比例',
       invitedUsers: '邀请人数',
+      secondLevelUsers: '二级用户：{count}',
       availableQuota: '可转返利额度',
       frozenQuota: '冻结中',
       frozenQuotaHint: '新产生的返利正在冻结期中',
@@ -682,6 +692,16 @@ export default {
         username: '用户名',
         rebate: '返利明细',
         joinedAt: '注册时间'
+      }
+    },
+    secondLevel: {
+      tabFirst: '一级用户',
+      tabSecond: '二级用户',
+      hint: '二级用户是被你的一级用户邀请注册的用户，仅供查看，不产生返利。',
+      empty: '暂无二级用户',
+      truncated: '仅显示最近 {shown} 位，共 {total} 位二级用户',
+      columns: {
+        via: '邀请人（一级用户）'
       }
     },
     tips: {

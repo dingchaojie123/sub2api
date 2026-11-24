@@ -1348,6 +1348,15 @@ func displayBalanceOrBalance(displayBalance, balance float64) float64 {
 	return balance
 }
 
+// frozenDisplayBalanceOrBalance 返回冻结积分。没有积分余额的老账号（display_balance 为 0）冻结时
+// 不会写入 frozen_display_balance，它们的积分口径等同真实余额，所以回退到 frozen_balance。
+func frozenDisplayBalanceOrBalance(frozenDisplay, frozenBalance float64) float64 {
+	if frozenDisplay > 0 {
+		return frozenDisplay
+	}
+	return frozenBalance
+}
+
 func userSignupSourceOrDefault(signupSource string) string {
 	switch strings.TrimSpace(strings.ToLower(signupSource)) {
 	case "", "email":

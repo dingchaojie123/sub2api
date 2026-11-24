@@ -288,7 +288,10 @@ func (s *APIKeyService) EnsureDefaultAPIKeys(ctx context.Context, userID int64) 
 	if err := s.ensureSignupGroupAPIKeys(ctx, userID, signupGroups); err != nil {
 		return nil, err
 	}
-	if len(keys) == 0 && len(seen) < len(defaultAPIKeyGroups) {
+	// 只有在用户一个默认槽位都没有、也无法新建任何槽位时才报错。
+	// 已经拥有部分槽位时（例如某个默认分组被改名/停用/用户无权绑定，导致其余槽位无法补齐），
+	// 必须照常返回已有的默认 Key，否则下游每次同步都会 503，且永远无法恢复。
+	if len(keys) == 0 && len(seen) == 0 {
 		return nil, infraerrors.ServiceUnavailable("DEFAULT_API_KEY_GROUP_UNAVAILABLE", fmt.Sprintf("no default API key groups are available for user: %d", userID))
 	}
 	return s.GetDefaultAPIKeys(ctx, userID)

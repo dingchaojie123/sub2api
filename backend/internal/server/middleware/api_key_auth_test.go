@@ -1547,6 +1547,81 @@ func TestAPIKeyAuthQuotaErrorKeepsLegacyFormatOutsideResponses(t *testing.T) {
 	requireAPIKeyAuthError(t, w, "API_KEY_QUOTA_EXHAUSTED", "API key 额度已用完")
 }
 
+func TestAPIKeyAuthTeamQuotaExhaustedAllowsModelsListButBlocksBillableCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &service.User{ID: 21, Role: service.RoleUser, Status: service.StatusActive, Balance: 10}
+	group := &service.Group{ID: 9, Platform: service.PlatformOpenAI, Status: service.StatusActive}
+	apiKey := &service.APIKey{
+		ID: 106, UserID: user.ID, Key: "team-key-quota-exhausted", Status: service.StatusAPIKeyActive,
+		User: user, Group: group, GroupID: &group.ID,
+		Organization: &service.OrganizationBillingSubject{OrganizationID: 1, MemberUserID: user.ID, Balance: 0, Active: true},
+	}
+	apiKeyRepo := &stubApiKeyRepo{getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+		if key != apiKey.Key {
+			return nil, service.ErrAPIKeyNotFound
+		}
+		clone := *apiKey
+		userClone := *user
+		orgClone := *apiKey.Organization
+		clone.User = &userClone
+		clone.Organization = &orgClone
+		return &clone, nil
+	}}
+
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	router := newAuthTestRouter(service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg), nil, cfg)
+
+	// 下游同步模型：团队额度耗尽也应放行
+	for _, path := range []string{"/v1/models", "/models", "/v1/usage"} {
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("x-api-key", apiKey.Key)
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code, path)
+	}
+
+	// 会产生费用的调用仍然被拦截
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusForbidden, w.Code)
+	requireAPIKeyAuthError(t, w, "ORGANIZATION_QUOTA_EXHAUSTED", "Team quota is exhausted; contact your team administrator")
+}
+
+// 成员个人余额为 0、团队有额度时，团队计费的 Key 必须能正常调用（不能被个人余额拦截）。
+func TestAPIKeyAuthTeamKeyIgnoresPersonalBalanceWhenTeamHasQuota(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	user := &service.User{ID: 22, Role: service.RoleUser, Status: service.StatusActive, Balance: 0}
+	group := &service.Group{ID: 9, Platform: service.PlatformOpenAI, Status: service.StatusActive}
+	apiKey := &service.APIKey{
+		ID: 107, UserID: user.ID, Key: "team-key-zero-personal", Status: service.StatusAPIKeyActive,
+		User: user, Group: group, GroupID: &group.ID,
+		Organization: &service.OrganizationBillingSubject{OrganizationID: 1, MemberUserID: user.ID, Balance: 100, Active: true},
+	}
+	apiKeyRepo := &stubApiKeyRepo{getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+		if key != apiKey.Key {
+			return nil, service.ErrAPIKeyNotFound
+		}
+		clone := *apiKey
+		userClone := *user
+		orgClone := *apiKey.Organization
+		clone.User = &userClone
+		clone.Organization = &orgClone
+		return &clone, nil
+	}}
+
+	cfg := &config.Config{RunMode: config.RunModeStandard}
+	router := newAuthTestRouter(service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg), nil, cfg)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	router.ServeHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
 func newAuthTestRouter(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.HandlerFunc(NewAPIKeyAuthMiddleware(apiKeyService, subscriptionService, cfg)))

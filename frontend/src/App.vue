@@ -4,6 +4,7 @@ import { onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AdminComplianceDialog from '@/components/admin/AdminComplianceDialog.vue'
+import GlobalDialog from '@/components/common/GlobalDialog.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
@@ -142,4 +143,5 @@ onMounted(async () => {
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />
+  <GlobalDialog />
 </template>

@@ -714,6 +714,18 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/affiliates/second-level',
+    name: 'AdminAffiliateSecondLevel',
+    component: () => import('@/views/admin/affiliates/AdminAffiliateSecondLevelView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Affiliate Second-level Records',
+      titleKey: 'nav.affiliateSecondLevelRecords',
+      descriptionKey: 'admin.affiliates.secondLevelDescription'
+    }
+  },
+  {
     path: '/admin/affiliates/rebates',
     name: 'AdminAffiliateRebates',
     component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),

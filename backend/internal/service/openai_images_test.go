@@ -612,6 +612,22 @@ func TestOpenAIGatewayServiceParseOpenAIImagesRequest_ExplicitSizeRequiresNative
 	require.Equal(t, OpenAIImagesCapabilityNative, parsed.RequiredCapability)
 }
 
+func TestValidateOpenAIImagesModel_AllowsVendorPrefixedGPTImageModels(t *testing.T) {
+	for _, model := range []string{
+		"gpt-image-2",
+		"zzs-gpt-image-2.6-flare",
+		"zzs-gpt-image-2.6-sunburst",
+		"zzs-gpt-image-2.5-sunburst-adobe",
+		"ZZS-GPT-IMAGE-2.6-FLARE",
+	} {
+		require.NoError(t, validateOpenAIImagesModel(model), model)
+		require.True(t, IsGPTImageGenerationModel(model), model)
+	}
+	for _, model := range []string{"gpt-5.4", "zzs-gpt-5.4", "gpt-image", ""} {
+		require.Error(t, validateOpenAIImagesModel(model), model)
+	}
+}
+
 func TestOpenAIGatewayServiceParseOpenAIImagesRequest_RejectsNonImageModel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte(`{"model":"gpt-5.4","prompt":"draw a cat"}`)

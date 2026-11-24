@@ -238,6 +238,7 @@ import type {
   EmailTemplateOption,
 } from "@/api/admin/settings";
 import { useAppStore } from "@/stores";
+import { confirmDialog } from "@/composables/useDialog";
 import { extractApiErrorMessage } from "@/utils/apiError";
 
 const { t, locale } = useI18n();
@@ -684,7 +685,7 @@ async function refreshPreview() {
 
 async function restoreOfficial() {
   if (!selectedEvent.value || !selectedLocale.value) return;
-  if (!window.confirm(t("admin.settings.emailTemplates.restoreConfirm"))) return;
+  if (!(await confirmDialog(t("admin.settings.emailTemplates.restoreConfirm")))) return;
 
   restoring.value = true;
   try {

@@ -157,19 +157,31 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
 			return
 		}
+		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing"
+		// Async image task polling only reads data that already belongs to the
+		// authenticated key and must remain available after the completed
+		// generation consumes the key's remaining balance.
+		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
+		// Listing models does not consume billable resources. Keep expiry, key
+		// quota, and subscription checks, but do not reject solely on user balance.
+		skipBalanceCheck := isModelsListRead(c.Request.Method, c.Request.URL.Path)
 		if apiKey.Organization != nil {
 			if !apiKey.Organization.Active {
 				MarkIngressRejected(c, IngressRejectUserInactive)
 				AbortWithError(c, 403, "ORGANIZATION_ACCESS_REVOKED", "Team access has been revoked")
 				return
 			}
-			if apiKey.Organization.Balance <= 0 {
-				AbortWithError(c, 403, "ORGANIZATION_QUOTA_EXHAUSTED", "Team quota is exhausted; contact your team administrator")
-				return
-			}
-			if apiKey.Organization.MonthlyLimit > 0 && apiKey.Organization.MonthlyUsed+apiKey.Organization.MonthlyFrozen >= apiKey.Organization.MonthlyLimit {
-				AbortWithError(c, 429, "ORGANIZATION_MEMBER_QUOTA_EXHAUSTED", "Your team member quota is exhausted")
-				return
+			// 团队余额/成员月限额只约束会产生费用的请求；模型列表（下游同步模型）、
+			// usage、billing 信息与异步任务查询不消耗额度，不应因团队额度耗尽而被拒绝。
+			if !skipBilling && !skipBalanceCheck {
+				if apiKey.Organization.Balance <= 0 {
+					AbortWithError(c, 403, "ORGANIZATION_QUOTA_EXHAUSTED", "Team quota is exhausted; contact your team administrator")
+					return
+				}
+				if apiKey.Organization.MonthlyLimit > 0 && apiKey.Organization.MonthlyUsed+apiKey.Organization.MonthlyFrozen >= apiKey.Organization.MonthlyLimit {
+					AbortWithError(c, 429, "ORGANIZATION_MEMBER_QUOTA_EXHAUSTED", "Your team member quota is exhausted")
+					return
+				}
 			}
 		}
 		if abortIfAPIKeyGroupUnavailable(c, apiKey) {
@@ -180,14 +192,6 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		}
 		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
 		c.Request = c.Request.WithContext(ctx)
-		billingInfoRequest := c.Request.URL.Path == "/v1/sub2api/billing"
-		// Async image task polling only reads data that already belongs to the
-		// authenticated key and must remain available after the completed
-		// generation consumes the key's remaining balance.
-		skipBilling := c.Request.URL.Path == "/v1/usage" || billingInfoRequest || isAsyncImageTaskRead(c.Request.Method, c.Request.URL.Path)
-		// Listing models does not consume billable resources. Keep expiry, key
-		// quota, and subscription checks, but do not reject solely on user balance.
-		skipBalanceCheck := isModelsListRead(c.Request.Method, c.Request.URL.Path)
 
 		// ── 4. SimpleMode → early return ─────────────────────────────
 
@@ -278,7 +282,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 				}
 			} else {
 				// 非订阅模式 或 订阅模式但 subscriptionService 未注入：回退到余额检查
-				if !skipBalanceCheck && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+				// 团队计费的 Key 只看团队额度（上面已校验），不能再用成员个人余额拦截——
+				// 否则个人余额为 0 的成员即使团队有额度也无法调用。
+				if apiKey.Organization == nil && !skipBalanceCheck && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 					AbortWithError(c, 403, "INSUFFICIENT_BALANCE", "Insufficient account balance")
 					return
 				}

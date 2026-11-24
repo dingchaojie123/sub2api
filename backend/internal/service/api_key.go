@@ -27,6 +27,10 @@ type APIKeyBillingSource struct {
 	OrganizationID   *int64
 	OrganizationName string
 	Status           string
+	// SharedWithTeam：这是创建者的团队 Key，且已共享给团队成员。
+	SharedWithTeam bool
+	// SharedFromTeam：这是系统按创建者共享的 Key 自动发给成员的副本。
+	SharedFromTeam bool
 }
 
 // Rate limit window durations

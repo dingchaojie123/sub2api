@@ -240,7 +240,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { userDisplayBalance } from '@/utils/balance'
+import { userDisplayBalance, userFrozenCredits } from '@/utils/balance'
 import { sanitizeUrl } from '@/utils/url'
 
 const router = useRouter()
@@ -258,7 +258,7 @@ const contactInfo = computed(() => appStore.contactInfo)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
 const availableBalance = computed(() => userDisplayBalance(user.value))
-const frozenBalance = computed(() => Number(user.value?.frozen_balance || 0))
+const frozenBalance = computed(() => userFrozenCredits(user.value))
 const totalBalance = computed(() => availableBalance.value + frozenBalance.value)
 const balanceAvailableText = computed(() => t('common.availablePoints'))
 const balanceFrozenText = computed(() => t('common.frozenPoints'))

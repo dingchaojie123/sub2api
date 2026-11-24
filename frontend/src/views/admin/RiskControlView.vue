@@ -1139,6 +1139,7 @@ import type {
 } from '@/api/admin/riskControl'
 import type { AdminGroup, SelectOption } from '@/types'
 import { useAppStore } from '@/stores/app'
+import { confirmDialog } from '@/composables/useDialog'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDateTimeValue } from '@/utils/format'
 
@@ -1912,7 +1913,7 @@ async function deleteFlaggedHash() {
 
 async function clearFlaggedHashes() {
   if (hashActionLoading.value) return
-  const confirmed = window.confirm(t('admin.riskControl.clearFlaggedHashesConfirm'))
+  const confirmed = await confirmDialog(t('admin.riskControl.clearFlaggedHashesConfirm'), { danger: true })
   if (!confirmed) return
   hashActionLoading.value = true
   try {

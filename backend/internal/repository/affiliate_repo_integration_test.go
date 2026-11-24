@@ -417,3 +417,182 @@ func TestAffiliateRepository_ListUsersWithCustomSettings(t *testing.T) {
 
 	require.GreaterOrEqual(t, total, int64(2), "total must include at least our 2 custom rows")
 }
+
+// TestAffiliateRepository_ListSecondLevelInvitees verifies the second-level view:
+//
+//	R ── A ── C        (C is second-level)
+//	  └─ B ── D        (D is second-level)
+//	        C ── E     (E is third-level → must NOT appear)
+//	R.inviter = A      (a cycle R→A→R → R must NOT appear in its own list)
+func TestAffiliateRepository_ListSecondLevelInvitees(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	txCtx := dbent.NewTxContext(ctx, tx)
+	client := tx.Client()
+
+	repo := NewAffiliateRepository(client, integrationDB)
+
+	newUser := func(tag string) *service.User {
+		return mustCreateUser(t, client, &service.User{
+			Email:        fmt.Sprintf("affiliate-l2-%s-%d@example.com", tag, time.Now().UnixNano()),
+			PasswordHash: "hash",
+			Role:         service.RoleUser,
+			Status:       service.StatusActive,
+		})
+	}
+	root, a, b, c, d, e := newUser("r"), newUser("a"), newUser("b"), newUser("c"), newUser("d"), newUser("e")
+
+	// created_at is staggered so the DESC ordering is deterministic: D newer than C.
+	insert := func(u *service.User, inviter *int64, ageMinutes int) {
+		code := fmt.Sprintf("L2%010d", u.ID%10_000_000_000)
+		_, err := client.ExecContext(txCtx, `
+INSERT INTO user_affiliates (user_id, aff_code, inviter_id, created_at, updated_at)
+VALUES ($1, $2, $3, NOW() - make_interval(mins => $4), NOW())`, u.ID, code, inviter, ageMinutes)
+		require.NoError(t, err)
+	}
+	insert(root, &a.ID, 100) // cycle: root invited by A
+	insert(a, &root.ID, 90)
+	insert(b, &root.ID, 80)
+	insert(c, &a.ID, 20)
+	insert(d, &b.ID, 10)
+	insert(e, &c.ID, 5)
+
+	items, total, err := repo.ListSecondLevelInvitees(txCtx, root.ID, 100)
+	require.NoError(t, err)
+	require.Equal(t, 2, total)
+	require.Len(t, items, 2)
+
+	// Newest first: D (via B), then C (via A).
+	require.Equal(t, d.ID, items[0].UserID)
+	require.Equal(t, b.ID, items[0].ViaUserID)
+	require.Equal(t, b.Email, items[0].ViaEmail)
+	require.Equal(t, c.ID, items[1].UserID)
+	require.Equal(t, a.ID, items[1].ViaUserID)
+	require.NotNil(t, items[1].CreatedAt)
+
+	ids := []int64{items[0].UserID, items[1].UserID}
+	require.NotContains(t, ids, root.ID, "a user must never be listed as their own second-level invitee")
+	require.NotContains(t, ids, e.ID, "third-level users must not be included")
+	require.NotContains(t, ids, a.ID, "first-level users must not be included")
+
+	// total reflects the full count even when the list is truncated by limit.
+	limited, limitedTotal, err := repo.ListSecondLevelInvitees(txCtx, root.ID, 1)
+	require.NoError(t, err)
+	require.Len(t, limited, 1)
+	require.Equal(t, 2, limitedTotal)
+
+	// A user with no second level gets an empty (non-nil) list and zero total.
+	none, noneTotal, err := repo.ListSecondLevelInvitees(txCtx, e.ID, 100)
+	require.NoError(t, err)
+	require.NotNil(t, none)
+	require.Empty(t, none)
+	require.Equal(t, 0, noneTotal)
+}
+
+// TestAffiliateRepository_ListAffiliateSecondLevelRecords 验证管理端「二级邀请」记录与用户概览的二级人数。
+//
+// 邀请关系（箭头 = 邀请）：R→A、R→B、A→C、B→D、C→E，外加成环的 A→R（R 的邀请人记为 A）。
+// 因此 (顶级→一级→二级) 链路有：
+//
+//	(R, A, C)  (R, B, D)  (A, C, E)  (A, R, B)
+//
+// 而 (R, A, R)、(A, R, A) 的"二级用户"是顶级邀请人自己，必须被排除。
+func TestAffiliateRepository_ListAffiliateSecondLevelRecords(t *testing.T) {
+	ctx := context.Background()
+	tx := testEntTx(t)
+	txCtx := dbent.NewTxContext(ctx, tx)
+	client := tx.Client()
+
+	repo := NewAffiliateRepository(client, integrationDB)
+
+	tag := time.Now().UnixNano()
+	newUser := func(name string) *service.User {
+		return mustCreateUser(t, client, &service.User{
+			Email:        fmt.Sprintf("affiliate-l2adm-%d-%s@example.com", tag, name),
+			PasswordHash: "hash",
+			Role:         service.RoleUser,
+			Status:       service.StatusActive,
+		})
+	}
+	root, a, b, c, d, e := newUser("r"), newUser("a"), newUser("b"), newUser("c"), newUser("d"), newUser("e")
+
+	insert := func(u *service.User, inviter *int64, ageMinutes int) {
+		code := fmt.Sprintf("L3%010d", u.ID%10_000_000_000)
+		_, err := client.ExecContext(txCtx, `
+INSERT INTO user_affiliates (user_id, aff_code, inviter_id, created_at, updated_at)
+VALUES ($1, $2, $3, NOW() - make_interval(mins => $4), NOW())`, u.ID, code, inviter, ageMinutes)
+		require.NoError(t, err)
+	}
+	insert(root, &a.ID, 100)
+	insert(a, &root.ID, 90)
+	insert(b, &root.ID, 80)
+	insert(c, &a.ID, 20)
+	insert(d, &b.ID, 10)
+	insert(e, &c.ID, 5)
+
+	type chain struct{ root, via, invitee int64 }
+	collect := func(items []service.AffiliateSecondLevelRecord) map[chain]service.AffiliateSecondLevelRecord {
+		out := make(map[chain]service.AffiliateSecondLevelRecord, len(items))
+		for _, it := range items {
+			out[chain{it.RootID, it.ViaID, it.InviteeID}] = it
+		}
+		return out
+	}
+
+	// 用邮箱里的唯一 tag 把结果限定在本测试创建的用户内（库里可能有其他数据）。
+	items, total, err := repo.ListAffiliateSecondLevelRecords(txCtx, service.AffiliateRecordFilter{
+		Search:   fmt.Sprintf("affiliate-l2adm-%d", tag),
+		Page:     1,
+		PageSize: 100,
+		SortBy:   "created_at",
+		SortDesc: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(4), total)
+	require.Len(t, items, 4)
+
+	got := collect(items)
+	require.Contains(t, got, chain{root.ID, a.ID, c.ID})
+	require.Contains(t, got, chain{root.ID, b.ID, d.ID})
+	require.Contains(t, got, chain{a.ID, c.ID, e.ID})
+	require.Contains(t, got, chain{a.ID, root.ID, b.ID})
+	require.NotContains(t, got, chain{root.ID, a.ID, root.ID}, "second-level user must not be the root inviter itself")
+	require.NotContains(t, got, chain{a.ID, root.ID, a.ID}, "second-level user must not be the root inviter itself")
+
+	rec := got[chain{root.ID, a.ID, c.ID}]
+	require.Equal(t, root.Email, rec.RootEmail)
+	require.Equal(t, a.Email, rec.ViaEmail)
+	require.Equal(t, c.Email, rec.InviteeEmail)
+	require.False(t, rec.CreatedAt.IsZero())
+
+	// 按被邀请的二级用户 ID 搜索，只剩一条。
+	byInvitee, byInviteeTotal, err := repo.ListAffiliateSecondLevelRecords(txCtx, service.AffiliateRecordFilter{
+		Search:   fmt.Sprintf("%d", e.ID),
+		Page:     1,
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, byInviteeTotal, int64(1))
+	require.Contains(t, collect(byInvitee), chain{a.ID, c.ID, e.ID})
+
+	// 分页：total 与页大小无关。
+	paged, pagedTotal, err := repo.ListAffiliateSecondLevelRecords(txCtx, service.AffiliateRecordFilter{
+		Search:   fmt.Sprintf("affiliate-l2adm-%d", tag),
+		Page:     1,
+		PageSize: 2,
+		SortBy:   "invitee",
+	})
+	require.NoError(t, err)
+	require.Len(t, paged, 2)
+	require.Equal(t, int64(4), pagedTotal)
+
+	// 用户概览的二级人数：R 的一级 = {A, B}，二级 = {C, D}（R 自己被排除）。
+	overview, err := repo.GetAffiliateUserOverview(txCtx, root.ID)
+	require.NoError(t, err)
+	require.Equal(t, 2, overview.SecondLevelCount)
+
+	// E 没有下级。
+	leaf, err := repo.GetAffiliateUserOverview(txCtx, e.ID)
+	require.NoError(t, err)
+	require.Equal(t, 0, leaf.SecondLevelCount)
+}

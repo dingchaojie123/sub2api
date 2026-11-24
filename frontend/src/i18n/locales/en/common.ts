@@ -167,6 +167,7 @@ export default {
     affiliate: 'Affiliate Rebates',
     affiliateManagement: 'Affiliate Rebates',
     affiliateInviteRecords: 'Invite Records',
+    affiliateSecondLevelRecords: 'Level-2 Invite Records',
     affiliateRebateRecords: 'Rebate Records',
     affiliateTransferRecords: 'Transfer Records',
     profile: 'Profile',

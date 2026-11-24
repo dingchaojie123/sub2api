@@ -75,6 +75,7 @@ func RegisterUserRoutes(
 			keys.POST("/defaults", h.APIKey.EnsureDefaults)
 			keys.PUT("/defaults/:purpose", h.APIKey.UpdateDefault)
 			keys.PUT("/billing-source", h.APIKey.SetBillingSource)
+			keys.PUT("/team-share", h.APIKey.SetTeamShare)
 			keys.GET("/:id", h.APIKey.GetByID)
 			keys.POST("", h.APIKey.Create)
 			keys.PUT("/:id", h.APIKey.Update)
@@ -97,6 +98,9 @@ func RegisterUserRoutes(
 			organizations.POST("/withdraw", h.Organization.Withdraw)
 			organizations.GET("/fund-records", h.Organization.FundRecords)
 			organizations.GET("/usage", h.Organization.Usage)
+			organizations.GET("/member-usage", h.Organization.MemberUsage)
+			organizations.GET("/member-tasks", h.Organization.MemberTasks)
+			organizations.GET("/member-tasks/content", h.OpenAIGateway.GetOrganizationMemberVideoContent)
 			organizations.GET("/audit-logs", h.Organization.AuditLogs)
 		}
 

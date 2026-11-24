@@ -910,6 +910,24 @@ const channelVideoModels: ModelSquareItem[] = [
       spec('聚合分组中的名称', 'Seedance2.0--480p/720p--mini--按次--V6K'),
     ],
   },
+  // 2026-11-23: V6K 活动 (upstream seedanco2.5-720): 720P, 4-30 s, 30 images / 10 videos / 10 audios,
+  // 19 credits per request. The channel price must be entered under the line name.
+  {
+    id: 'hub-seedance-2.5-720p-activity-v6k',
+    name: 'Seedance2.5--720p--活动--按次--V6K',
+    category: 'video',
+    channel: '特价',
+    billing: '按次',
+    iconModel: 'doubao',
+    description: '720P，支持 30 图 / 10 视频 / 10 音频参考，按次计费，与时长无关。',
+    prices: [credit('720P', '19', '次')],
+    specs: [
+      spec('时长', '4–30 秒'),
+      spec('分辨率', '720P'),
+      ...refSpecs(30, 10, 10),
+      spec('聚合分组中的名称', 'Seedance2.5--720p--活动--按次--V6K'),
+    ],
+  },
   // 2026-11-21: 红佩 s / nh / X (the operator's prices): s and X 19 credits per request, nh per second
   // (480P 0.7 / 720P 1 / 1080P 4 credits). The channel price must be entered under the line name; nh
   // must use the per-second ("video") mode with one tier per resolution.

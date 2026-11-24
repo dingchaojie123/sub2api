@@ -411,6 +411,10 @@ func (r *oauthEmailAffiliateRepoStub) ListInvitees(context.Context, int64, int) 
 	panic("unexpected ListInvitees call")
 }
 
+func (r *oauthEmailAffiliateRepoStub) ListSecondLevelInvitees(context.Context, int64, int) ([]service.AffiliateSecondLevelInvitee, int, error) {
+	panic("unexpected ListSecondLevelInvitees call")
+}
+
 func (r *oauthEmailAffiliateRepoStub) UpdateUserAffCode(context.Context, int64, string) error {
 	panic("unexpected UpdateUserAffCode call")
 }
@@ -429,6 +433,10 @@ func (r *oauthEmailAffiliateRepoStub) BatchSetUserRebateRate(context.Context, []
 
 func (r *oauthEmailAffiliateRepoStub) ListUsersWithCustomSettings(context.Context, service.AffiliateAdminFilter) ([]service.AffiliateAdminEntry, int64, error) {
 	panic("unexpected ListUsersWithCustomSettings call")
+}
+
+func (r *oauthEmailAffiliateRepoStub) ListAffiliateSecondLevelRecords(context.Context, service.AffiliateRecordFilter) ([]service.AffiliateSecondLevelRecord, int64, error) {
+	panic("unexpected ListAffiliateSecondLevelRecords call")
 }
 
 func (r *oauthEmailAffiliateRepoStub) ListAffiliateInviteRecords(context.Context, service.AffiliateRecordFilter) ([]service.AffiliateInviteRecord, int64, error) {

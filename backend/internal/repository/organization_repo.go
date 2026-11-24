@@ -9,14 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/lib/pq"
 )
 
-type organizationRepository struct{ db *sql.DB }
+type organizationRepository struct {
+	db *sql.DB
+	// cfg 仅用于给团队共享副本 Key 生成与普通 Key 相同的前缀；为 nil 时退回 "sk-"。
+	cfg *config.Config
+}
 
-func NewOrganizationRepository(db *sql.DB) service.OrganizationRepository {
-	return &organizationRepository{db: db}
+func NewOrganizationRepository(db *sql.DB, cfg *config.Config) service.OrganizationRepository {
+	return &organizationRepository{db: db, cfg: cfg}
 }
 
 func (r *organizationRepository) Create(ctx context.Context, ownerUserID int64, in service.CreateOrganizationInput) (_ *service.Organization, err error) {
@@ -170,10 +175,12 @@ func (r *organizationRepository) ListMembers(ctx context.Context, organizationID
 	if err != nil {
 		return nil, err
 	}
+	// 被移除/退出的成员在库里保留为 disabled（保留用量与审计，重新邀请时可恢复），
+	// 但不应再出现在成员列表里；前端状态列也固定显示「正常」，所以这里只返回在团成员。
 	query := `SELECT m.id,m.organization_id,m.user_id,u.email,u.username,m.role,m.status,
 		m.monthly_limit,m.monthly_used,m.usage_period_start,m.joined_at
 		FROM organization_members m JOIN users u ON u.id=m.user_id
-		WHERE m.organization_id=$1`
+		WHERE m.organization_id=$1 AND m.status='active'`
 	args := []any{organizationID}
 	if org.Role == service.OrganizationRoleMember {
 		query += ` AND m.user_id=$2`
@@ -318,6 +325,10 @@ func (r *organizationRepository) AcceptInvitation(ctx context.Context, userID in
 	if err = insertOrganizationAudit(ctx, tx, orgID, userID, "member.join", "member", fmt.Sprint(userID), map[string]any{"invitation_id": invID}); err != nil {
 		return nil, err
 	}
+	// 创建者已「共享给团队成员」的 Key：自动给新成员发一份副本（重新加入则恢复原副本）。
+	if err = r.syncSharedKeysForMember(ctx, tx, orgID, userID, userID); err != nil {
+		return nil, err
+	}
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -387,6 +398,12 @@ func (r *organizationRepository) UpdateMember(ctx context.Context, organizationI
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE organization_api_keys SET status='inactive' WHERE organization_id=$1 AND member_user_id=$2 AND status='active'`, organizationID, memberUserID)
 		if err != nil {
+			return err
+		}
+	}
+	// 成员从「停用」恢复为「启用」：恢复他名下的团队共享副本，并补发停用期间新共享的 Key。
+	if status != nil && *status == "active" && targetStatus != "active" {
+		if err = r.syncSharedKeysForMember(ctx, tx, organizationID, memberUserID, actorUserID); err != nil {
 			return err
 		}
 	}
@@ -715,7 +732,7 @@ func (r *organizationRepository) GetAPIKeyBillingSources(ctx context.Context, ap
 	if len(apiKeyIDs) == 0 {
 		return sources, nil
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT ok.api_key_id,o.id,o.name,o.status,m.status,ok.status
+	rows, err := r.db.QueryContext(ctx, `SELECT ok.api_key_id,o.id,o.name,o.status,m.status,ok.status,ok.shared_with_team,(ok.source_api_key_id IS NOT NULL)
 		FROM organization_api_keys ok
 		JOIN organizations o ON o.id=ok.organization_id
 		JOIN organization_members m ON m.organization_id=ok.organization_id AND m.user_id=ok.member_user_id
@@ -727,7 +744,8 @@ func (r *organizationRepository) GetAPIKeyBillingSources(ctx context.Context, ap
 	for rows.Next() {
 		var apiKeyID, organizationID int64
 		var name, organizationStatus, memberStatus, bindingStatus string
-		if err := rows.Scan(&apiKeyID, &organizationID, &name, &organizationStatus, &memberStatus, &bindingStatus); err != nil {
+		var sharedWithTeam, sharedFromTeam bool
+		if err := rows.Scan(&apiKeyID, &organizationID, &name, &organizationStatus, &memberStatus, &bindingStatus, &sharedWithTeam, &sharedFromTeam); err != nil {
 			return nil, err
 		}
 		if bindingStatus == "detached" {
@@ -743,6 +761,8 @@ func (r *organizationRepository) GetAPIKeyBillingSources(ctx context.Context, ap
 			OrganizationID:   &organizationIDCopy,
 			OrganizationName: name,
 			Status:           status,
+			SharedWithTeam:   sharedWithTeam,
+			SharedFromTeam:   sharedFromTeam,
 		}
 	}
 	return sources, rows.Err()

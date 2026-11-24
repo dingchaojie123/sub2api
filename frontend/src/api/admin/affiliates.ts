@@ -46,6 +46,23 @@ export interface AffiliateInviteRecord {
   created_at: string
 }
 
+/**
+ * 二级邀请记录：一条 顶级邀请人(root) → 一级用户(via) → 二级用户(invitee) 的链路。
+ * 二级用户不产生返利，所以没有返利字段。
+ */
+export interface AffiliateSecondLevelRecord {
+  root_id: number
+  root_email: string
+  root_username: string
+  via_id: number
+  via_email: string
+  via_username: string
+  invitee_id: number
+  invitee_email: string
+  invitee_username: string
+  created_at: string
+}
+
 export interface AffiliateRebateRecord {
   order_id: number
   out_trade_no: string
@@ -84,6 +101,7 @@ export interface AffiliateUserOverview {
   aff_code: string
   rebate_rate_percent: number
   invited_count: number
+  second_level_count: number
   rebated_invitee_count: number
   available_quota: number
   history_quota: number
@@ -186,6 +204,16 @@ export async function listInviteRecords(
   return data
 }
 
+export async function listSecondLevelRecords(
+  params: ListAffiliateRecordsParams = {},
+): Promise<PaginatedResponse<AffiliateSecondLevelRecord>> {
+  const { data } = await apiClient.get<PaginatedResponse<AffiliateSecondLevelRecord>>(
+    '/admin/affiliates/second-level',
+    { params: recordParams(params) },
+  )
+  return data
+}
+
 export async function listRebateRecords(
   params: ListAffiliateRecordsParams = {},
 ): Promise<PaginatedResponse<AffiliateRebateRecord>> {
@@ -222,6 +250,7 @@ export const affiliatesAPI = {
   clearUserSettings,
   batchSetRate,
   listInviteRecords,
+  listSecondLevelRecords,
   listRebateRecords,
   listTransferRecords,
   getUserOverview,

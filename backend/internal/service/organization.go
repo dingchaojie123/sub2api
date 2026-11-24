@@ -27,7 +27,21 @@ var (
 	ErrOrganizationWithdrawOwner  = infraerrors.Forbidden("ORGANIZATION_WITHDRAW_OWNER_ONLY", "only the organization owner can transfer quota back to the personal balance")
 	ErrOrganizationBalance        = infraerrors.Forbidden("ORGANIZATION_QUOTA_EXHAUSTED", "organization balance is insufficient")
 	ErrOrganizationMemberLimit    = infraerrors.TooManyRequests("ORGANIZATION_MEMBER_QUOTA_EXHAUSTED", "organization member quota is exhausted")
+
+	ErrAPIKeyNotTeamBilled  = infraerrors.BadRequest("API_KEY_NOT_TEAM_BILLED", "only an API key billed to a team can be shared with team members")
+	ErrAPIKeyShareOwnerOnly = infraerrors.Forbidden("API_KEY_SHARE_OWNER_ONLY", "only the team owner can share an API key with team members")
+	ErrAPIKeyShareCopy      = infraerrors.BadRequest("API_KEY_SHARE_COPY", "a key issued from a shared team key cannot be shared again")
 )
+
+// APIKeyShareResult 是开启 / 关闭「共享给团队成员」的结果。
+type APIKeyShareResult struct {
+	// Issued 本次新发（或恢复）的成员副本数。
+	Issued int
+	// Skipped 仍然没有副本的在团成员数（例如无权使用该 Key 所绑专属分组）。
+	Skipped int
+	// RevokedKeys 取消共享时被停用的副本密钥，调用方用来清理鉴权缓存。
+	RevokedKeys []string
+}
 
 type Organization struct {
 	ID                   int64     `json:"id"`
@@ -277,6 +291,21 @@ func (s *OrganizationService) AcceptInvitation(ctx context.Context, userID int64
 		return nil, err
 	}
 	return s.repo.AcceptInvitation(ctx, userID, user.Email, organizationInvitationHash(token))
+}
+
+// OrganizationDefaultKeyBinder 由仓储层实现：把成员的默认 Key 绑定到团队计费。
+type OrganizationDefaultKeyBinder interface {
+	BindDefaultKeysToOrganization(ctx context.Context, organizationID, userID int64, signupGroupNames []string) ([]string, error)
+}
+
+// BindDefaultKeys 成员通过邀请加入团队后，把他名下系统自动创建的默认 Key 绑定到该团队计费，
+// 返回被绑定的 Key 字符串，调用方据此清理鉴权缓存。已有绑定记录的 Key（含手动切回个人的）不会被改动。
+func (s *OrganizationService) BindDefaultKeys(ctx context.Context, organizationID, userID int64) ([]string, error) {
+	binder, ok := s.repo.(OrganizationDefaultKeyBinder)
+	if !ok {
+		return nil, nil
+	}
+	return binder.BindDefaultKeysToOrganization(ctx, organizationID, userID, signupAPIKeyGroupNames[:])
 }
 
 func (s *OrganizationService) UpdateMember(ctx context.Context, organizationID, actorID, memberID int64, role, status *string, monthlyLimit *float64) error {

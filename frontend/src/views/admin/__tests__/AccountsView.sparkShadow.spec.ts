@@ -54,6 +54,12 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({ showError, showSuccess, showInfo: vi.fn() })
 }))
 
+// 批量操作的二次确认已改为站内弹窗(useDialog)，测试里直接视为用户点了「确认」
+vi.mock('@/composables/useDialog', () => ({
+  confirmDialog: vi.fn(async () => true),
+  promptDialog: vi.fn(async () => null)
+}))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ token: 'test-token' })
 }))
@@ -266,7 +272,6 @@ describe('admin AccountsView — 账号行展示', () => {
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroups.mockResolvedValue([])
-    vi.stubGlobal('confirm', vi.fn(() => true))
   })
 
   afterEach(() => {

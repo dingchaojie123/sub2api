@@ -20,6 +20,7 @@ func UserFromServiceShallow(u *service.User) *User {
 		Balance:                    u.Balance,
 		DisplayBalance:             u.DisplayBalance,
 		FrozenBalance:              u.FrozenBalance,
+		FrozenDisplayBalance:       u.FrozenDisplayBalance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
@@ -88,6 +89,8 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		billingSource.Type = k.BillingSource.Type
 		billingSource.OrganizationID = k.BillingSource.OrganizationID
 		billingSource.Status = k.BillingSource.Status
+		billingSource.SharedWithTeam = k.BillingSource.SharedWithTeam
+		billingSource.SharedFromTeam = k.BillingSource.SharedFromTeam
 		if k.BillingSource.OrganizationName != "" {
 			name := k.BillingSource.OrganizationName
 			billingSource.OrganizationName = &name

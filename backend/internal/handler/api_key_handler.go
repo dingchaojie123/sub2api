@@ -43,6 +43,7 @@ type CreateAPIKeyRequest struct {
 	RateLimit1d    *float64 `json:"rate_limit_1d"`
 	RateLimit7d    *float64 `json:"rate_limit_7d"`
 	OrganizationID *int64   `json:"organization_id"`
+	ShareWithTeam  bool     `json:"share_with_team"` // 同时共享给团队成员（仅团队创建者）
 }
 
 // UpdateAPIKeyRequest represents the update API key request payload
@@ -162,6 +163,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		IPBlacklist:    req.IPBlacklist,
 		ExpiresInDays:  req.ExpiresInDays,
 		OrganizationID: req.OrganizationID,
+		ShareWithTeam:  req.ShareWithTeam,
 	}
 	if req.Quota != nil {
 		svcReq.Quota = *req.Quota
@@ -209,6 +211,35 @@ func (h *APIKeyHandler) SetBillingSource(c *gin.Context) {
 			return nil, err
 		}
 		return dto.APIKeyFromService(key), nil
+	})
+}
+
+// SetTeamShare 团队创建者开启 / 关闭某把团队 Key 的「共享给团队成员」。
+// PUT /api/v1/keys/team-share
+func (h *APIKeyHandler) SetTeamShare(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	var req struct {
+		APIKeyID int64 `json:"api_key_id" binding:"required"`
+		Shared   *bool `json:"shared" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	executeUserIdempotentJSON(c, "user.api_keys.team_share", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		key, result, err := h.apiKeyService.SetTeamShare(ctx, subject.UserID, req.APIKeyID, *req.Shared)
+		if err != nil {
+			return nil, err
+		}
+		return gin.H{
+			"key":     dto.APIKeyFromService(key),
+			"issued":  result.Issued,
+			"skipped": result.Skipped,
+		}, nil
 	})
 }
 

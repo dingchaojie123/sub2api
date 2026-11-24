@@ -385,6 +385,7 @@ export default {
 
     affiliates: {
       invitesDescription: 'View site-wide inviter and invitee relationships',
+      secondLevelDescription: 'View site-wide level-2 invite chains (root inviter → level-1 user → level-2 user). Level-2 users earn no rebate',
       rebatesDescription: 'View recharge orders that generated affiliate rebates',
       transfersDescription: 'View affiliate quota transfers into account balance',
       errors: {
@@ -397,6 +398,9 @@ export default {
         endAt: 'End date',
         inviter: 'Inviter',
         invitee: 'Invitee',
+        root: 'Root Inviter',
+        via: 'Level-1 User',
+        secondLevelInvitee: 'Level-2 User',
         user: 'User',
         affCode: 'Invite Code',
         order: 'Order',
@@ -420,6 +424,7 @@ export default {
         affCode: 'Invite Code',
         rebateRate: 'Rebate Rate',
         invitedCount: 'Invited Users',
+        secondLevelCount: 'Level-2 Users',
         rebatedInviteeCount: 'Rebated Invitees',
         availableQuota: 'Available Quota',
         historyQuota: 'Historical Rebate'

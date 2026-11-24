@@ -35,6 +35,24 @@
               @open="openUserOverview"
             />
           </template>
+          <template #cell-root="{ row }">
+            <UserCell
+              :id="row.root_id"
+              :email="row.root_email"
+              :username="row.root_username"
+              :clickable="true"
+              @open="openUserOverview"
+            />
+          </template>
+          <template #cell-via="{ row }">
+            <UserCell
+              :id="row.via_id"
+              :email="row.via_email"
+              :username="row.via_username"
+              :clickable="true"
+              @open="openUserOverview"
+            />
+          </template>
           <template #cell-invitee="{ row }">
             <UserCell
               :id="row.invitee_id"
@@ -132,6 +150,7 @@
           <OverviewStat :label="t('admin.affiliates.overview.affCode')" :value="selectedOverview.aff_code || '-'" mono />
           <OverviewStat :label="t('admin.affiliates.overview.rebateRate')" :value="formatPercent(selectedOverview.rebate_rate_percent)" />
           <OverviewStat :label="t('admin.affiliates.overview.invitedCount')" :value="String(selectedOverview.invited_count)" />
+          <OverviewStat :label="t('admin.affiliates.overview.secondLevelCount')" :value="String(selectedOverview.second_level_count ?? 0)" />
           <OverviewStat :label="t('admin.affiliates.overview.rebatedInviteeCount')" :value="String(selectedOverview.rebated_invitee_count)" />
           <OverviewStat :label="t('admin.affiliates.overview.availableQuota')" :value="formatAmount(selectedOverview.available_quota)" />
           <OverviewStat :label="t('admin.affiliates.overview.historyQuota')" :value="formatAmount(selectedOverview.history_quota)" />
@@ -153,13 +172,13 @@ import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import type { Column } from '@/components/common/types'
 import { useAppStore } from '@/stores/app'
-import { affiliatesAPI, type AffiliateInviteRecord, type AffiliateRebateRecord, type AffiliateTransferRecord, type AffiliateUserOverview, type ListAffiliateRecordsParams } from '@/api/admin/affiliates'
+import { affiliatesAPI, type AffiliateInviteRecord, type AffiliateRebateRecord, type AffiliateSecondLevelRecord, type AffiliateTransferRecord, type AffiliateUserOverview, type ListAffiliateRecordsParams } from '@/api/admin/affiliates'
 import type { PaginatedResponse } from '@/types'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { formatDateTime as formatDisplayDateTime } from '@/utils/format'
 
-type RecordType = 'invites' | 'rebates' | 'transfers'
-type AffiliateRecord = AffiliateInviteRecord | AffiliateRebateRecord | AffiliateTransferRecord
+type RecordType = 'invites' | 'second-level' | 'rebates' | 'transfers'
+type AffiliateRecord = AffiliateInviteRecord | AffiliateSecondLevelRecord | AffiliateRebateRecord | AffiliateTransferRecord
 
 const props = defineProps<{
   type: RecordType
@@ -183,6 +202,14 @@ const columns = computed<Column[]>(() => {
       { key: 'invitee', label: t('admin.affiliates.records.invitee'), sortable: true },
       { key: 'aff_code', label: t('admin.affiliates.records.affCode'), sortable: true },
       { key: 'total_rebate', label: t('admin.affiliates.records.totalRebate'), sortable: true },
+      { key: 'created_at', label: t('admin.affiliates.records.invitedAt'), sortable: true },
+    ]
+  }
+  if (props.type === 'second-level') {
+    return [
+      { key: 'root', label: t('admin.affiliates.records.root'), sortable: true },
+      { key: 'via', label: t('admin.affiliates.records.via'), sortable: true },
+      { key: 'invitee', label: t('admin.affiliates.records.secondLevelInvitee'), sortable: true },
       { key: 'created_at', label: t('admin.affiliates.records.invitedAt'), sortable: true },
     ]
   }
@@ -255,6 +282,9 @@ function buildParams(): ListAffiliateRecordsParams {
 async function fetchRecords(params: ListAffiliateRecordsParams): Promise<PaginatedResponse<AffiliateRecord>> {
   if (props.type === 'invites') {
     return affiliatesAPI.listInviteRecords(params)
+  }
+  if (props.type === 'second-level') {
+    return affiliatesAPI.listSecondLevelRecords(params)
   }
   if (props.type === 'rebates') {
     return affiliatesAPI.listRebateRecords(params)

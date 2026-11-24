@@ -87,7 +87,8 @@ export interface User {
   role: 'admin' | 'user' // User role for authorization
   balance: number // User balance for API usage
   display_balance?: number // User-facing nominal balance
-  frozen_balance?: number // Balance currently held by async batch jobs
+  frozen_balance?: number // Real balance currently held by async jobs (real-money scale)
+  frozen_display_balance?: number // Credits currently held by async jobs (same scale as display_balance)
   concurrency: number // Allowed concurrent requests
   rpm_limit?: number // User-level RPM cap (0 = unlimited); effective as fallback when group has no rpm_limit
   status: 'active' | 'disabled' // Account status
@@ -145,6 +146,18 @@ export interface AffiliateInvitee {
   total_rebate: number
 }
 
+/** 二级用户：被我的一级用户邀请的用户。仅供查看，不产生返利。 */
+export interface AffiliateSecondLevelInvitee {
+  user_id: number
+  email: string
+  username: string
+  created_at?: string
+  /** 邀请了该用户的一级用户 */
+  via_user_id: number
+  /** 一级用户邮箱（已脱敏） */
+  via_email: string
+}
+
 export interface UserAffiliateDetail {
   user_id: number
   aff_code: string
@@ -156,6 +169,9 @@ export interface UserAffiliateDetail {
   /** 当前用户作为邀请人时实际生效的返利比例（专属覆盖全局）。0-100。 */
   effective_rebate_rate_percent: number
   invitees: AffiliateInvitee[]
+  /** 二级用户总数（可能大于 second_level_invitees 的条数，列表有上限） */
+  second_level_count: number
+  second_level_invitees: AffiliateSecondLevelInvitee[]
 }
 
 export interface AffiliateTransferResponse {
@@ -694,12 +710,17 @@ export interface ApiKeyBillingSource {
   organization_id: number | null
   organization_name: string | null
   status: 'active' | 'inactive'
+  /** This is the team owner's key and it is shared with team members. */
+  shared_with_team?: boolean
+  /** This key was issued automatically to the member from a key the team owner shared. */
+  shared_from_team?: boolean
 }
 
 export interface CreateApiKeyRequest {
   name: string
   group_id?: number | null
   organization_id?: number
+  share_with_team?: boolean // Team owner only: also issue a copy to every team member
   custom_key?: string // Optional custom API Key
   ip_whitelist?: string[]
   ip_blacklist?: string[]

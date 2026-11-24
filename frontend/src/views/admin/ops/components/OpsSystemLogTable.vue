@@ -5,6 +5,7 @@ import { opsAPI, type OpsRuntimeLogConfig, type OpsSystemLog, type OpsSystemLogS
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import { useAppStore } from '@/stores'
+import { confirmDialog } from '@/composables/useDialog'
 
 const appStore = useAppStore()
 const { t } = useI18n()
@@ -260,7 +261,7 @@ const saveRuntimeConfig = async () => {
 }
 
 const resetRuntimeConfig = async () => {
-  const ok = window.confirm(t('admin.ops.systemLogs.resetRuntimeConfigConfirm'))
+  const ok = await confirmDialog(t('admin.ops.systemLogs.resetRuntimeConfigConfirm'))
   if (!ok) return
 
   runtimeSaving.value = true
@@ -284,7 +285,7 @@ const resetRuntimeConfig = async () => {
 }
 
 const cleanupCurrentFilter = async () => {
-  const ok = window.confirm(t('admin.ops.systemLogs.cleanupConfirm'))
+  const ok = await confirmDialog(t('admin.ops.systemLogs.cleanupConfirm'), { danger: true })
   if (!ok) return
   try {
     const payload = {

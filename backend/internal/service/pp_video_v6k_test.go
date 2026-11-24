@@ -20,14 +20,30 @@ const (
 	v6kTestProPublic  = "Seedance2.0-V6K"
 	v6kTestFastPublic = "Seedance2.0-V6K-fast"
 	v6kTestMiniPublic = "Seedance2.0-V6K-mini"
-	v6kTestMedia      = "https://example.com/1.png"
+	// 活动 (2026-11-23): the upstream id is spelled exactly as the operator wrote it.
+	v6kTestActivity       = "seedanco2.5-720"
+	v6kTestActivityPublic = "Seedance2.5-V6K-720"
+	v6kTestMedia          = "https://example.com/1.png"
 )
 
 func TestV6KSeedanceModelTable(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, []string{v6kTestProPublic, v6kTestFastPublic, v6kTestMiniPublic}, v6kModelNames())
-	require.Len(t, v6kSeedanceModels, 3)
+	require.Equal(t, []string{v6kTestProPublic, v6kTestFastPublic, v6kTestMiniPublic, v6kTestActivityPublic}, v6kModelNames())
+	require.Len(t, v6kSeedanceModels, 4)
+
+	// Seconds and reference limits per model: the three Seedance 2.0 models take 4-15 s, 9 images,
+	// no videos and 3 audios; the 活动 model takes 4-30 s, 30 images, 10 videos and 10 audios.
+	type limits struct {
+		maxSeconds int
+		refs       []int
+	}
+	wantLimits := map[string]limits{
+		v6kTestPro:      {15, []int{9, 0, 3}},
+		v6kTestFast:     {15, []int{9, 0, 3}},
+		v6kTestMini:     {15, []int{9, 0, 3}},
+		v6kTestActivity: {30, []int{30, 10, 10}},
+	}
 
 	seen := make(map[string]string)
 	for _, spec := range v6kSeedanceModels {
@@ -47,9 +63,16 @@ func TestV6KSeedanceModelTable(t *testing.T) {
 		require.Equal(t, "audios", spec.audioField(), spec.Name)
 		require.Equal(t, "ratio", spec.ratioField(), spec.Name)
 		require.Equal(t, 4, spec.MinSeconds, spec.Name)
-		require.Equal(t, 15, spec.MaxSeconds, spec.Name)
-		require.Equal(t, []int{9, 0, 3}, []int{spec.MaxImages, spec.MaxVideos, spec.MaxAudios}, spec.Name)
+		want, ok := wantLimits[spec.Name]
+		require.True(t, ok, "no expected limits for %q", spec.Name)
+		require.Equal(t, want.maxSeconds, spec.MaxSeconds, spec.Name)
+		require.Equal(t, want.refs, []int{spec.MaxImages, spec.MaxVideos, spec.MaxAudios}, spec.Name)
 	}
+
+	activity, ok := v6kModelSpecFor(v6kTestActivityPublic)
+	require.True(t, ok)
+	require.Equal(t, v6kTestActivity, activity.Name)
+	require.Equal(t, []string{"720p"}, activity.Resolutions)
 
 	pro, ok := v6kModelSpecFor(strings.ToLower(v6kTestPro))
 	require.True(t, ok)
@@ -73,7 +96,7 @@ func TestV6KSeedanceModelListAndRouting(t *testing.T) {
 	require.True(t, IsSeedanceHubMemberPlatform(PlatformV6KSeedance))
 	require.True(t, PPVideoGroupServesPlatform(PlatformSeedanceHub, PlatformV6KSeedance))
 
-	for _, model := range []string{v6kTestPro, v6kTestFast, v6kTestMini, v6kTestProPublic, v6kTestFastPublic, v6kTestMiniPublic} {
+	for _, model := range []string{v6kTestPro, v6kTestFast, v6kTestMini, v6kTestActivity, v6kTestProPublic, v6kTestFastPublic, v6kTestMiniPublic, v6kTestActivityPublic} {
 		require.True(t, ppVideoModelBelongsToPlatform(PlatformV6KSeedance, model), model)
 		require.False(t, ppVideoModelKnownForeignToPlatform(PlatformV6KSeedance, model), model)
 	}
@@ -272,6 +295,49 @@ func TestV6KSeedanceRejectsInvalidRequests(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// The 活动 model (seedanco2.5-720): 720p only, 4-30 s, 30 images / 10 videos / 10 audios.
+func TestV6KSeedanceActivityModel(t *testing.T) {
+	t.Parallel()
+
+	const ref = `"` + v6kTestMedia + `"`
+	head := `{"model":"` + v6kTestActivityPublic + `","prompt":"x",`
+
+	// The upstream id is the only name sent upstream; the resolution defaults to 720p.
+	prepared, public, err := PreparePPVideoRequestBody(PlatformV6KSeedance, PPVideoOperationGeneric, []byte(head+`"duration":4}`))
+	require.NoError(t, err)
+	require.JSONEq(t, `{"model":"`+v6kTestActivity+`","prompt":"x","seconds":4,"resolution":"720p"}`, string(prepared))
+	require.Equal(t, v6kTestActivityPublic, public.Model)
+	require.Equal(t, v6kTestActivity, public.UpstreamModel)
+
+	// Either name is accepted, and the documented upper limits (30 s, 30 / 10 / 10 references) pass.
+	for _, model := range []string{v6kTestActivity, v6kTestActivityPublic} {
+		body := `{"model":"` + model + `","prompt":"x","duration":30,"resolution":"720p","ratio":"21:9","images":[` + repeatedJijiuItems(ref, 30) +
+			`],"videos":[` + repeatedJijiuItems(ref, 10) + `],"audios":[` + repeatedJijiuItems(ref, 10) + `]}`
+		prepared, _, err = PreparePPVideoRequestBody(PlatformV6KSeedance, PPVideoOperationGeneric, []byte(body))
+		require.NoError(t, err, model)
+		require.Equal(t, v6kTestActivity, gjson.GetBytes(prepared, "model").String())
+		require.Equal(t, int64(30), gjson.GetBytes(prepared, "seconds").Int())
+		require.Len(t, gjson.GetBytes(prepared, "images").Array(), 30)
+		require.Len(t, gjson.GetBytes(prepared, "videos").Array(), 10)
+		require.Len(t, gjson.GetBytes(prepared, "audios").Array(), 10)
+	}
+
+	for _, tc := range []struct{ name, body, want string }{
+		{"below 4 s", head + `"duration":3}`, "from 4 to 30 seconds"},
+		{"above 30 s", head + `"duration":31}`, "from 4 to 30 seconds"},
+		{"720p only: 1080p", head + `"duration":5,"resolution":"1080p"}`, "resolution must be 720p"},
+		{"720p only: 480p", head + `"duration":5,"resolution":"480p"}`, "resolution must be 720p"},
+		{"too many images", head + `"duration":5,"images":[` + repeatedJijiuItems(ref, 31) + `]}`, "at most 30 reference images"},
+		{"too many videos", head + `"duration":5,"videos":[` + repeatedJijiuItems(ref, 11) + `]}`, "at most 10 reference videos"},
+		{"too many audios", head + `"duration":5,"audios":[` + repeatedJijiuItems(ref, 11) + `]}`, "at most 10 reference audios"},
+		{"ratio outside the set", head + `"duration":5,"ratio":"5:4"}`, "ratio must be one of"},
+		{"edit is still refused", head + `"duration":5,"omni_reference_task_type":"edit"}`, "omni_reference_task_type"},
+	} {
+		_, _, err := PreparePPVideoRequestBody(PlatformV6KSeedance, PPVideoOperationGeneric, []byte(tc.body))
+		require.ErrorContains(t, err, tc.want, tc.name)
+	}
+}
+
 func TestTranslatePPVideoUnifiedRequestToV6K(t *testing.T) {
 	t.Parallel()
 
@@ -367,6 +433,13 @@ func TestV6KSeedanceCapabilitiesQuoteAndHubLines(t *testing.T) {
 	require.Equal(t, []string{"480p", "720p"}, fast.Resolutions)
 	require.Nil(t, PPVideoCapabilitiesForModel(PlatformV6KSeedance, "other").Duration)
 
+	activity := PPVideoCapabilitiesForModel(PlatformV6KSeedance, v6kTestActivityPublic)
+	require.Equal(t, &PPVideoDurationRange{Min: 4, Max: 30}, activity.Duration)
+	require.Equal(t, []string{"720p"}, activity.Resolutions)
+	require.Equal(t, []string{"16:9", "9:16", "1:1", "3:4", "4:3", "21:9"}, activity.Ratios)
+	require.Equal(t, []int{30, 10, 10}, []int{*activity.Assets.ReferenceImages, *activity.Assets.ReferenceVideos, *activity.Assets.ReferenceAudios})
+	require.False(t, *activity.Assets.FirstLastFrame)
+
 	// The price estimate enforces the same limits as the submission.
 	resolution, ok := normalizeMediaQuoteVideoSpec(PlatformV6KSeedance, v6kTestProPublic, "", 10)
 	require.True(t, ok)
@@ -393,9 +466,10 @@ func TestV6KSeedanceCapabilitiesQuoteAndHubLines(t *testing.T) {
 
 	// Every model of the table is one visible per-request line of the aggregate group, tag V6K.
 	wantNames := map[string]string{
-		v6kTestPro:  "Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K",
-		v6kTestFast: "Seedance2.0--480p/720p--官方fast--按次--V6K",
-		v6kTestMini: "Seedance2.0--480p/720p--mini--按次--V6K",
+		v6kTestPro:      "Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K",
+		v6kTestFast:     "Seedance2.0--480p/720p--官方fast--按次--V6K",
+		v6kTestMini:     "Seedance2.0--480p/720p--mini--按次--V6K",
+		v6kTestActivity: "Seedance2.5--720p--活动--按次--V6K",
 	}
 	count := 0
 	for _, line := range SeedanceHubLines() {

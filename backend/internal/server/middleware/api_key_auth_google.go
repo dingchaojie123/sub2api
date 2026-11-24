@@ -165,7 +165,24 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			return
 		}
 
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
+		// 团队计费的 Key 只用团队额度，不看成员个人余额/个人订阅（与主中间件一致）。
+		if apiKey.Organization != nil {
+			if !apiKey.Organization.Active {
+				MarkIngressRejected(c, IngressRejectUserInactive)
+				abortWithGoogleError(c, 403, "Team access has been revoked")
+				return
+			}
+			if apiKey.Organization.Balance <= 0 {
+				abortWithGoogleError(c, 403, "Team quota is exhausted; contact your team administrator")
+				return
+			}
+			if apiKey.Organization.MonthlyLimit > 0 && apiKey.Organization.MonthlyUsed+apiKey.Organization.MonthlyFrozen >= apiKey.Organization.MonthlyLimit {
+				abortWithGoogleError(c, 429, "Your team member quota is exhausted")
+				return
+			}
+		}
+
+		isSubscriptionType := apiKey.Organization == nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
 		if isSubscriptionType && subscriptionService != nil {
 			subscription, err := subscriptionService.GetActiveSubscription(
 				c.Request.Context(),
@@ -200,7 +217,7 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 
 			c.Set(string(ContextKeySubscription), subscription)
 		} else {
-			if apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
+			if apiKey.Organization == nil && apiKeyBalanceBelowAuthThreshold(apiKey.User.Balance, cfg) {
 				abortWithGoogleError(c, 403, "Insufficient account balance")
 				return
 			}

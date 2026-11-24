@@ -305,6 +305,10 @@ var seedanceHubLines = []SeedanceHubLine{
 	{Name: "Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K", Platform: PlatformV6KSeedance, Model: "Seedance2.0-V6K", Version: seedanceHubVersion20, Billing: BillingModePerRequest},
 	{Name: "Seedance2.0--480p/720p--官方fast--按次--V6K", Platform: PlatformV6KSeedance, Model: "Seedance2.0-V6K-fast", Version: seedanceHubVersion20, Billing: BillingModePerRequest},
 	{Name: "Seedance2.0--480p/720p--mini--按次--V6K", Platform: PlatformV6KSeedance, Model: "Seedance2.0-V6K-mini", Version: seedanceHubVersion20, Billing: BillingModePerRequest},
+	// V6K 活动 (2026-11-23): Seedance 2.5, 720p only, 4-30 seconds, 30 images / 10 videos / 10 audios,
+	// billed per request (channel: 19 credits). The model segment is the operator's own label (活动);
+	// the upstream id is seedanco2.5-720 (see pp_video_v6k.go). VISIBLE (the operator's request).
+	{Name: "Seedance2.5--720p--活动--按次--V6K", Platform: PlatformV6KSeedance, Model: "Seedance2.5-V6K-720", Version: seedanceHubVersion25, Billing: BillingModePerRequest},
 }
 
 // seedanceHubMemberPlatforms are the platforms whose accounts the hub group schedules.

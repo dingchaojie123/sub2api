@@ -26,6 +26,9 @@
             <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
               {{ formatCount(detail.aff_count) }}
             </p>
+            <p class="mt-1 text-xs text-gray-400 dark:text-dark-500">
+              {{ t('affiliate.stats.secondLevelUsers', { count: formatCount(detail.second_level_count) }) }}
+            </p>
           </div>
           <div class="card p-5">
             <p class="text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.stats.availableQuota') }}</p>
@@ -105,34 +108,104 @@
         </div>
 
         <div class="card p-6">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.invitees.title') }}</h3>
-          <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
-            {{ t('affiliate.invitees.empty') }}
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('affiliate.invitees.title') }}</h3>
+            <div
+              class="inline-flex self-start rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-900"
+              role="tablist"
+            >
+              <button
+                v-for="tab in inviteeTabs"
+                :key="tab.key"
+                type="button"
+                role="tab"
+                :aria-selected="activeInviteeTab === tab.key"
+                :data-testid="`invitee-tab-${tab.key}`"
+                class="rounded-md px-3 py-1 text-sm font-medium transition-colors"
+                :class="
+                  activeInviteeTab === tab.key
+                    ? 'bg-white text-primary-600 shadow-sm dark:bg-dark-700 dark:text-primary-400'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-gray-200'
+                "
+                @click="activeInviteeTab = tab.key"
+              >
+                {{ tab.label }} ({{ formatCount(tab.count) }})
+              </button>
+            </div>
           </div>
-          <div v-else class="mt-4 overflow-x-auto">
-            <table class="w-full min-w-[560px] text-left text-sm">
-              <thead>
-                <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.email') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.username') }}</th>
-                  <th class="px-3 py-2 font-medium text-right">{{ t('affiliate.invitees.columns.rebate') }}</th>
-                  <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.joinedAt') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="item in detail.invitees"
-                  :key="item.user_id"
-                  class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-                >
-                  <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || '-' }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.username || '-' }}</td>
-                  <td class="px-3 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{{ formatCurrency(item.total_rebate) }}</td>
-                  <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ formatDateTime(item.created_at) || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+
+          <template v-if="activeInviteeTab === 'first'">
+            <div v-if="detail.invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+              {{ t('affiliate.invitees.empty') }}
+            </div>
+            <div v-else class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[560px] text-left text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.email') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.username') }}</th>
+                    <th class="px-3 py-2 font-medium text-right">{{ t('affiliate.invitees.columns.rebate') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.joinedAt') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="item in detail.invitees"
+                    :key="item.user_id"
+                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
+                  >
+                    <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || '-' }}</td>
+                    <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.username || '-' }}</td>
+                    <td class="px-3 py-3 text-right font-medium text-emerald-600 dark:text-emerald-400">{{ formatCurrency(item.total_rebate) }}</td>
+                    <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ formatDateTime(item.created_at) || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <template v-else>
+            <p class="mt-3 text-sm text-gray-500 dark:text-dark-400">{{ t('affiliate.secondLevel.hint') }}</p>
+            <div v-if="detail.second_level_invitees.length === 0" class="mt-4 rounded-xl border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-dark-400">
+              {{ t('affiliate.secondLevel.empty') }}
+            </div>
+            <div v-else class="mt-4 overflow-x-auto">
+              <table class="w-full min-w-[560px] text-left text-sm">
+                <thead>
+                  <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-dark-400">
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.email') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.username') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.secondLevel.columns.via') }}</th>
+                    <th class="px-3 py-2 font-medium">{{ t('affiliate.invitees.columns.joinedAt') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="item in detail.second_level_invitees"
+                    :key="item.user_id"
+                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
+                  >
+                    <td class="px-3 py-3 text-gray-900 dark:text-white">{{ item.email || '-' }}</td>
+                    <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.username || '-' }}</td>
+                    <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ item.via_email || '-' }}</td>
+                    <td class="px-3 py-3 text-gray-700 dark:text-gray-300">{{ formatDateTime(item.created_at) || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p
+              v-if="detail.second_level_count > detail.second_level_invitees.length"
+              class="mt-3 text-xs text-gray-400 dark:text-dark-500"
+              data-testid="second-level-truncated"
+            >
+              {{
+                t('affiliate.secondLevel.truncated', {
+                  shown: formatCount(detail.second_level_invitees.length),
+                  total: formatCount(detail.second_level_count)
+                })
+              }}
+            </p>
+          </template>
         </div>
       </template>
     </div>
@@ -160,6 +233,14 @@ const { copyToClipboard } = useClipboard()
 const loading = ref(true)
 const transferring = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+
+// 一级 / 二级用户列表切换。二级用户仅供查看（不产生返利），所以没有返利列。
+type InviteeTab = 'first' | 'second'
+const activeInviteeTab = ref<InviteeTab>('first')
+const inviteeTabs = computed<Array<{ key: InviteeTab; label: string; count: number }>>(() => [
+  { key: 'first', label: t('affiliate.secondLevel.tabFirst'), count: detail.value?.aff_count ?? 0 },
+  { key: 'second', label: t('affiliate.secondLevel.tabSecond'), count: detail.value?.second_level_count ?? 0 }
+])
 
 const inviteLink = computed(() => {
   if (!detail.value) return ''

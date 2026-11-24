@@ -79,6 +79,18 @@ type AffiliateInvitee struct {
 	TotalRebate float64    `json:"total_rebate"`
 }
 
+// AffiliateSecondLevelInvitee 是「二级用户」：被我的一级用户邀请注册的用户。
+// 二级用户仅用于查看关系链，不产生返利（返利只发给直接邀请人）。
+type AffiliateSecondLevelInvitee struct {
+	UserID    int64      `json:"user_id"`
+	Email     string     `json:"email"`
+	Username  string     `json:"username"`
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+	// ViaUserID / ViaEmail 标识是哪位一级用户邀请了该二级用户（邮箱已脱敏）。
+	ViaUserID int64  `json:"via_user_id"`
+	ViaEmail  string `json:"via_email"`
+}
+
 type AffiliateDetail struct {
 	UserID          int64   `json:"user_id"`
 	AffCode         string  `json:"aff_code"`
@@ -92,6 +104,10 @@ type AffiliateDetail struct {
 	// 用于在用户的 /affiliate 页面直观展示「分享后能拿到多少」。
 	EffectiveRebateRatePercent float64            `json:"effective_rebate_rate_percent"`
 	Invitees                   []AffiliateInvitee `json:"invitees"`
+	// SecondLevelCount 是二级用户总数（不受列表条数上限影响）；
+	// SecondLevelInvitees 最多返回 affiliateInviteesLimit 条，按注册时间倒序。
+	SecondLevelCount    int                           `json:"second_level_count"`
+	SecondLevelInvitees []AffiliateSecondLevelInvitee `json:"second_level_invitees"`
 }
 
 type AffiliateRepository interface {
@@ -103,6 +119,8 @@ type AffiliateRepository interface {
 	ThawFrozenQuota(ctx context.Context, userID int64) (float64, error)
 	TransferQuotaToBalance(ctx context.Context, userID int64) (float64, float64, error)
 	ListInvitees(ctx context.Context, inviterID int64, limit int) ([]AffiliateInvitee, error)
+	// ListSecondLevelInvitees 返回 userID 的二级用户（一级用户邀请的用户）及总数。
+	ListSecondLevelInvitees(ctx context.Context, userID int64, limit int) ([]AffiliateSecondLevelInvitee, int, error)
 
 	// 管理端：用户级专属配置
 	UpdateUserAffCode(ctx context.Context, userID int64, newCode string) error
@@ -111,6 +129,7 @@ type AffiliateRepository interface {
 	BatchSetUserRebateRate(ctx context.Context, userIDs []int64, ratePercent *float64) error
 	ListUsersWithCustomSettings(ctx context.Context, filter AffiliateAdminFilter) ([]AffiliateAdminEntry, int64, error)
 	ListAffiliateInviteRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateInviteRecord, int64, error)
+	ListAffiliateSecondLevelRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateSecondLevelRecord, int64, error)
 	ListAffiliateRebateRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error)
 	ListAffiliateTransferRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateTransferRecord, int64, error)
 	GetAffiliateUserOverview(ctx context.Context, userID int64) (*AffiliateUserOverview, error)
@@ -153,6 +172,21 @@ type AffiliateInviteRecord struct {
 	InviteeUsername string    `json:"invitee_username"`
 	AffCode         string    `json:"aff_code"`
 	TotalRebate     float64   `json:"total_rebate"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// AffiliateSecondLevelRecord 是管理端「二级邀请」记录：一条 顶级邀请人 → 一级用户 → 二级用户 的链路。
+// 二级用户不产生返利（返利只发给直接邀请人），所以这里没有返利字段。
+type AffiliateSecondLevelRecord struct {
+	RootID          int64     `json:"root_id"`
+	RootEmail       string    `json:"root_email"`
+	RootUsername    string    `json:"root_username"`
+	ViaID           int64     `json:"via_id"`
+	ViaEmail        string    `json:"via_email"`
+	ViaUsername     string    `json:"via_username"`
+	InviteeID       int64     `json:"invitee_id"`
+	InviteeEmail    string    `json:"invitee_email"`
+	InviteeUsername string    `json:"invitee_username"`
 	CreatedAt       time.Time `json:"created_at"`
 }
 
@@ -199,6 +233,7 @@ type AffiliateUserOverview struct {
 	RebateRatePercent   float64 `json:"rebate_rate_percent"`
 	RebateRateCustom    bool    `json:"-"`
 	InvitedCount        int     `json:"invited_count"`
+	SecondLevelCount    int     `json:"second_level_count"`
 	RebatedInviteeCount int     `json:"rebated_invitee_count"`
 	AvailableQuota      float64 `json:"available_quota"`
 	HistoryQuota        float64 `json:"history_quota"`
@@ -253,6 +288,13 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 	if err != nil {
 		return nil, err
 	}
+	// 二级用户只是附加的只读视图：查询失败不应拖垮整个邀请返利页（额度/转入余额仍需可用），
+	// 因此降级为空列表并记录日志。
+	secondLevel, secondLevelCount, err := s.listSecondLevelInvitees(ctx, userID)
+	if err != nil {
+		logger.LegacyPrintf("service.affiliate", "[Affiliate] Failed to list second-level invitees for user %d: %v", userID, err)
+		secondLevel, secondLevelCount = []AffiliateSecondLevelInvitee{}, 0
+	}
 	return &AffiliateDetail{
 		UserID:                     summary.UserID,
 		AffCode:                    summary.AffCode,
@@ -263,6 +305,8 @@ func (s *AffiliateService) GetAffiliateDetail(ctx context.Context, userID int64)
 		AffHistoryQuota:            summary.AffHistoryQuota,
 		EffectiveRebateRatePercent: s.resolveRebateRatePercent(ctx, summary),
 		Invitees:                   invitees,
+		SecondLevelCount:           secondLevelCount,
+		SecondLevelInvitees:        secondLevel,
 	}, nil
 }
 
@@ -484,6 +528,24 @@ func (s *AffiliateService) listInvitees(ctx context.Context, inviterID int64) ([
 	return invitees, nil
 }
 
+func (s *AffiliateService) listSecondLevelInvitees(ctx context.Context, userID int64) ([]AffiliateSecondLevelInvitee, int, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	items, total, err := s.repo.ListSecondLevelInvitees(ctx, userID, affiliateInviteesLimit)
+	if err != nil {
+		return nil, 0, err
+	}
+	if items == nil {
+		items = []AffiliateSecondLevelInvitee{}
+	}
+	for i := range items {
+		items[i].Email = maskEmail(items[i].Email)
+		items[i].ViaEmail = maskEmail(items[i].ViaEmail)
+	}
+	return items, total, nil
+}
+
 func roundTo(v float64, scale int) float64 {
 	factor := math.Pow10(scale)
 	return math.Round(v*factor) / factor
@@ -619,6 +681,13 @@ func (s *AffiliateService) AdminListInviteRecords(ctx context.Context, filter Af
 		return nil, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
 	}
 	return s.repo.ListAffiliateInviteRecords(ctx, normalizeAffiliateRecordFilter(filter))
+}
+
+func (s *AffiliateService) AdminListSecondLevelRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateSecondLevelRecord, int64, error) {
+	if s == nil || s.repo == nil {
+		return nil, 0, infraerrors.ServiceUnavailable("SERVICE_UNAVAILABLE", "affiliate service unavailable")
+	}
+	return s.repo.ListAffiliateSecondLevelRecords(ctx, normalizeAffiliateRecordFilter(filter))
 }
 
 func (s *AffiliateService) AdminListRebateRecords(ctx context.Context, filter AffiliateRecordFilter) ([]AffiliateRebateRecord, int64, error) {

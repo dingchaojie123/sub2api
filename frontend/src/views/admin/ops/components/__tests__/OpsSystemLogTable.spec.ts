@@ -19,6 +19,10 @@ vi.mock('@/api/admin/ops', () => ({
   },
 }))
 
+vi.mock('@/composables/useDialog', () => ({
+  confirmDialog: vi.fn(async () => true),
+}))
+
 vi.mock('@/stores', () => ({
   useAppStore: () => ({
     showError: vi.fn(),
@@ -73,7 +77,6 @@ const sinkHealth = {
 describe('OpsSystemLogTable host support', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     mockListSystemLogs.mockResolvedValue({
       items: [
         {

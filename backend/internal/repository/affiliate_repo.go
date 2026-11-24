@@ -31,7 +31,12 @@ SELECT ua.user_id,
        ua.aff_count,
        COALESCE(rebated.rebated_invitee_count, 0),
        (ua.aff_quota + COALESCE(matured.matured_frozen_quota, 0))::double precision,
-       ua.aff_history_quota::double precision
+       ua.aff_history_quota::double precision,
+       (SELECT COUNT(*)::integer
+          FROM user_affiliates sl1
+          JOIN user_affiliates sl2 ON sl2.inviter_id = sl1.user_id
+         WHERE sl1.inviter_id = ua.user_id
+           AND sl2.user_id <> ua.user_id) AS second_level_count
 FROM user_affiliates ua
 JOIN users u ON u.id = ua.user_id
 LEFT JOIN (
@@ -383,6 +388,55 @@ LIMIT $2`, inviterID, limit)
 	return invitees, nil
 }
 
+// ListSecondLevelInvitees 返回 userID 的二级用户：inviter_id 指向 userID 的某位一级用户的人。
+//
+// 实现为 user_affiliates 自连接（l1 = 一级，l2 = 二级），走 idx_user_affiliates_inviter_id。
+// total 用窗口函数 COUNT(*) OVER() 一次取出，不受 LIMIT 影响。
+// 邀请关系理论上可能成环（A 邀请 B，随后 A 又绑定了 B 的邀请码），
+// 所以显式排除 userID 自身，避免自己出现在自己的二级列表里。
+func (r *affiliateRepository) ListSecondLevelInvitees(ctx context.Context, userID int64, limit int) ([]service.AffiliateSecondLevelInvitee, int, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+SELECT l2.user_id,
+       COALESCE(u2.email, ''),
+       COALESCE(u2.username, ''),
+       l2.created_at,
+       l1.user_id,
+       COALESCE(u1.email, ''),
+       (COUNT(*) OVER ())::integer AS total
+FROM user_affiliates l1
+JOIN user_affiliates l2 ON l2.inviter_id = l1.user_id
+LEFT JOIN users u1 ON u1.id = l1.user_id
+LEFT JOIN users u2 ON u2.id = l2.user_id
+WHERE l1.inviter_id = $1
+  AND l2.user_id <> $1
+ORDER BY l2.created_at DESC
+LIMIT $2`, userID, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := make([]service.AffiliateSecondLevelInvitee, 0)
+	total := 0
+	for rows.Next() {
+		var item service.AffiliateSecondLevelInvitee
+		var createdAt time.Time
+		if err := rows.Scan(&item.UserID, &item.Email, &item.Username, &createdAt, &item.ViaUserID, &item.ViaEmail, &total); err != nil {
+			return nil, 0, err
+		}
+		item.CreatedAt = &createdAt
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
 func (r *affiliateRepository) ListAffiliateInviteRecords(ctx context.Context, filter service.AffiliateRecordFilter) ([]service.AffiliateInviteRecord, int64, error) {
 	client := clientFromContext(ctx, r.client)
 	where, args := buildAffiliateRecordWhere(filter, "ua.created_at", []string{
@@ -448,6 +502,84 @@ LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
 			&item.InviteeUsername,
 			&item.AffCode,
 			&item.TotalRebate,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// ListAffiliateSecondLevelRecords 管理端「二级邀请」记录：全站所有 顶级邀请人 → 一级用户 → 二级用户 链路。
+//
+// l2 = 二级用户的 user_affiliates 行，l1 = 其邀请人（一级用户），root = l1 的邀请人（顶级）。
+// 邀请关系理论上可能成环（A 邀请 B，A 随后又绑定了 B 的邀请码），此时链路 A→B→A 的"二级用户"
+// 就是顶级邀请人自己，没有意义，所以排除 l2.user_id = l1.inviter_id 的行（与用户侧口径一致）。
+func (r *affiliateRepository) ListAffiliateSecondLevelRecords(ctx context.Context, filter service.AffiliateRecordFilter) ([]service.AffiliateSecondLevelRecord, int64, error) {
+	client := clientFromContext(ctx, r.client)
+	where, args := buildAffiliateRecordWhere(filter, "l2.created_at", []string{
+		"root.email", "root.username", "via.email", "via.username", "invitee.email", "invitee.username",
+		"l1.inviter_id::text", "l2.inviter_id::text", "l2.user_id::text",
+	})
+	baseJoin := `
+FROM user_affiliates l2
+JOIN user_affiliates l1 ON l1.user_id = l2.inviter_id
+JOIN users invitee ON invitee.id = l2.user_id
+JOIN users via ON via.id = l1.user_id
+JOIN users root ON root.id = l1.inviter_id
+WHERE l2.user_id <> l1.inviter_id`
+	if where != "" {
+		where = strings.Replace(where, "WHERE ", " AND ", 1)
+	}
+
+	total, err := queryAffiliateRecordCount(ctx, client, "SELECT COUNT(*) "+baseJoin+where, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	orderBy := buildAffiliateRecordOrderBy(filter, map[string]string{
+		"root":       "root.email",
+		"via":        "via.email",
+		"invitee":    "invitee.email",
+		"created_at": "l2.created_at",
+	}, "l2.created_at")
+	args = append(args, filter.PageSize, (filter.Page-1)*filter.PageSize)
+	rows, err := client.QueryContext(ctx, `
+SELECT l1.inviter_id,
+       COALESCE(root.email, ''),
+       COALESCE(root.username, ''),
+       l1.user_id,
+       COALESCE(via.email, ''),
+       COALESCE(via.username, ''),
+       l2.user_id,
+       COALESCE(invitee.email, ''),
+       COALESCE(invitee.username, ''),
+       l2.created_at
+`+baseJoin+where+`
+`+orderBy+`
+LIMIT $`+fmt.Sprint(len(args)-1)+` OFFSET $`+fmt.Sprint(len(args)), args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := make([]service.AffiliateSecondLevelRecord, 0)
+	for rows.Next() {
+		var item service.AffiliateSecondLevelRecord
+		if err := rows.Scan(
+			&item.RootID,
+			&item.RootEmail,
+			&item.RootUsername,
+			&item.ViaID,
+			&item.ViaEmail,
+			&item.ViaUsername,
+			&item.InviteeID,
+			&item.InviteeEmail,
+			&item.InviteeUsername,
 			&item.CreatedAt,
 		); err != nil {
 			return nil, 0, err
@@ -662,6 +794,7 @@ func (r *affiliateRepository) GetAffiliateUserOverview(ctx context.Context, user
 		&overview.RebatedInviteeCount,
 		&overview.AvailableQuota,
 		&overview.HistoryQuota,
+		&overview.SecondLevelCount,
 	); err != nil {
 		return nil, err
 	}

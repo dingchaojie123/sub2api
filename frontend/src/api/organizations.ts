@@ -1,4 +1,5 @@
 import { apiClient } from './client'
+import { fetchVideoBlob } from './videoTasks'
 
 export type OrganizationRole = 'owner' | 'admin' | 'member'
 
@@ -68,6 +69,61 @@ export interface OrganizationFundRecordPage {
   pages: number
 }
 
+/** 成员在某个模型上的用量 */
+export interface OrganizationMemberModelUsage {
+  model: string
+  total_requests: number
+  total_cost: number
+  input_tokens: number
+  output_tokens: number
+  image_count: number
+  video_count: number
+  last_used_at: string | null
+}
+
+export interface OrganizationMemberUsageDetail {
+  user_id: number
+  email: string
+  username: string
+  summary: OrganizationUsageReport['summary']
+  models: OrganizationMemberModelUsage[]
+}
+
+/** 成员提交的一条生成任务：视频任务，或批量图片任务 */
+export interface OrganizationMemberTask {
+  kind: 'video' | 'image_batch'
+  task_id: string
+  model: string
+  status: string
+  /** 视频任务为完整提示词；批量图片任务为前几条提示词预览（换行分隔）；历史任务可能为空 */
+  prompt: string
+  /** 视频：生成条数；批量图片：提交的图片条数 */
+  item_count: number
+  success_count: number
+  resolution: string
+  duration_seconds: number
+  cost: number | null
+  error_message: string
+  created_at: string
+  finished_at: string | null
+  /** 仅视频任务：结果视频可由本站代理播放 / 下载 */
+  can_play: boolean
+}
+
+export interface OrganizationMemberTaskPage {
+  items: OrganizationMemberTask[]
+  total: number
+  page: number
+  page_size: number
+  pages: number
+}
+
+export interface OrganizationDateRange {
+  /** YYYY-MM-DD，缺省为最近 30 天 */
+  start?: string
+  end?: string
+}
+
 export interface OrganizationAuditLog {
   id: number
   actor_user_id: number
@@ -96,5 +152,12 @@ export const organizationsAPI = {
   async withdraw(id: number, amount: number): Promise<Organization> { return (await apiClient.post('/organizations/withdraw', { organization_id: id, amount })).data },
   async usage(id: number): Promise<OrganizationUsageReport> { return (await apiClient.get('/organizations/usage', { params: { organization_id: id } })).data },
   async fundRecords(id: number, page = 1, pageSize = 20): Promise<OrganizationFundRecordPage> { return (await apiClient.get('/organizations/fund-records', { params: { organization_id: id, page, page_size: pageSize } })).data },
+  async memberUsage(id: number, userId: number, range: OrganizationDateRange = {}): Promise<OrganizationMemberUsageDetail> { return (await apiClient.get('/organizations/member-usage', { params: { organization_id: id, user_id: userId, ...range } })).data },
+  async memberTasks(id: number, userId: number, range: OrganizationDateRange = {}, page = 1, pageSize = 20): Promise<OrganizationMemberTaskPage> { return (await apiClient.get('/organizations/member-tasks', { params: { organization_id: id, user_id: userId, ...range, page, page_size: pageSize } })).data },
+  /** 成员视频成果（仅超级管理员 / 管理员）：整段取回为 Blob，用于播放和下载 */
+  async memberTaskContent(id: number, userId: number, taskId: string, options?: { signal?: AbortSignal }): Promise<Blob> {
+    const query = new URLSearchParams({ organization_id: String(id), user_id: String(userId), task_id: taskId })
+    return fetchVideoBlob(`/organizations/member-tasks/content?${query.toString()}`, options)
+  },
   async auditLogs(id: number): Promise<OrganizationAuditLog[]> { return (await apiClient.get('/organizations/audit-logs', { params: { organization_id: id } })).data },
 }

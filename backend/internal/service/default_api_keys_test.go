@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -165,6 +166,31 @@ func TestEnsureDefaultAPIKeysCreatesAvailableGroupsWhenOneIsMissing(t *testing.T
 	for i, item := range keys {
 		require.Equal(t, defaultAPIKeyGroups[i].Purpose, item.Purpose)
 	}
+}
+
+func TestEnsureDefaultAPIKeysDoesNotFailOnRepeatCallWhenOneGroupIsMissing(t *testing.T) {
+	svc, repo, groups := newDefaultKeysTestService()
+	groups.groups = groups.groups[:3]
+
+	first, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+	require.NoError(t, err)
+	require.Len(t, first, 3)
+
+	// 第二次调用没有新的槽位可建，但已有的 3 个默认 Key 必须照常返回，不能 503。
+	second, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+	require.NoError(t, err)
+	require.Len(t, second, 3)
+	require.Equal(t, 1, repo.writes)
+}
+
+func TestEnsureDefaultAPIKeysFailsWhenNoSlotCanBeProvisioned(t *testing.T) {
+	svc, _, groups := newDefaultKeysTestService()
+	groups.groups = nil
+
+	_, err := svc.EnsureDefaultAPIKeys(context.Background(), 7)
+
+	require.Error(t, err)
+	require.Equal(t, "DEFAULT_API_KEY_GROUP_UNAVAILABLE", infraerrors.Reason(err))
 }
 
 func TestEnsureDefaultAPIKeysDoesNotFallBackToCapabilityGroup(t *testing.T) {

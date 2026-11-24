@@ -163,6 +163,8 @@ describe('ModelListView', () => {
       ['Seedance2.0--480p/720p/1080p/4k--官方按条--按次--V6K', '11', ['9', '0', '3'], '4–15 秒'],
       ['Seedance2.0--480p/720p--官方fast--按次--V6K', '5', ['9', '0', '3'], '4–15 秒'],
       ['Seedance2.0--480p/720p--mini--按次--V6K', '4', ['9', '0', '3'], '4–15 秒'],
+      // 2026-11-23: V6K 活动 (seedanco2.5-720)
+      ['Seedance2.5--720p--活动--按次--V6K', '19', ['30', '10', '10'], '4–30 秒'],
     ]
     const refValue = (item: (typeof modelSquareCatalog)[number], label: string) =>
       item.specs.find((row) => row.label === label)?.value ?? ''

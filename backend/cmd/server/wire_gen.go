@@ -72,7 +72,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	schedulerCache := repository.ProvideSchedulerCache(redisClient, configConfig)
 	accountRepository := repository.NewAccountRepository(client, db, schedulerCache)
 	concurrencyService := service.ProvideConcurrencyService(concurrencyCache, accountRepository, configConfig)
-	organizationRepository := repository.NewOrganizationRepository(db)
+	organizationRepository := repository.NewOrganizationRepository(db, configConfig)
 	enterpriseRepository := repository.NewEnterpriseRepository(db)
 	enterpriseService := service.NewEnterpriseService(enterpriseRepository)
 	apiKeyService := service.ProvideAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig, billingCacheService, concurrencyService, organizationRepository)

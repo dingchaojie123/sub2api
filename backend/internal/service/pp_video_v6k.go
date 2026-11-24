@@ -25,7 +25,7 @@ import (
 // take no reference video, so edit and extend (which need one) are not offered: a request that
 // names one of them, or sends `size`, is refused with a message instead of being dropped.
 //
-// Three models are offered (the operator's decision, 2026-11-21), described with the same table
+// Four models are offered (the first three: the operator's decision, 2026-11-21), described with the same table
 // type as the jijiu platform (jijiuModelSpec) and run through the same normalizer
 // (normalizeSeedanceSpecPayload) for the prompt, the length, the resolution and the reference
 // limits:
@@ -35,7 +35,11 @@ import (
 //   - 官方sd2.0-fast ("官方原生不卡脸"): 480p / 720p (720p when left out), 4-15 s, 9 images / 0 videos
 //     / 3 audios, billed per request (channel: 5 credits);
 //   - SD2.0-mini ("官方原生不卡脸"): 480p / 720p (720p when left out), 4-15 s, 9 images / 0 videos / 3
-//     audios, billed per request (channel: 4 credits).
+//     audios, billed per request (channel: 4 credits);
+//   - seedanco2.5-720 ("活动", Seedance 2.5, added 2026-11-23): 720p only, 4-30 s, 30 images / 10
+//     videos / 10 audios, billed per request (channel: 19 credits). This is the only model of the
+//     platform that takes reference videos; the price is flat per request, so a request with
+//     reference videos costs the same here whatever the supplier charges for them.
 //
 // The operator's text gives the length twice, "4-15秒" in the parameter block and "5-15秒" in the
 // one-line summary; the parameter block is what the site's model list shows, so 4-15 is used (a
@@ -88,6 +92,16 @@ var v6kSeedanceModels = []jijiuModelSpec{
 		Name: "SD2.0-mini", PublicName: "Seedance2.0-V6K-mini", MinSeconds: 4, MaxSeconds: 15,
 		Resolutions: []string{"480p", "720p"}, DefaultResolution: "720p", ForwardResolution: true,
 		MaxImages: 9, MaxVideos: 0, MaxAudios: 3, RatioField: "ratio",
+	},
+	{
+		// 活动 Seedance 2.5 (added 2026-11-23), per request (channel: 19 credits). 720p only, 4-30 s,
+		// 30 images / 10 videos / 10 audios. The upstream id is spelled exactly as the operator wrote it
+		// ("seedanco": the operator confirmed that spelling when asked, 2026-11-23; if the supplier's
+		// site shows "seedance2.5-720", change Name here and nothing else — the public name, the hub
+		// line and the price card are independent of it).
+		Name: "seedanco2.5-720", PublicName: "Seedance2.5-V6K-720", MinSeconds: 4, MaxSeconds: 30,
+		Resolutions: []string{"720p"}, DefaultResolution: "720p", ForwardResolution: true,
+		MaxImages: 30, MaxVideos: 10, MaxAudios: 10, RatioField: "ratio",
 	},
 }
 

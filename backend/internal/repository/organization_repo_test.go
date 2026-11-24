@@ -21,14 +21,17 @@ func TestOrganizationAPIKeyBillingSourcesPreserveInactiveBinding(t *testing.T) {
 	ids := []int64{10, 11}
 	mock.ExpectQuery(`SELECT ok.api_key_id,o.id,o.name,o.status,m.status,ok.status`).
 		WithArgs(pq.Array(ids)).
-		WillReturnRows(sqlmock.NewRows([]string{"api_key_id", "organization_id", "name", "organization_status", "member_status", "binding_status"}).
-			AddRow(int64(10), int64(7), "研发团队", "active", "active", "active").
-			AddRow(int64(11), int64(8), "已删除团队", "deleted", "disabled", "inactive"))
+		WillReturnRows(sqlmock.NewRows([]string{"api_key_id", "organization_id", "name", "organization_status", "member_status", "binding_status", "shared_with_team", "shared_from_team"}).
+			AddRow(int64(10), int64(7), "研发团队", "active", "active", "active", true, false).
+			AddRow(int64(11), int64(8), "已删除团队", "deleted", "disabled", "inactive", false, true))
 
 	sources, err := (&organizationRepository{db: db}).GetAPIKeyBillingSources(context.Background(), ids)
 	require.NoError(t, err)
 	require.Equal(t, service.APIKeyBillingSourceActive, sources[10].Status)
+	require.True(t, sources[10].SharedWithTeam)
+	require.False(t, sources[10].SharedFromTeam)
 	require.Equal(t, service.APIKeyBillingSourceInactive, sources[11].Status)
+	require.True(t, sources[11].SharedFromTeam)
 	require.Equal(t, "已删除团队", sources[11].OrganizationName)
 	require.NoError(t, mock.ExpectationsWereMet())
 }

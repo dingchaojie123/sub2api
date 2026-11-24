@@ -95,6 +95,7 @@ import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { BatchUpdateUserLimitsRequest } from '@/api/admin/users'
 import { useAppStore } from '@/stores/app'
+import { confirmDialog } from '@/composables/useDialog'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
 
@@ -185,7 +186,7 @@ const handleSubmit = async () => {
     )
   }
 
-  const confirmed = window.confirm(
+  const confirmed = await confirmDialog(
     t('admin.users.bulkLimits.confirm', {
       count: props.selectedIds.length,
       fields: fields.join(', ')

@@ -468,6 +468,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'v
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { confirmDialog } from '@/composables/useDialog'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
 import { useTableLoader } from '@/composables/useTableLoader'
@@ -1454,9 +1455,9 @@ const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
   toggleVisible(target.checked)
 }
-const handleBulkDelete = async () => { if(!confirm(t('common.confirm'))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
+const handleBulkDelete = async () => { if(!(await confirmDialog(t('common.confirm'), { danger: true }))) return; try { await Promise.all(selIds.value.map(id => adminAPI.accounts.delete(id))); clearSelection(); reload() } catch (error) { console.error('Failed to bulk delete accounts:', error) } }
 const handleBulkResetStatus = async () => {
-  if (!confirm(t('common.confirm'))) return
+  if (!(await confirmDialog(t('common.confirm')))) return
   try {
     const result = await adminAPI.accounts.batchClearError(selIds.value)
     if (result.failed > 0) {
@@ -1472,7 +1473,7 @@ const handleBulkResetStatus = async () => {
   }
 }
 const handleBulkRefreshToken = async () => {
-  if (!confirm(t('common.confirm'))) return
+  if (!(await confirmDialog(t('common.confirm')))) return
   try {
     const result = await adminAPI.accounts.batchRefresh(selIds.value)
     if (result.failed > 0) {

@@ -4,11 +4,97 @@ package service
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+// secondLevelRepoStub 内嵌接口（nil），只实现 GetAffiliateDetail 路径会调用的方法；
+// 其余方法若被误调用会因 nil 接口 panic，从而暴露测试外的意外依赖。
+type secondLevelRepoStub struct {
+	AffiliateRepository
+	invitees         []AffiliateInvitee
+	secondLevel      []AffiliateSecondLevelInvitee
+	secondLevelTotal int
+	secondLevelErr   error
+}
+
+func (r *secondLevelRepoStub) ThawFrozenQuota(context.Context, int64) (float64, error) {
+	return 0, nil
+}
+
+func (r *secondLevelRepoStub) EnsureUserAffiliate(_ context.Context, userID int64) (*AffiliateSummary, error) {
+	return &AffiliateSummary{UserID: userID, AffCode: "ROOTCODE", CreatedAt: time.Now()}, nil
+}
+
+func (r *secondLevelRepoStub) ListInvitees(context.Context, int64, int) ([]AffiliateInvitee, error) {
+	return r.invitees, nil
+}
+
+func (r *secondLevelRepoStub) ListSecondLevelInvitees(context.Context, int64, int) ([]AffiliateSecondLevelInvitee, int, error) {
+	return r.secondLevel, r.secondLevelTotal, r.secondLevelErr
+}
+
+// TestGetAffiliateDetail_SecondLevelInvitees 验证二级用户：邮箱（含「经由」的一级用户邮箱）
+// 被脱敏，总数取自仓储（可大于返回条数），且不影响一级列表。
+func TestGetAffiliateDetail_SecondLevelInvitees(t *testing.T) {
+	t.Parallel()
+	created := time.Now()
+	svc := &AffiliateService{repo: &secondLevelRepoStub{
+		invitees: []AffiliateInvitee{{UserID: 2, Email: "bob@gmail.com"}},
+		secondLevel: []AffiliateSecondLevelInvitee{
+			{UserID: 3, Email: "carol@gmail.com", Username: "carol", CreatedAt: &created, ViaUserID: 2, ViaEmail: "bob@gmail.com"},
+		},
+		secondLevelTotal: 250, // 超过单次返回上限时，总数仍要如实反映
+	}}
+
+	detail, err := svc.GetAffiliateDetail(context.Background(), 1)
+	require.NoError(t, err)
+
+	require.Len(t, detail.Invitees, 1)
+	require.Equal(t, "b***@g***.com", detail.Invitees[0].Email)
+
+	require.Equal(t, 250, detail.SecondLevelCount)
+	require.Len(t, detail.SecondLevelInvitees, 1)
+	got := detail.SecondLevelInvitees[0]
+	require.Equal(t, int64(3), got.UserID)
+	require.Equal(t, "c***@g***.com", got.Email, "second-level email must be masked")
+	require.Equal(t, "b***@g***.com", got.ViaEmail, "via email must be masked")
+	require.Equal(t, int64(2), got.ViaUserID)
+}
+
+// TestGetAffiliateDetail_SecondLevelFailureDegrades 验证二级查询失败时整页不报错：
+// 一级数据、额度等照常返回，二级降级为空列表（非 nil，避免前端拿到 null）。
+func TestGetAffiliateDetail_SecondLevelFailureDegrades(t *testing.T) {
+	t.Parallel()
+	svc := &AffiliateService{repo: &secondLevelRepoStub{
+		invitees:         []AffiliateInvitee{{UserID: 2, Email: "bob@gmail.com"}},
+		secondLevelTotal: 9,
+		secondLevelErr:   errors.New("db down"),
+	}}
+
+	detail, err := svc.GetAffiliateDetail(context.Background(), 1)
+	require.NoError(t, err)
+	require.Len(t, detail.Invitees, 1)
+	require.Equal(t, 0, detail.SecondLevelCount)
+	require.NotNil(t, detail.SecondLevelInvitees)
+	require.Empty(t, detail.SecondLevelInvitees)
+}
+
+// TestGetAffiliateDetail_SecondLevelEmptyIsNotNil 验证无二级用户时返回空数组而非 null。
+func TestGetAffiliateDetail_SecondLevelEmptyIsNotNil(t *testing.T) {
+	t.Parallel()
+	svc := &AffiliateService{repo: &secondLevelRepoStub{}} // 仓储返回 nil 切片
+
+	detail, err := svc.GetAffiliateDetail(context.Background(), 1)
+	require.NoError(t, err)
+	require.NotNil(t, detail.SecondLevelInvitees)
+	require.Empty(t, detail.SecondLevelInvitees)
+	require.Equal(t, 0, detail.SecondLevelCount)
+}
 
 // TestResolveRebateRatePercent_PerUserOverride verifies that per-inviter
 // AffRebateRatePercent overrides the global rate, that NULL falls back to the

@@ -201,6 +201,19 @@
                 <span v-else class="block text-xs text-gray-500 dark:text-gray-400">
                   {{ t('keys.setBillingSource') }}
                 </span>
+                <span
+                  v-if="row.billing_source?.shared_with_team"
+                  class="mt-0.5 inline-block rounded bg-primary-50 px-1.5 py-0.5 text-[11px] font-medium text-primary-700 dark:bg-primary-900/25 dark:text-primary-300"
+                >
+                  {{ t('keys.sharedWithTeamBadge') }}
+                </span>
+                <span
+                  v-else-if="row.billing_source?.shared_from_team"
+                  class="mt-0.5 inline-block rounded bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-300"
+                  :title="t('keys.sharedFromTeamHint')"
+                >
+                  {{ t('keys.sharedFromTeamBadge') }}
+                </span>
               </span>
             </button>
           </template>
@@ -504,6 +517,16 @@
             </option>
           </select>
           <p class="input-hint">{{ formData.organization_id ? t('keys.teamBalanceHint') : t('keys.personalBalanceHint') }}</p>
+          <label
+            v-if="formData.organization_id != null && isTeamOwner(formData.organization_id)"
+            class="mt-3 flex cursor-pointer items-start gap-2"
+          >
+            <input v-model="formData.share_with_team" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <span>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('keys.shareWithTeam') }}</span>
+              <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('keys.shareWithTeamHint') }}</span>
+            </span>
+          </label>
         </div>
 
         <div>
@@ -1015,6 +1038,16 @@
               {{ organization.name }} · {{ t('keys.teamSharedBalance') }}
             </option>
           </select>
+          <label
+            v-if="billingSourceSelectedOrganizationId !== null && isTeamOwner(billingSourceSelectedOrganizationId)"
+            class="mt-3 flex cursor-pointer items-start gap-2"
+          >
+            <input v-model="billingSourceShare" type="checkbox" class="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+            <span>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">{{ t('keys.shareWithTeam') }}</span>
+              <span class="block text-xs text-gray-500 dark:text-gray-400">{{ t('keys.shareWithTeamHint') }}</span>
+            </span>
+          </label>
         </div>
       </div>
       <template #footer>
@@ -1388,6 +1421,14 @@ const selectedKey = ref<ApiKey | null>(null)
 const billingSourceKey = ref<ApiKey | null>(null)
 const billingSourceSelection = ref('personal')
 const billingSourceSubmitting = ref(false)
+const billingSourceShare = ref(false)
+const billingSourceSelectedOrganizationId = computed<number | null>(() => {
+  const value = billingSourceSelection.value
+  return value.startsWith('organization:') ? Number(value.slice('organization:'.length)) : null
+})
+// 只有团队创建者（owner）能把团队 Key 共享给成员。
+const isTeamOwner = (organizationId: number) =>
+  organizations.value.some((organization) => organization.id === organizationId && organization.role === 'owner')
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
@@ -1415,6 +1456,7 @@ const formData = ref({
   name: '',
   group_id: null as number | null,
   organization_id: null as number | null,
+  share_with_team: false,
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1634,6 +1676,7 @@ const openBillingSourceDialog = (key: ApiKey) => {
   billingSourceSelection.value = key.billing_source?.type === 'organization' && key.billing_source.organization_id
     ? `organization:${key.billing_source.organization_id}`
     : 'personal'
+  billingSourceShare.value = !!key.billing_source?.shared_with_team
   showBillingSourceDialog.value = true
 }
 
@@ -1645,18 +1688,47 @@ const closeBillingSourceDialog = () => {
 
 const saveBillingSource = async () => {
   if (!billingSourceKey.value) return
+  const key = billingSourceKey.value
+  const current = key.billing_source
   const isOrganization = billingSourceSelection.value.startsWith('organization:')
   const organizationId = isOrganization
     ? Number(billingSourceSelection.value.slice('organization:'.length))
     : undefined
+  const currentSelection = current?.type === 'organization' && current.organization_id
+    ? `organization:${current.organization_id}`
+    : 'personal'
+  const sourceChanged = billingSourceSelection.value !== currentSelection
+  // 想要的共享状态 vs 目前的共享状态。换了计费来源后，后端会收回原来发给成员的副本，所以视为「未共享」。
+  const wantShare = organizationId !== undefined && isTeamOwner(organizationId) && billingSourceShare.value
+  const hadShare = !sourceChanged && !!current?.shared_with_team
+  // 只切换「共享给团队成员」时不必重复提交计费来源；但绑定已失效时仍要重新提交，它会把绑定恢复为有效。
+  const onlyShareToggled = !sourceChanged && wantShare !== hadShare && current?.status !== 'inactive'
   billingSourceSubmitting.value = true
   try {
-    await keysAPI.setBillingSource(
-      billingSourceKey.value.id,
-      isOrganization ? 'organization' : 'personal',
-      organizationId
-    )
-    appStore.showSuccess(t('keys.billingSourceUpdatedSuccess'))
+    if (!onlyShareToggled) {
+      await keysAPI.setBillingSource(
+        key.id,
+        isOrganization ? 'organization' : 'personal',
+        organizationId
+      )
+      appStore.showSuccess(t('keys.billingSourceUpdatedSuccess'))
+    }
+    if (wantShare !== hadShare) {
+      try {
+        const result = await keysAPI.setTeamShare(key.id, wantShare)
+        if (wantShare) {
+          appStore.showSuccess(t('keys.teamShareEnabledSuccess', { issued: result.issued }))
+          if (result.skipped > 0) {
+            appStore.showWarning(t('keys.teamShareSkipped', { skipped: result.skipped }))
+          }
+        } else {
+          appStore.showSuccess(t('keys.teamShareDisabledSuccess'))
+        }
+      } catch (error: any) {
+        // 计费来源可能已经切换成功，单独提示共享失败，不要让用户以为整个操作都没生效。
+        appStore.showError(error.response?.data?.detail || error.message || t('keys.failedToUpdateTeamShare'))
+      }
+    }
     showBillingSourceDialog.value = false
     billingSourceKey.value = null
     await loadApiKeys()
@@ -1703,6 +1775,7 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     group_id: key.group_id,
     organization_id: null,
+    share_with_team: false,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1881,7 +1954,8 @@ const handleSubmit = async () => {
         quota,
         expiresInDays,
         rateLimitData,
-        formData.value.organization_id ?? undefined
+        formData.value.organization_id ?? undefined,
+        formData.value.organization_id != null && formData.value.share_with_team && isTeamOwner(formData.value.organization_id)
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1928,6 +2002,7 @@ const closeModals = () => {
     name: '',
     group_id: null,
     organization_id: null,
+    share_with_team: false,
     status: 'active',
     use_custom_key: false,
     custom_key: '',

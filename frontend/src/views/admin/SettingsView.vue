@@ -7686,6 +7686,7 @@ import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
+import { confirmDialog } from "@/composables/useDialog";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
@@ -8845,7 +8846,7 @@ function quotaPercentage(provider: WebSearchProviderConfig): number {
 async function resetWebSearchUsage(idx: number) {
   const provider = webSearchConfig.providers[idx];
   if (!provider) return;
-  if (!confirm(t("admin.settings.webSearchEmulation.resetUsageConfirm")))
+  if (!(await confirmDialog(t("admin.settings.webSearchEmulation.resetUsageConfirm"))))
     return;
   try {
     await adminAPI.settings.resetWebSearchUsage({
@@ -10413,12 +10414,12 @@ async function createAdminApiKey() {
 }
 
 async function regenerateAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.regenerateConfirm"))) return;
+  if (!(await confirmDialog(t("admin.settings.adminApiKey.regenerateConfirm"), { danger: true }))) return;
   await createAdminApiKey();
 }
 
 async function deleteAdminApiKey() {
-  if (!confirm(t("admin.settings.adminApiKey.deleteConfirm"))) return;
+  if (!(await confirmDialog(t("admin.settings.adminApiKey.deleteConfirm"), { danger: true }))) return;
   adminApiKeyOperating.value = true;
   try {
     await adminAPI.settings.deleteAdminApiKey();

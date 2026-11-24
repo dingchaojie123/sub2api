@@ -21,6 +21,9 @@ type User struct {
 	Balance        float64
 	DisplayBalance float64
 	FrozenBalance  float64
+	// FrozenDisplayBalance 是冻结中的积分（与 DisplayBalance 同口径）；
+	// FrozenBalance 是冻结中的真实余额。前台展示冻结积分应使用本字段。
+	FrozenDisplayBalance float64
 	Concurrency    int
 	Status         string
 	AllowedGroups  []int64

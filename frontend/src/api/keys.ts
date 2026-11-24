@@ -67,7 +67,8 @@ export async function create(
   quota?: number,
   expiresInDays?: number,
   rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
-  organizationId?: number
+  organizationId?: number,
+  shareWithTeam?: boolean
 ): Promise<ApiKey> {
   const payload: CreateApiKeyRequest = { name }
   if (groupId !== undefined) {
@@ -99,6 +100,9 @@ export async function create(
   }
   if (organizationId !== undefined) {
     payload.organization_id = organizationId
+    if (shareWithTeam) {
+      payload.share_with_team = true
+    }
   }
 
   const { data } = await apiClient.post<ApiKey>('/keys', payload)
@@ -151,6 +155,28 @@ export async function setBillingSource(
   return data
 }
 
+export interface TeamShareResult {
+  key: ApiKey
+  /** Number of member copies issued (or restored) by this call. */
+  issued: number
+  /** Active members that still have no copy (e.g. no access to the key's exclusive group). */
+  skipped: number
+}
+
+/**
+ * Team owner only: share (or stop sharing) a team-billed key with team members.
+ * Each member gets their own copy of the key; members who join later get it automatically.
+ */
+export async function setTeamShare(apiKeyId: number, shared: boolean): Promise<TeamShareResult> {
+  const { data } = await apiClient.put<TeamShareResult>('/keys/team-share', {
+    api_key_id: apiKeyId,
+    shared
+  }, {
+    headers: { 'Idempotency-Key': `key-team-share-${apiKeyId}-${crypto.randomUUID()}` }
+  })
+  return data
+}
+
 export const keysAPI = {
   list,
   getById,
@@ -158,7 +184,8 @@ export const keysAPI = {
   update,
   delete: deleteKey,
   toggleStatus,
-  setBillingSource
+  setBillingSource,
+  setTeamShare
 }
 
 export default keysAPI

@@ -3675,6 +3675,7 @@
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
+import { confirmDialog } from '@/composables/useDialog'
 import {
   claudeModels,
   getPresetMappingsByPlatform,
@@ -4626,16 +4627,16 @@ const addAntigravityPresetMapping = (from: string, to: string) => {
 }
 
 // Error code toggle helper
-const toggleErrorCode = (code: number) => {
+const toggleErrorCode = async (code: number) => {
   const index = selectedErrorCodes.value.indexOf(code)
   if (index === -1) {
     // Adding code - check for 429/529 warning
     if (code === 429) {
-      if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+      if (!(await confirmDialog(t('admin.accounts.customErrorCodes429Warning')))) {
         return
       }
     } else if (code === 529) {
-      if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+      if (!(await confirmDialog(t('admin.accounts.customErrorCodes529Warning')))) {
         return
       }
     }
@@ -4646,7 +4647,7 @@ const toggleErrorCode = (code: number) => {
 }
 
 // Add custom error code from input
-const addCustomErrorCode = () => {
+const addCustomErrorCode = async () => {
   const code = customErrorCodeInput.value
   if (code === null || code < 100 || code > 599) {
     appStore.showError(t('admin.accounts.invalidErrorCode'))
@@ -4658,11 +4659,11 @@ const addCustomErrorCode = () => {
   }
   // Check for 429/529 warning
   if (code === 429) {
-    if (!confirm(t('admin.accounts.customErrorCodes429Warning'))) {
+    if (!(await confirmDialog(t('admin.accounts.customErrorCodes429Warning')))) {
       return
     }
   } else if (code === 529) {
-    if (!confirm(t('admin.accounts.customErrorCodes529Warning'))) {
+    if (!(await confirmDialog(t('admin.accounts.customErrorCodes529Warning')))) {
       return
     }
   }
